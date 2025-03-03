@@ -23,10 +23,10 @@ export const DASHBOARD_SECTIONS = [
 ];
 
 export const MOCK_STATS = [
-  { name: "Total Users", value: "2,543", change: "+12.3%", trend: "up" },
-  { name: "Active Courses", value: "48", change: "+3.2%", trend: "up" },
-  { name: "Completion Rate", value: "76%", change: "-1.8%", trend: "down" },
-  { name: "Messages Sent", value: "12,498", change: "+24.5%", trend: "up" },
+  { name: "Total Users", value: "2,543", change: "+12.3%", trend: "up" as "up" },
+  { name: "Active Courses", value: "48", change: "+3.2%", trend: "up" as "up" },
+  { name: "Completion Rate", value: "76%", change: "-1.8%", trend: "down" as "down" },
+  { name: "Messages Sent", value: "12,498", change: "+24.5%", trend: "up" as "up" },
 ];
 
 export const MOCK_COURSES = [
@@ -35,7 +35,7 @@ export const MOCK_COURSES = [
     title: "Introduction to Management",
     enrolled: 342,
     completion: 78,
-    status: "active",
+    status: "active" as "active",
     created: "2023-10-15",
   },
   {
@@ -43,7 +43,7 @@ export const MOCK_COURSES = [
     title: "Digital Marketing Essentials",
     enrolled: 254,
     completion: 65,
-    status: "active",
+    status: "active" as "active",
     created: "2023-11-20",
   },
   {
@@ -51,7 +51,7 @@ export const MOCK_COURSES = [
     title: "Leadership Skills",
     enrolled: 189,
     completion: 82,
-    status: "active",
+    status: "active" as "active",
     created: "2023-09-05",
   },
   {
@@ -59,7 +59,7 @@ export const MOCK_COURSES = [
     title: "Data Analysis Fundamentals",
     enrolled: 201,
     completion: 53,
-    status: "draft",
+    status: "draft" as "draft",
     created: "2024-01-10",
   },
 ];
@@ -72,7 +72,7 @@ export const MOCK_USERS = [
     role: "Student",
     courses: 3,
     joined: "2023-08-10",
-    status: "active",
+    status: "active" as "active",
   },
   {
     id: 2,
@@ -81,7 +81,7 @@ export const MOCK_USERS = [
     role: "Student",
     courses: 4,
     joined: "2023-09-15",
-    status: "active",
+    status: "active" as "active",
   },
   {
     id: 3,
@@ -90,7 +90,7 @@ export const MOCK_USERS = [
     role: "Instructor",
     courses: 2,
     joined: "2023-07-20",
-    status: "active",
+    status: "active" as "active",
   },
   {
     id: 4,
@@ -99,6 +99,6 @@ export const MOCK_USERS = [
     role: "Student",
     courses: 1,
     joined: "2023-10-05",
-    status: "inactive",
+    status: "inactive" as "inactive",
   },
 ];
