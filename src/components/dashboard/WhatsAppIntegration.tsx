@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { MessageCircle, Send, Code, Plus, Save } from "lucide-react";
 
 const WhatsAppIntegration = () => {
@@ -121,7 +122,7 @@ const WhatsAppIntegration = () => {
                         Sent when a new user joins a course
                       </p>
                     </div>
-                    <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Approved</Badge>
+                    <Badge variant="outline" className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Approved</Badge>
                   </div>
                   <div className="mt-4 p-3 bg-muted rounded-md text-sm">
                     Hello, {{1}}! Welcome to {{2}}. Your course starts on {{3}}. Reply INFO for more details.
@@ -140,7 +141,7 @@ const WhatsAppIntegration = () => {
                         Delivers daily course content
                       </p>
                     </div>
-                    <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Approved</Badge>
+                    <Badge variant="outline" className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Approved</Badge>
                   </div>
                   <div className="mt-4 p-3 bg-muted rounded-md text-sm">
                     Today's lesson: {{1}}
@@ -202,15 +203,6 @@ const WhatsAppIntegration = () => {
         </TabsContent>
       </Tabs>
     </div>
-  );
-};
-
-// Temporary Badge component since it's used above but not explicitly imported yet
-const Badge = ({ children, className }: { children: React.ReactNode; className?: string }) => {
-  return (
-    <span className={`px-2 py-1 rounded-full text-xs font-medium ${className}`}>
-      {children}
-    </span>
   );
 };
 
