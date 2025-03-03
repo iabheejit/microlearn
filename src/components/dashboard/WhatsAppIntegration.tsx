@@ -125,7 +125,7 @@ const WhatsAppIntegration = () => {
                     <Badge variant="outline" className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Approved</Badge>
                   </div>
                   <div className="mt-4 p-3 bg-muted rounded-md text-sm">
-                    Hello, {{1}}! Welcome to {{2}}. Your course starts on {{3}}. Reply INFO for more details.
+                    Hello, {'{'}{'{'}{1}{'}'}{'}'}{`!`} Welcome to {'{'}{'{'}{2}{'}'}{'}'}. Your course starts on {'{'}{'{'}{3}{'}'}{'}'}{`!`} Reply INFO for more details.
                   </div>
                   <div className="mt-4 flex gap-2">
                     <Button variant="outline" size="sm">Preview</Button>
@@ -144,11 +144,11 @@ const WhatsAppIntegration = () => {
                     <Badge variant="outline" className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Approved</Badge>
                   </div>
                   <div className="mt-4 p-3 bg-muted rounded-md text-sm">
-                    Today's lesson: {{1}}
+                    Today's lesson: {'{'}{'{'}{1}{'}'}{'}'}
                     
-                    {{2}}
+                    {'{'}{'{'}{2}{'}'}{'}'}{`
                     
-                    Reply with your answer to the question above.
+                    Reply with your answer to the question above.`}
                   </div>
                   <div className="mt-4 flex gap-2">
                     <Button variant="outline" size="sm">Preview</Button>
