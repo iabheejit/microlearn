@@ -12,10 +12,28 @@ export interface User {
 export interface Course {
   id: number;
   title: string;
+  instructor?: string;
+  description?: string;
+  category?: string;
+  language?: string;
+  price?: number;
   enrolled: number;
   completion: number;
   status: "active" | "draft" | "archived";
   created: string;
+  days?: CourseDay[];
+}
+
+export interface CourseDay {
+  id: number;
+  title: string;
+  paragraphs: CourseParagraph[];
+  media?: string;
+}
+
+export interface CourseParagraph {
+  id: number;
+  content: string;
 }
 
 export interface Stat {
@@ -46,3 +64,4 @@ export interface Organization {
   users: number;
   courses: number;
 }
+

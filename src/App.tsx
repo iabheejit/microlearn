@@ -8,6 +8,8 @@ import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Courses from "./pages/Courses";
+import CourseEditor from "./pages/CourseEditor";
+import CoursePreview from "./pages/CoursePreview";
 import Users from "./pages/Users";
 import WhatsApp from "./pages/WhatsApp";
 import Analytics from "./pages/Analytics";
@@ -28,6 +30,9 @@ const App = () => (
           <Route path={ROUTES.LOGIN} element={<Login />} />
           <Route path={ROUTES.DASHBOARD} element={<Dashboard />} />
           <Route path={ROUTES.COURSES} element={<Courses />} />
+          <Route path="/courses/editor" element={<CourseEditor />} />
+          <Route path="/courses/editor/:id" element={<CourseEditor />} />
+          <Route path="/courses/preview/:id" element={<CoursePreview />} />
           <Route path={ROUTES.USERS} element={<Users />} />
           <Route path={ROUTES.WHATSAPP} element={<WhatsApp />} />
           <Route path={ROUTES.ANALYTICS} element={<Analytics />} />

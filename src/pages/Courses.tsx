@@ -1,5 +1,6 @@
 
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Sidebar from "@/components/dashboard/Sidebar";
 import CoursesList from "@/components/dashboard/CoursesList";
 import { MOCK_COURSES } from "@/lib/constants";
@@ -15,6 +16,7 @@ import { Course } from "@/lib/types";
 
 const Courses = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [courses, setCourses] = useState<Course[]>(MOCK_COURSES);
   const [open, setOpen] = useState(false);
   const [courseTitle, setCourseTitle] = useState("");
@@ -34,6 +36,7 @@ const Courses = () => {
     const newCourse: Course = {
       id: courses.length + 1,
       title: courseTitle,
+      description: courseDescription,
       enrolled: 0,
       completion: 0,
       status: courseStatus,
@@ -50,6 +53,13 @@ const Courses = () => {
       title: "Course created",
       description: `${courseTitle} has been created successfully.`
     });
+    
+    // Navigate to the course editor
+    navigate(`/courses/editor`, { state: { course: newCourse } });
+  };
+
+  const handleCreateNewCourse = () => {
+    navigate('/courses/editor');
   };
 
   return (
@@ -65,66 +75,10 @@ const Courses = () => {
               </p>
             </div>
             
-            <Dialog open={open} onOpenChange={setOpen}>
-              <DialogTrigger asChild>
-                <Button className="flex items-center gap-2">
-                  <Plus size={16} />
-                  Add Course
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px]">
-                <DialogHeader>
-                  <DialogTitle>Create New Course</DialogTitle>
-                  <DialogDescription>
-                    Add a new course to your learning platform.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="title">Course Title</Label>
-                    <Input
-                      id="title"
-                      placeholder="Enter course title"
-                      value={courseTitle}
-                      onChange={(e) => setCourseTitle(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="description">Description</Label>
-                    <Textarea
-                      id="description"
-                      placeholder="Enter course description"
-                      value={courseDescription}
-                      onChange={(e) => setCourseDescription(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="status">Status</Label>
-                    <Select 
-                      value={courseStatus} 
-                      onValueChange={(value) => setCourseStatus(value as "active" | "draft" | "archived")}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="draft">Draft</SelectItem>
-                        <SelectItem value="archived">Archived</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleAddCourse}>
-                    Create Course
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <Button className="flex items-center gap-2" onClick={handleCreateNewCourse}>
+              <Plus size={16} />
+              Add Course
+            </Button>
           </header>
 
           <CoursesList courses={courses} />
