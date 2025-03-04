@@ -1,8 +1,8 @@
 
 import { useState } from "react";
-import { useParams, useLocation } from "react-router-dom";
+import { useParams, useLocation, useNavigate } from "react-router-dom";
 import Sidebar from "@/components/dashboard/Sidebar";
-import CourseEditor from "@/components/dashboard/CourseEditor";
+import CourseEditorComponent from "@/components/dashboard/CourseEditor";
 import { useToast } from "@/components/ui/use-toast";
 import { Course } from "@/lib/types";
 import { MOCK_COURSES } from "@/lib/constants";
@@ -10,6 +10,7 @@ import { MOCK_COURSES } from "@/lib/constants";
 const CourseEditorPage = () => {
   const { id } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const { toast } = useToast();
   
   // Check if we have a course from the location state (for new courses)
@@ -24,9 +25,25 @@ const CourseEditorPage = () => {
     const isNew = !existingCourse;
     
     if (isNew) {
-      setCourses([...courses, course]);
+      // For a new course
+      const updatedCourse = {
+        ...course,
+        id: courses.length + 1, // Assign a unique ID
+        enrolled: 0,
+        completion: 0,
+        created: new Date().toISOString().split('T')[0]
+      };
+      
+      setCourses([...courses, updatedCourse]);
+      
+      // Redirect to the course preview
+      navigate(`/courses/preview/${updatedCourse.id}`);
     } else {
+      // For existing course
       setCourses(courses.map(c => c.id === course.id ? course : c));
+      
+      // Redirect to the course preview
+      navigate(`/courses/preview/${course.id}`);
     }
     
     toast({
@@ -51,7 +68,7 @@ const CourseEditorPage = () => {
             </p>
           </header>
 
-          <CourseEditor 
+          <CourseEditorComponent 
             initialCourse={existingCourse || courseFromState} 
             onSave={handleSaveCourse}
           />

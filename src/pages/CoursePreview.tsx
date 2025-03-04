@@ -1,9 +1,9 @@
-
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Sidebar from "@/components/dashboard/Sidebar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, MessageCircle, CreditCard } from "lucide-react";
 import WhatsAppPreview from "@/components/dashboard/WhatsAppPreview";
@@ -240,6 +240,3 @@ const CoursePreview = () => {
 };
 
 export default CoursePreview;
-
-// We need to import Badge component since it wasn't included in the imports
-import { Badge } from "@/components/ui/badge";

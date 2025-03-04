@@ -1,13 +1,12 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, ArrowLeft, ArrowRight, Upload, Text, Calendar, Save } from "lucide-react";
+import { Plus, ArrowLeft, ArrowRight, Upload, Text, Calendar, Save, Trash2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Course, CourseDay, CourseParagraph } from "@/lib/types";
 import WhatsAppPreview from "./WhatsAppPreview";
@@ -49,6 +48,16 @@ const CourseEditor = ({ initialCourse, onSave }: CourseEditorProps) => {
 
   const [course, setCourse] = useState<Course>(initialCourse || defaultCourse);
 
+  // Ensure days array is initialized
+  useEffect(() => {
+    if (!course.days || course.days.length === 0) {
+      setCourse({
+        ...course,
+        days: [emptyCourseDay]
+      });
+    }
+  }, [course]);
+
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setCourse({ ...course, title: e.target.value });
   };
@@ -74,7 +83,13 @@ const CourseEditor = ({ initialCourse, onSave }: CourseEditorProps) => {
   };
 
   const handleAddDay = () => {
-    if (!course.days) return;
+    if (!course.days) {
+      setCourse({
+        ...course,
+        days: [emptyCourseDay]
+      });
+      return;
+    }
     
     const newDay: CourseDay = {
       id: course.days.length + 1,
@@ -82,16 +97,53 @@ const CourseEditor = ({ initialCourse, onSave }: CourseEditorProps) => {
       paragraphs: [{ id: 1, content: "" }],
     };
     
+    const updatedDays = [...course.days, newDay];
+    
     setCourse({
       ...course,
-      days: [...course.days, newDay]
+      days: updatedDays
     });
     
-    setActiveDay(course.days.length);
+    // Set active day to the newly created day
+    setActiveDay(updatedDays.length - 1);
     
     toast({
       title: "Day added",
       description: `Day ${course.days.length + 1} has been added to the course.`
+    });
+  };
+
+  const handleRemoveDay = (dayIndex: number) => {
+    if (!course.days || course.days.length <= 1) {
+      toast({
+        title: "Cannot remove",
+        description: "A course must have at least one day",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    const updatedDays = course.days.filter((_, idx) => idx !== dayIndex);
+    
+    // Renumber the days
+    updatedDays.forEach((day, idx) => {
+      day.title = day.title.replace(/Day \d+/, `Day ${idx + 1}`);
+      day.id = idx + 1;
+    });
+    
+    setCourse({
+      ...course,
+      days: updatedDays
+    });
+    
+    // Adjust active day if necessary
+    if (activeDay >= updatedDays.length) {
+      setActiveDay(updatedDays.length - 1);
+    }
+    
+    toast({
+      title: "Day removed",
+      description: "The day has been removed from the course."
     });
   };
 
@@ -132,6 +184,39 @@ const CourseEditor = ({ initialCourse, onSave }: CourseEditorProps) => {
     toast({
       title: "Paragraph added",
       description: "A new paragraph has been added to the day."
+    });
+  };
+
+  const handleRemoveParagraph = (paragraphId: number) => {
+    if (!course.days) return;
+    
+    const updatedDays = [...course.days];
+    const currentDay = updatedDays[activeDay];
+    
+    if (currentDay.paragraphs.length <= 1) {
+      toast({
+        title: "Cannot remove",
+        description: "A day must have at least one paragraph",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    currentDay.paragraphs = currentDay.paragraphs.filter(p => p.id !== paragraphId);
+    
+    // Renumber paragraphs
+    currentDay.paragraphs.forEach((p, idx) => {
+      p.id = idx + 1;
+    });
+    
+    setCourse({
+      ...course,
+      days: updatedDays
+    });
+    
+    toast({
+      title: "Paragraph removed",
+      description: "The paragraph has been removed."
     });
   };
 
@@ -177,13 +262,23 @@ const CourseEditor = ({ initialCourse, onSave }: CourseEditorProps) => {
       return;
     }
 
+    if (!course.days || course.days.length === 0) {
+      toast({
+        title: "Error",
+        description: "Course must have at least one day",
+        variant: "destructive"
+      });
+      return;
+    }
+
     onSave(course);
-    navigate("/courses");
     
     toast({
       title: "Course saved",
       description: `${course.title} has been saved successfully.`
     });
+    
+    navigate("/courses");
   };
 
   return (
@@ -212,12 +307,13 @@ const CourseEditor = ({ initialCourse, onSave }: CourseEditorProps) => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                    Course Name
+                    Course Name*
                   </label>
                   <Input 
                     placeholder="Enter course name" 
                     value={course.title}
                     onChange={handleTitleChange}
+                    required
                   />
                 </div>
                 <div className="space-y-2">
@@ -318,13 +414,23 @@ const CourseEditor = ({ initialCourse, onSave }: CourseEditorProps) => {
                       <ArrowLeft className="h-4 w-4" />
                     </Button>
                     {course.days.map((day, idx) => (
-                      <Button
-                        key={day.id}
-                        variant={activeDay === idx ? "default" : "outline"}
-                        onClick={() => setActiveDay(idx)}
-                      >
-                        {day.title}
-                      </Button>
+                      <div key={day.id} className="flex items-center">
+                        <Button
+                          variant={activeDay === idx ? "default" : "outline"}
+                          onClick={() => setActiveDay(idx)}
+                          className="mr-1"
+                        >
+                          {day.title}
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => handleRemoveDay(idx)}
+                          className="h-8 w-8"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
                     ))}
                     <Button 
                       variant="ghost" 
@@ -350,9 +456,19 @@ const CourseEditor = ({ initialCourse, onSave }: CourseEditorProps) => {
 
                     {course.days[activeDay].paragraphs.map((paragraph) => (
                       <div key={paragraph.id} className="space-y-2">
-                        <label className="text-sm font-medium leading-none">
-                          Paragraph ({paragraph.id})
-                        </label>
+                        <div className="flex justify-between items-center">
+                          <label className="text-sm font-medium leading-none">
+                            Paragraph ({paragraph.id})
+                          </label>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => handleRemoveParagraph(paragraph.id)}
+                            className="h-8 w-8"
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
                         <Textarea
                           value={paragraph.content}
                           onChange={(e) => handleParagraphChange(paragraph.id, e.target.value)}
