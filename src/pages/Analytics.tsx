@@ -10,8 +10,24 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MOCK_STATS, MOCK_COURSES, MOCK_USERS } from "@/lib/constants";
-import { BarChart, LineChart, PieChart, BarChart3, LineChart as LineChartIcon, PieChart as PieChartIcon } from "lucide-react";
-import { Area, AreaChart, Bar, CartesianGrid, Cell, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { BarChart3, LineChart as LineChartIcon, PieChart as PieChartIcon } from "lucide-react";
+import { 
+  Area, 
+  AreaChart, 
+  Bar, 
+  BarChart, 
+  CartesianGrid, 
+  Cell, 
+  Legend, 
+  Line, 
+  LineChart, 
+  Pie, 
+  PieChart,
+  ResponsiveContainer, 
+  Tooltip, 
+  XAxis, 
+  YAxis 
+} from "recharts";
 
 const Analytics = () => {
   const [activeTab, setActiveTab] = useState("overview");
