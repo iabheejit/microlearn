@@ -19,19 +19,52 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { MoreHorizontal, Plus, Search } from "lucide-react";
+import { MoreHorizontal, Plus, Search, Archive, Copy, Edit, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/components/ui/use-toast";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 interface CoursesListProps {
   courses: Course[];
 }
 
 const CoursesList = ({ courses }: CoursesListProps) => {
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
 
   const filteredCourses = courses.filter((course) =>
     course.title.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleEditCourse = (course: Course) => {
+    toast({
+      title: "Edit Course",
+      description: `Editing ${course.title}`,
+    });
+  };
+
+  const handleDuplicateCourse = (course: Course) => {
+    toast({
+      title: "Course Duplicated",
+      description: `${course.title} has been duplicated.`,
+    });
+  };
+
+  const handleArchiveCourse = (course: Course) => {
+    toast({
+      title: "Course Archived",
+      description: `${course.title} has been archived.`,
+    });
+  };
+
+  const handleDeleteCourse = (course: Course) => {
+    toast({
+      title: "Course Deleted",
+      description: `${course.title} has been deleted.`,
+      variant: "destructive",
+    });
+  };
 
   return (
     <div className="space-y-4">
@@ -46,9 +79,6 @@ const CoursesList = ({ courses }: CoursesListProps) => {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" /> Add Course
-        </Button>
       </div>
 
       <div className="rounded-md border animate-fade-in">
@@ -95,13 +125,45 @@ const CoursesList = ({ courses }: CoursesListProps) => {
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem>Edit</DropdownMenuItem>
-                        <DropdownMenuItem>Duplicate</DropdownMenuItem>
-                        <DropdownMenuItem>Archive</DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive">
-                          Delete
+                        <DropdownMenuItem onClick={() => handleEditCourse(course)}>
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDuplicateCourse(course)}>
+                          <Copy className="mr-2 h-4 w-4" />
+                          Duplicate
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleArchiveCourse(course)}>
+                          <Archive className="mr-2 h-4 w-4" />
+                          Archive
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <DropdownMenuItem className="text-destructive" onSelect={(e) => e.preventDefault()}>
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This action cannot be undone. This will permanently delete the
+                                course "{course.title}" and all associated data.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction 
+                                onClick={() => handleDeleteCourse(course)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>

@@ -10,6 +10,8 @@ import Dashboard from "./pages/Dashboard";
 import Courses from "./pages/Courses";
 import Users from "./pages/Users";
 import WhatsApp from "./pages/WhatsApp";
+import Analytics from "./pages/Analytics";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import { ROUTES } from "./lib/constants";
 
@@ -28,7 +30,8 @@ const App = () => (
           <Route path={ROUTES.COURSES} element={<Courses />} />
           <Route path={ROUTES.USERS} element={<Users />} />
           <Route path={ROUTES.WHATSAPP} element={<WhatsApp />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route path={ROUTES.ANALYTICS} element={<Analytics />} />
+          <Route path={ROUTES.SETTINGS} element={<Settings />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
