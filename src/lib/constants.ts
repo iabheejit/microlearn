@@ -6,11 +6,11 @@ export const ROUTES = {
   HOME: "/",
   LOGIN: "/login",
   DASHBOARD: "/dashboard",
-  USERS: "/dashboard/users",
-  COURSES: "/dashboard/courses",
-  ANALYTICS: "/dashboard/analytics",
-  WHATSAPP: "/dashboard/whatsapp",
-  SETTINGS: "/dashboard/settings",
+  USERS: "/users",
+  COURSES: "/courses",
+  ANALYTICS: "/analytics",
+  WHATSAPP: "/whatsapp",
+  SETTINGS: "/settings",
 };
 
 export const DASHBOARD_SECTIONS = [
