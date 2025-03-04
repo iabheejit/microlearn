@@ -1,6 +1,7 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useMutation, useQueryClient } from "@tanstack/react-query"; 
 import { Course } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,8 +24,8 @@ import { Input } from "@/components/ui/input";
 import { MoreHorizontal, Search, Archive, Copy, Edit, Trash2, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { deleteCourse, duplicateCourse, archiveCourse } from "@/lib/api";
 
 interface CoursesListProps {
   courses: Course[];
@@ -34,10 +35,35 @@ const CoursesList = ({ courses }: CoursesListProps) => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
+  const queryClient = useQueryClient();
 
   const filteredCourses = courses.filter((course) =>
     course.title.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Mutation for deleting a course
+  const deleteMutation = useMutation({
+    mutationFn: deleteCourse,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['courses'] });
+    }
+  });
+
+  // Mutation for duplicating a course
+  const duplicateMutation = useMutation({
+    mutationFn: duplicateCourse,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['courses'] });
+    }
+  });
+
+  // Mutation for archiving a course
+  const archiveMutation = useMutation({
+    mutationFn: archiveCourse,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['courses'] });
+    }
+  });
 
   const handleEditCourse = (course: Course) => {
     navigate(`/courses/editor/${course.id}`);
@@ -48,24 +74,57 @@ const CoursesList = ({ courses }: CoursesListProps) => {
   };
 
   const handleDuplicateCourse = (course: Course) => {
-    toast({
-      title: "Course Duplicated",
-      description: `${course.title} has been duplicated.`,
+    duplicateMutation.mutate(course.id, {
+      onSuccess: (newCourse) => {
+        toast({
+          title: "Course Duplicated",
+          description: `${course.title} has been duplicated as ${newCourse.title}.`,
+        });
+      },
+      onError: (error) => {
+        toast({
+          title: "Error",
+          description: `Failed to duplicate course: ${(error as Error).message}`,
+          variant: "destructive"
+        });
+      }
     });
   };
 
   const handleArchiveCourse = (course: Course) => {
-    toast({
-      title: "Course Archived",
-      description: `${course.title} has been archived.`,
+    archiveMutation.mutate(course.id, {
+      onSuccess: () => {
+        toast({
+          title: "Course Archived",
+          description: `${course.title} has been archived.`,
+        });
+      },
+      onError: (error) => {
+        toast({
+          title: "Error",
+          description: `Failed to archive course: ${(error as Error).message}`,
+          variant: "destructive"
+        });
+      }
     });
   };
 
   const handleDeleteCourse = (course: Course) => {
-    toast({
-      title: "Course Deleted",
-      description: `${course.title} has been deleted.`,
-      variant: "destructive",
+    deleteMutation.mutate(course.id, {
+      onSuccess: () => {
+        toast({
+          title: "Course Deleted",
+          description: `${course.title} has been deleted.`,
+          variant: "destructive",
+        });
+      },
+      onError: (error) => {
+        toast({
+          title: "Error",
+          description: `Failed to delete course: ${(error as Error).message}`,
+          variant: "destructive"
+        });
+      }
     });
   };
 

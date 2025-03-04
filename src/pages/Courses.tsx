@@ -1,6 +1,7 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Sidebar from "@/components/dashboard/Sidebar";
 import CoursesList from "@/components/dashboard/CoursesList";
 import { MOCK_COURSES } from "@/lib/constants";
@@ -8,11 +9,19 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Course } from "@/lib/types";
+import { fetchCourses } from "@/lib/api";
 
 const Courses = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [courses, setCourses] = useState<Course[]>(MOCK_COURSES);
+  const queryClient = useQueryClient();
+  
+  // Fetch courses using React Query
+  const { data: courses = [], isLoading, error } = useQuery({
+    queryKey: ['courses'],
+    queryFn: fetchCourses,
+    initialData: MOCK_COURSES,
+  });
 
   const handleCreateNewCourse = () => {
     // Create a minimal course object to pass to the editor
@@ -30,7 +39,7 @@ const Courses = () => {
       }]
     };
 
-    navigate('/courses/editor', { state: { course: newCourse } });
+    navigate('/courses/editor', { state: { course: newCourse, isNew: true } });
     
     toast({
       title: "New course",
@@ -57,7 +66,17 @@ const Courses = () => {
             </Button>
           </header>
 
-          <CoursesList courses={courses} />
+          {isLoading ? (
+            <div className="flex justify-center p-8">
+              <p>Loading courses...</p>
+            </div>
+          ) : error ? (
+            <div className="flex justify-center p-8 text-destructive">
+              <p>Error loading courses: {(error as Error).message}</p>
+            </div>
+          ) : (
+            <CoursesList courses={courses} />
+          )}
         </div>
       </main>
     </div>

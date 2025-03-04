@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -17,9 +16,10 @@ const LANGUAGES = ["English", "Spanish", "French", "Hindi", "Mandarin", "Arabic"
 interface CourseEditorProps {
   initialCourse?: Course;
   onSave: (course: Course) => void;
+  isSaving?: boolean;
 }
 
-const CourseEditor = ({ initialCourse, onSave }: CourseEditorProps) => {
+const CourseEditor = ({ initialCourse, onSave, isSaving = false }: CourseEditorProps) => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [activeDay, setActiveDay] = useState(0);
@@ -272,13 +272,6 @@ const CourseEditor = ({ initialCourse, onSave }: CourseEditorProps) => {
     }
 
     onSave(course);
-    
-    toast({
-      title: "Course saved",
-      description: `${course.title} has been saved successfully.`
-    });
-    
-    navigate("/courses");
   };
 
   return (
@@ -292,9 +285,9 @@ const CourseEditor = ({ initialCourse, onSave }: CourseEditorProps) => {
           <Button variant="outline" onClick={() => setShowPreview(!showPreview)}>
             {showPreview ? "Hide Preview" : "Show WhatsApp Preview"}
           </Button>
-          <Button onClick={handleSaveCourse}>
+          <Button onClick={handleSaveCourse} disabled={isSaving}>
             <Save className="mr-2 h-4 w-4" />
-            Save Course
+            {isSaving ? "Saving..." : "Save Course"}
           </Button>
         </div>
       </div>

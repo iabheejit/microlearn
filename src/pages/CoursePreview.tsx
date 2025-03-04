@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import Sidebar from "@/components/dashboard/Sidebar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ import WhatsAppPreview from "@/components/dashboard/WhatsAppPreview";
 import { MOCK_COURSES } from "@/lib/constants";
 import { Course } from "@/lib/types";
 import StripeCheckout from "@/components/dashboard/StripeCheckout";
+import { fetchCourse } from "@/lib/api";
 
 const CoursePreview = () => {
   const { id } = useParams();
@@ -18,9 +20,28 @@ const CoursePreview = () => {
   const [selectedDay, setSelectedDay] = useState(0);
   const [showPayment, setShowPayment] = useState(false);
 
-  const course = MOCK_COURSES.find(c => c.id === parseInt(id || "0")) as Course;
+  const { data: course, isLoading, error } = useQuery({
+    queryKey: ['course', id],
+    queryFn: () => fetchCourse(Number(id)),
+    initialData: MOCK_COURSES.find(c => c.id === parseInt(id || "0"))
+  });
 
-  if (!course) {
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen">
+        <Sidebar />
+        <main className="flex-1 overflow-y-auto">
+          <div className="container mx-auto py-6 px-4 md:px-6">
+            <div className="flex justify-center p-8">
+              <p>Loading course...</p>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (error || !course) {
     return (
       <div className="flex min-h-screen">
         <Sidebar />
@@ -29,7 +50,7 @@ const CoursePreview = () => {
             <div className="flex flex-col items-center justify-center h-[80vh] text-center">
               <h1 className="text-2xl font-bold mb-4">Course Not Found</h1>
               <p className="text-muted-foreground mb-6">
-                The course you're looking for doesn't exist or has been deleted.
+                {error ? `Error: ${(error as Error).message}` : "The course you're looking for doesn't exist or has been deleted."}
               </p>
               <Button onClick={() => navigate("/courses")}>
                 Back to Courses
