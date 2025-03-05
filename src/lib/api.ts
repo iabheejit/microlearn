@@ -16,16 +16,16 @@ const dbCourseToAppCourse = (dbCourse: any, days: any[] = []): Course => {
   }));
 
   return {
-    id: dbCourse.id,
+    id: Number(dbCourse.id), // Convert UUID to number for app
     title: dbCourse.title,
     instructor: dbCourse.instructor,
     description: dbCourse.description,
-    category: dbCourse.category,
+    // Map database fields to app format or use defaults
     language: dbCourse.language,
-    price: dbCourse.price,
+    price: dbCourse.price || 0,
     enrolled: dbCourse.enrolled || 0,
     completion: dbCourse.completion || 0,
-    status: dbCourse.status || "draft",
+    status: dbCourse.is_published ? "active" : "draft", // Map is_published to status
     created: new Date(dbCourse.created_at).toISOString().split('T')[0],
     days: courseDays
   };
@@ -39,7 +39,7 @@ const appCourseToDbFormat = (course: Course) => {
     title: course.title || "",
     instructor: course.instructor,
     description: course.description,
-    category: course.category,
+    // Don't include category as it doesn't exist in the database
     language: course.language,
     price: course.price || 0,
     enrolled: course.enrolled || 0,
@@ -173,13 +173,16 @@ export const saveCourse = async (course: Course): Promise<Course> => {
 
     const { courseData, days } = appCourseToDbFormat(course);
     
-    // Ensure created_by is set to current user
-    courseData.created_by = user.id;
+    // Add created_by field to courseData
+    const dataWithCreatedBy = {
+      ...courseData,
+      created_by: user.id
+    };
 
     // Insert or update the course
     const { data: savedCourse, error } = await supabase
       .from('courses')
-      .upsert(courseData)
+      .upsert(dataWithCreatedBy)
       .select()
       .single();
 
@@ -305,7 +308,7 @@ export const duplicateCourse = async (id: number | string): Promise<Course> => {
     // Create a new course object based on the existing one
     const newCourse: Course = {
       ...course,
-      id: crypto.randomUUID(), // Generate a new UUID
+      id: Date.now(), // Generate a new ID
       title: `${course.title} (Copy)`,
       enrolled: 0,
       completion: 0,
