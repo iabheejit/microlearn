@@ -98,6 +98,79 @@ export type Database = {
           },
         ]
       }
+      course_days: {
+        Row: {
+          course_id: string | null
+          created_at: string
+          day_number: number
+          id: string
+          media: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          course_id?: string | null
+          created_at?: string
+          day_number: number
+          id?: string
+          media?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          course_id?: string | null
+          created_at?: string
+          day_number?: number
+          id?: string
+          media?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_days_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_paragraphs: {
+        Row: {
+          content: string
+          created_at: string
+          day_id: string | null
+          id: string
+          paragraph_number: number
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          day_id?: string | null
+          id?: string
+          paragraph_number: number
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          day_id?: string | null
+          id?: string
+          paragraph_number?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_paragraphs_day_id_fkey"
+            columns: ["day_id"]
+            isOneToOne: false
+            referencedRelation: "course_days"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       courses: {
         Row: {
           created_at: string
