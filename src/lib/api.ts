@@ -35,7 +35,7 @@ const dbCourseToAppCourse = (dbCourse: any, days: any[] = []): Course => {
 const appCourseToDbFormat = (course: Course) => {
   // Extract course data for the courses table
   const courseData = {
-    id: course.id,
+    id: course.id.toString(), // Convert to string for Supabase UUID
     title: course.title || "",
     instructor: course.instructor,
     description: course.description,
@@ -44,8 +44,7 @@ const appCourseToDbFormat = (course: Course) => {
     price: course.price || 0,
     enrolled: course.enrolled || 0,
     completion: course.completion || 0,
-    status: course.status || "draft",
-    created_by: supabase.auth.getUser().then(({ data }) => data.user?.id) // This will be undefined for unauthenticated users
+    is_published: course.status === "active" // Map status to is_published
   };
 
   return { courseData, days: course.days || [] };
@@ -122,7 +121,7 @@ export const fetchCourse = async (id: number | string): Promise<Course> => {
     const { data: course, error } = await supabase
       .from('courses')
       .select('*')
-      .eq('id', id)
+      .eq('id', id.toString())
       .single();
 
     if (error) throw error;
@@ -256,7 +255,7 @@ export const deleteCourse = async (id: number | string): Promise<void> => {
     const { error } = await supabase
       .from('courses')
       .delete()
-      .eq('id', id);
+      .eq('id', id.toString());
 
     if (error) throw error;
   } catch (error) {
@@ -277,8 +276,8 @@ export const archiveCourse = async (id: number | string): Promise<Course> => {
     // Update the course status to archived
     const { data: updatedCourse, error } = await supabase
       .from('courses')
-      .update({ status: 'archived' })
-      .eq('id', id)
+      .update({ is_published: false })
+      .eq('id', id.toString())
       .select()
       .single();
 

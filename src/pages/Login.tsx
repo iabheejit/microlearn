@@ -7,14 +7,16 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { APP_NAME, ROUTES } from "@/lib/constants";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
   const navigate = useNavigate();
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleAuthentication = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!email || !password) {
@@ -24,12 +26,38 @@ const Login = () => {
     
     setIsLoading(true);
     
-    // Simulate login process
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      let result;
+      
+      if (isSignUp) {
+        // Sign up
+        result = await supabase.auth.signUp({
+          email,
+          password,
+        });
+      } else {
+        // Sign in
+        result = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+      }
+      
+      if (result.error) {
+        throw result.error;
+      }
+      
+      // Success
+      toast.success(isSignUp ? "Account created successfully" : "Login successful");
       navigate(ROUTES.DASHBOARD);
-      toast.success("Login successful");
-    }, 1500);
+    } catch (error) {
+      console.error("Authentication error:", error);
+      toast.error(isSignUp 
+        ? "Failed to create account. Please try again." 
+        : "Login failed. Please check your credentials.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -46,13 +74,15 @@ const Login = () => {
 
         <Card className="animate-fade-in">
           <CardHeader>
-            <CardTitle>Login</CardTitle>
+            <CardTitle>{isSignUp ? "Create Account" : "Login"}</CardTitle>
             <CardDescription>
-              Enter your credentials to access your account
+              {isSignUp 
+               ? "Register to start creating and managing courses" 
+               : "Enter your credentials to access your account"}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleLogin} className="space-y-4">
+            <form onSubmit={handleAuthentication} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -67,12 +97,14 @@ const Login = () => {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Password</Label>
-                  <Link
-                    to="#"
-                    className="text-xs text-primary hover:underline"
-                  >
-                    Forgot password?
-                  </Link>
+                  {!isSignUp && (
+                    <Link
+                      to="#"
+                      className="text-xs text-primary hover:underline"
+                    >
+                      Forgot password?
+                    </Link>
+                  )}
                 </div>
                 <Input
                   id="password"
@@ -84,16 +116,24 @@ const Login = () => {
                 />
               </div>
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Logging in..." : "Login"}
+                {isLoading 
+                 ? (isSignUp ? "Creating Account..." : "Logging in...") 
+                 : (isSignUp ? "Create Account" : "Login")}
               </Button>
             </form>
           </CardContent>
-          <CardFooter className="flex justify-center">
-            <p className="text-sm text-muted-foreground">
-              Don't have an account?{" "}
-              <Link to="#" className="text-primary hover:underline">
-                Contact sales
-              </Link>
+          <CardFooter className="flex flex-col space-y-4">
+            <p className="text-sm text-muted-foreground text-center">
+              {isSignUp 
+               ? "Already have an account?" 
+               : "Don't have an account?"}{" "}
+              <Button
+                variant="link"
+                className="p-0 h-auto"
+                onClick={() => setIsSignUp(!isSignUp)}
+              >
+                {isSignUp ? "Login" : "Sign up"}
+              </Button>
             </p>
           </CardFooter>
         </Card>
