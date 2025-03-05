@@ -15,16 +15,18 @@ const dbCourseToAppCourse = (dbCourse: any, days: any[] = []): Course => {
     media: day.media
   }));
 
+  // We need to adapt the database structure to match our application model
+  // Some fields like completion, enrolled, price, language don't exist in the DB
+  // so we provide default values for these fields
   return {
     id: Number(dbCourse.id), // Convert UUID to number for app
     title: dbCourse.title,
-    instructor: dbCourse.instructor,
-    description: dbCourse.description,
-    // Map database fields to app format or use defaults
-    language: dbCourse.language,
-    price: dbCourse.price || 0,
-    enrolled: dbCourse.enrolled || 0,
-    completion: dbCourse.completion || 0,
+    instructor: dbCourse.instructor || "",
+    description: dbCourse.description || "",
+    language: "", // Default language as it's not in DB
+    price: 0, // Default price as it's not in DB
+    enrolled: 0, // Default enrolled as it's not in DB
+    completion: 0, // Default completion as it's not in DB
     status: dbCourse.is_published ? "active" : "draft", // Map is_published to status
     created: new Date(dbCourse.created_at).toISOString().split('T')[0],
     days: courseDays
@@ -34,17 +36,15 @@ const dbCourseToAppCourse = (dbCourse: any, days: any[] = []): Course => {
 // Helper to prepare course for database insertion
 const appCourseToDbFormat = (course: Course) => {
   // Extract course data for the courses table
+  // Only include fields that exist in the database
   const courseData = {
     id: course.id.toString(), // Convert to string for Supabase UUID
     title: course.title || "",
-    instructor: course.instructor,
-    description: course.description,
-    // Don't include category as it doesn't exist in the database
-    language: course.language,
-    price: course.price || 0,
-    enrolled: course.enrolled || 0,
-    completion: course.completion || 0,
+    instructor: course.instructor || "",
+    description: course.description || "",
     is_published: course.status === "active" // Map status to is_published
+    // We don't include fields that don't exist in the database:
+    // category, language, price, enrolled, completion
   };
 
   return { courseData, days: course.days || [] };
@@ -179,6 +179,8 @@ export const saveCourse = async (course: Course): Promise<Course> => {
       created_by: user.id
     };
 
+    console.log("Saving course with data:", dataWithCreatedBy);
+
     // Insert or update the course
     const { data: savedCourse, error } = await supabase
       .from('courses')
@@ -186,7 +188,10 @@ export const saveCourse = async (course: Course): Promise<Course> => {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error("Error upserting course:", error);
+      throw error;
+    }
 
     // Process days - we'll delete existing days and recreate them
     // First, delete all existing days for this course
@@ -195,7 +200,10 @@ export const saveCourse = async (course: Course): Promise<Course> => {
       .delete()
       .eq('course_id', savedCourse.id);
 
-    if (deleteError) throw deleteError;
+    if (deleteError) {
+      console.error("Error deleting course days:", deleteError);
+      throw deleteError;
+    }
 
     // Create new days
     const daysPromises = days.map(async (day, index) => {
@@ -210,7 +218,10 @@ export const saveCourse = async (course: Course): Promise<Course> => {
         .select()
         .single();
 
-      if (dayError) throw dayError;
+      if (dayError) {
+        console.error("Error inserting course day:", dayError);
+        throw dayError;
+      }
 
       // Create paragraphs for this day
       const paragraphsPromises = day.paragraphs.map(async (para, paraIndex) => {
@@ -222,7 +233,10 @@ export const saveCourse = async (course: Course): Promise<Course> => {
             content: para.content
           });
 
-        if (paraError) throw paraError;
+        if (paraError) {
+          console.error("Error inserting paragraph:", paraError);
+          throw paraError;
+        }
       });
 
       await Promise.all(paragraphsPromises);
