@@ -177,6 +177,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           id: string
+          instructor: string | null
           is_published: boolean | null
           organization_id: string | null
           thumbnail_url: string | null
@@ -188,6 +189,7 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           id?: string
+          instructor?: string | null
           is_published?: boolean | null
           organization_id?: string | null
           thumbnail_url?: string | null
@@ -199,6 +201,7 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           id?: string
+          instructor?: string | null
           is_published?: boolean | null
           organization_id?: string | null
           thumbnail_url?: string | null

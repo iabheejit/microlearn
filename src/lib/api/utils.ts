@@ -15,12 +15,12 @@ export const dbCourseToAppCourse = (dbCourse: any, days: any[] = []): Course => 
   }));
 
   // We need to adapt the database structure to match our application model
-  // Some fields like instructor, completion, enrolled, price, language don't exist in the DB
+  // Some fields like completion, enrolled, price, language don't exist in the DB
   // so we provide default values for these fields
   return {
     id: Number(dbCourse.id), // Convert UUID to number for app
     title: dbCourse.title,
-    instructor: "", // Default instructor as it's not in DB
+    instructor: dbCourse.instructor || "", // Now coming from DB
     description: dbCourse.description || "",
     category: "", // Default category as it's not in DB
     language: "", // Default language as it's not in DB
@@ -40,10 +40,11 @@ export const appCourseToDbFormat = (course: Course) => {
   const courseData = {
     id: course.id.toString(), // Convert to string for Supabase UUID
     title: course.title || "",
+    instructor: course.instructor || "", // Now included in DB format
     description: course.description || "",
     is_published: course.status === "active" // Map status to is_published
     // We don't include fields that don't exist in the database:
-    // instructor, category, language, price, enrolled, completion
+    // category, language, price, enrolled, completion
   };
 
   return { courseData, days: course.days || [] };
