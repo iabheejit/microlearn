@@ -15,11 +15,12 @@ export const dbCourseToAppCourse = (dbCourse: any, days: any[] = []): Course => 
   }));
 
   // We need to adapt the database structure to match our application model
-  // Some fields like completion, enrolled, price, language don't exist in the DB
+  // Some fields like instructor, completion, enrolled, price, language don't exist in the DB
   // so we provide default values for these fields
   return {
     id: Number(dbCourse.id), // Convert UUID to number for app
     title: dbCourse.title,
+    instructor: "", // Default instructor as it's not in DB
     description: dbCourse.description || "",
     category: "", // Default category as it's not in DB
     language: "", // Default language as it's not in DB
@@ -29,7 +30,6 @@ export const dbCourseToAppCourse = (dbCourse: any, days: any[] = []): Course => 
     status: dbCourse.is_published ? "active" : "draft", // Map is_published to status
     created: new Date(dbCourse.created_at).toISOString().split('T')[0],
     days: courseDays,
-    // The instructor field is not in the database schema, so don't include it
   };
 };
 
