@@ -20,7 +20,6 @@ export const dbCourseToAppCourse = (dbCourse: any, days: any[] = []): Course => 
   return {
     id: Number(dbCourse.id), // Convert UUID to number for app
     title: dbCourse.title,
-    instructor: dbCourse.instructor || "",
     description: dbCourse.description || "",
     category: "", // Default category as it's not in DB
     language: "", // Default language as it's not in DB
@@ -29,7 +28,8 @@ export const dbCourseToAppCourse = (dbCourse: any, days: any[] = []): Course => 
     completion: 0, // Default completion as it's not in DB
     status: dbCourse.is_published ? "active" : "draft", // Map is_published to status
     created: new Date(dbCourse.created_at).toISOString().split('T')[0],
-    days: courseDays
+    days: courseDays,
+    // The instructor field is not in the database schema, so don't include it
   };
 };
 
@@ -40,11 +40,10 @@ export const appCourseToDbFormat = (course: Course) => {
   const courseData = {
     id: course.id.toString(), // Convert to string for Supabase UUID
     title: course.title || "",
-    instructor: course.instructor || "",
     description: course.description || "",
     is_published: course.status === "active" // Map status to is_published
     // We don't include fields that don't exist in the database:
-    // category, language, price, enrolled, completion
+    // instructor, category, language, price, enrolled, completion
   };
 
   return { courseData, days: course.days || [] };

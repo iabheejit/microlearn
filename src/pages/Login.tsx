@@ -30,10 +30,17 @@ const Login = () => {
       let result;
       
       if (isSignUp) {
-        // Sign up
+        // Sign up - add proper metadata for profile creation
         result = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            data: {
+              first_name: "",  // Add empty first_name for the profile
+              last_name: "",   // Add empty last_name for the profile
+              email_verified: true
+            }
+          }
         });
       } else {
         // Sign in
