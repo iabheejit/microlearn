@@ -11,7 +11,7 @@ export const saveCourse = async (course: Course): Promise<Course> => {
 
     const { courseData, days } = appCourseToDbFormat(course);
     
-    // Add created_by field to courseData
+    // Add created_by field to courseData if it's a new course
     const dataWithCreatedBy = {
       ...courseData,
       created_by: user.id

@@ -22,6 +22,7 @@ export const dbCourseToAppCourse = (dbCourse: any, days: any[] = []): Course => 
     title: dbCourse.title,
     instructor: dbCourse.instructor || "",
     description: dbCourse.description || "",
+    category: "", // Default category as it's not in DB
     language: "", // Default language as it's not in DB
     price: 0, // Default price as it's not in DB
     enrolled: 0, // Default enrolled as it's not in DB

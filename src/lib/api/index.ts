@@ -7,3 +7,4 @@ export { saveCourse } from './saveCourse';
 export { deleteCourse } from './deleteCourse';
 export { archiveCourse } from './archiveCourse';
 export { duplicateCourse } from './duplicateCourse';
+export { publishCourse } from './publishCourse';
