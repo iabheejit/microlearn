@@ -41,7 +41,9 @@ const Users = () => {
       // Combine the data
       const combinedUsers = authUsers.users.map(authUser => {
         const profile = profiles?.find(p => p.id === authUser.id);
-        const role = userRoles?.find(ur => ur.user_id === authUser.id)?.role || 'learner';
+        const userRole = userRoles?.find(ur => ur.user_id === authUser.id);
+        // Ensure role is one of the allowed enum types
+        const role = userRole?.role || 'learner';
 
         return {
           id: Number(authUser.id.substring(0, 8), 16), // Convert part of UUID to number
@@ -80,16 +82,21 @@ const Users = () => {
 
       // The profile will be automatically created by the trigger
 
-      // Add user role if needed
+      // Add user role if needed - ensure role is valid type
       if (newUser.role && newUser.role !== 'learner') {
-        const { error: roleError } = await supabase
-          .from('user_roles')
-          .insert({
-            user_id: data.user.id,
-            role: newUser.role
-          });
+        // Type assertion or validation to ensure role is of correct type
+        const validRole = validateRole(newUser.role);
         
-        if (roleError) throw roleError;
+        if (validRole) {
+          const { error: roleError } = await supabase
+            .from('user_roles')
+            .insert({
+              user_id: data.user.id,
+              role: validRole
+            });
+          
+          if (roleError) throw roleError;
+        }
       }
 
       toast({
@@ -117,15 +124,19 @@ const Users = () => {
 
       // Convert display id back to original format
       const { data: authUsers } = await supabase.auth.admin.listUsers();
-      const authUser = authUsers.users.find(u => Number(u.id.substring(0, 8), 16) === userId);
+      const authUser = authUsers?.users.find(u => Number(u.id.substring(0, 8), 16) === userId);
       
       if (!authUser) throw new Error("User not found in auth system");
 
       // Update user status if needed
       if (updates.status !== undefined) {
+        const updateData = {
+          banned: updates.status === 'inactive'
+        };
+        
         const { error: statusError } = await supabase.auth.admin.updateUserById(
           authUser.id,
-          { banned: updates.status === 'inactive' }
+          updateData
         );
         
         if (statusError) throw statusError;
@@ -147,27 +158,32 @@ const Users = () => {
 
       // Update role if needed
       if (updates.role) {
-        // First check if user has a role
-        const { data: existingRoles } = await supabase
-          .from('user_roles')
-          .select('*')
-          .eq('user_id', authUser.id);
+        // Validate that role is a valid enum value
+        const validRole = validateRole(updates.role);
         
-        if (existingRoles && existingRoles.length > 0) {
-          // Update existing role
-          const { error: roleError } = await supabase
+        if (validRole) {
+          // First check if user has a role
+          const { data: existingRoles } = await supabase
             .from('user_roles')
-            .update({ role: updates.role })
+            .select('*')
             .eq('user_id', authUser.id);
           
-          if (roleError) throw roleError;
-        } else {
-          // Insert new role
-          const { error: roleError } = await supabase
-            .from('user_roles')
-            .insert({ user_id: authUser.id, role: updates.role });
-          
-          if (roleError) throw roleError;
+          if (existingRoles && existingRoles.length > 0) {
+            // Update existing role
+            const { error: roleError } = await supabase
+              .from('user_roles')
+              .update({ role: validRole })
+              .eq('user_id', authUser.id);
+            
+            if (roleError) throw roleError;
+          } else {
+            // Insert new role
+            const { error: roleError } = await supabase
+              .from('user_roles')
+              .insert({ user_id: authUser.id, role: validRole });
+            
+            if (roleError) throw roleError;
+          }
         }
       }
 
@@ -196,7 +212,7 @@ const Users = () => {
 
       // Convert display id back to original format
       const { data: authUsers } = await supabase.auth.admin.listUsers();
-      const authUser = authUsers.users.find(u => Number(u.id.substring(0, 8), 16) === userId);
+      const authUser = authUsers?.users.find(u => Number(u.id.substring(0, 8), 16) === userId);
       
       if (!authUser) throw new Error("User not found in auth system");
 
@@ -220,6 +236,12 @@ const Users = () => {
         variant: "destructive",
       });
     }
+  };
+
+  // Validate that role is one of the allowed enum values
+  const validateRole = (role: string): "admin" | "content_creator" | "learner" | null => {
+    const validRoles = ["admin", "content_creator", "learner"];
+    return validRoles.includes(role) ? (role as "admin" | "content_creator" | "learner") : null;
   };
 
   return (
