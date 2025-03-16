@@ -132,11 +132,10 @@ export const useUsers = () => {
 
       // Update user status if needed
       if (updates.status !== undefined) {
-        // Use the correct parameter format for updateUserById
-        const { error: statusError } = await supabase.auth.admin.updateUserById({
-          id: authUser.id,
-          user_metadata: { banned: updates.status === 'inactive' }
-        });
+        const { error: statusError } = await supabase.auth.admin.updateUserById(
+          authUser.id,
+          { user_metadata: { banned: updates.status === 'inactive' } }
+        );
         
         if (statusError) throw statusError;
       }
