@@ -27,6 +27,7 @@ const Users = () => {
       const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
       
       if (authError) throw authError;
+      if (!authUsers?.users) throw new Error("No users returned from auth system");
 
       // Get profiles to get additional data
       const { data: profiles, error: profilesError } = await supabase
@@ -83,6 +84,7 @@ const Users = () => {
       });
 
       if (error) throw error;
+      if (!data?.user) throw new Error("Failed to create user");
 
       // The profile will be automatically created by the trigger
 
@@ -127,8 +129,9 @@ const Users = () => {
       if (!originalUser) throw new Error("User not found");
 
       // Convert display id back to original format
-      const { data: authUsers } = await supabase.auth.admin.listUsers();
-      if (!authUsers) throw new Error("Failed to fetch auth users");
+      const { data: authUsers, error: authUsersError } = await supabase.auth.admin.listUsers();
+      if (authUsersError) throw authUsersError;
+      if (!authUsers?.users) throw new Error("Failed to fetch auth users");
       
       const authUser = authUsers.users.find(u => Number(u.id.substring(0, 8), 16) === userId);
       
@@ -137,10 +140,10 @@ const Users = () => {
       // Update user status if needed
       if (updates.status !== undefined) {
         // Use the correct parameter format for updateUserById
-        const { error: statusError } = await supabase.auth.admin.updateUserById(
-          authUser.id,
-          { user_metadata: { banned: updates.status === 'inactive' } }
-        );
+        const { error: statusError } = await supabase.auth.admin.updateUserById({
+          id: authUser.id,
+          user_metadata: { banned: updates.status === 'inactive' }
+        });
         
         if (statusError) throw statusError;
       }
@@ -214,17 +217,18 @@ const Users = () => {
       if (!originalUser) throw new Error("User not found");
 
       // Convert display id back to original format
-      const { data: authUsers } = await supabase.auth.admin.listUsers();
-      if (!authUsers) throw new Error("Failed to fetch auth users");
+      const { data: authUsers, error: authUsersError } = await supabase.auth.admin.listUsers();
+      if (authUsersError) throw authUsersError;
+      if (!authUsers?.users) throw new Error("Failed to fetch auth users");
       
       const authUser = authUsers.users.find(u => Number(u.id.substring(0, 8), 16) === userId);
       
       if (!authUser) throw new Error("User not found in auth system");
 
-      // Delete the user
-      const { error } = await supabase.auth.admin.deleteUser(
-        authUser.id
-      );
+      // Delete the user - fix the parameter format
+      const { error } = await supabase.auth.admin.deleteUser({
+        id: authUser.id
+      });
       
       if (error) throw error;
 
