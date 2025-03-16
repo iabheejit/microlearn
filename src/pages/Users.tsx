@@ -6,6 +6,10 @@ import { User } from "@/lib/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
+import { Database } from "@/integrations/supabase/types";
+
+// Define the allowed role types to match the enum in the database
+type UserRole = Database["public"]["Enums"]["user_role"];
 
 const Users = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -124,17 +128,17 @@ const Users = () => {
 
       // Convert display id back to original format
       const { data: authUsers } = await supabase.auth.admin.listUsers();
-      const authUser = authUsers?.users.find(u => Number(u.id.substring(0, 8), 16) === userId);
+      if (!authUsers) throw new Error("Failed to fetch auth users");
+      
+      const authUser = authUsers.users.find(u => Number(u.id.substring(0, 8), 16) === userId);
       
       if (!authUser) throw new Error("User not found in auth system");
 
       // Update user status if needed
       if (updates.status !== undefined) {
-        const banned = updates.status === 'inactive';
-        
         const { error: statusError } = await supabase.auth.admin.updateUserById(
           authUser.id,
-          { banned } // This is the correct format for AdminUserAttributes
+          { banned: updates.status === 'inactive' }
         );
         
         if (statusError) throw statusError;
@@ -210,7 +214,9 @@ const Users = () => {
 
       // Convert display id back to original format
       const { data: authUsers } = await supabase.auth.admin.listUsers();
-      const authUser = authUsers?.users.find(u => Number(u.id.substring(0, 8), 16) === userId);
+      if (!authUsers) throw new Error("Failed to fetch auth users");
+      
+      const authUser = authUsers.users.find(u => Number(u.id.substring(0, 8), 16) === userId);
       
       if (!authUser) throw new Error("User not found in auth system");
 
@@ -237,9 +243,9 @@ const Users = () => {
   };
 
   // Validate that role is one of the allowed enum values
-  const validateRole = (role: string): "admin" | "content_creator" | "learner" | null => {
-    const validRoles = ["admin", "content_creator", "learner"];
-    return validRoles.includes(role) ? (role as "admin" | "content_creator" | "learner") : null;
+  const validateRole = (role: string): UserRole | null => {
+    const validRoles: UserRole[] = ["admin", "content_creator", "learner"];
+    return validRoles.includes(role as UserRole) ? (role as UserRole) : null;
   };
 
   return (
