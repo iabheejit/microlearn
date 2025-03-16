@@ -132,10 +132,10 @@ export const useUsers = () => {
 
       // Update user status if needed
       if (updates.status !== undefined) {
-        const { error: statusError } = await supabase.auth.admin.updateUserById(
-          authUser.id,
-          { user_metadata: { banned: updates.status === 'inactive' } }
-        );
+        const { error: statusError } = await supabase.auth.admin.updateUserById({
+          id: authUser.id,
+          user_metadata: { banned: updates.status === 'inactive' }
+        });
         
         if (statusError) throw statusError;
       }
@@ -217,7 +217,7 @@ export const useUsers = () => {
       
       if (!authUser) throw new Error("User not found in auth system");
 
-      // Delete the user - fix the parameter format
+      // Delete the user with the correct parameter format
       const { error } = await supabase.auth.admin.deleteUser(authUser.id);
       
       if (error) throw error;
