@@ -130,13 +130,11 @@ const Users = () => {
 
       // Update user status if needed
       if (updates.status !== undefined) {
-        const updateData = {
-          banned: updates.status === 'inactive'
-        };
+        const banned = updates.status === 'inactive';
         
         const { error: statusError } = await supabase.auth.admin.updateUserById(
           authUser.id,
-          updateData
+          { banned } // This is the correct format for AdminUserAttributes
         );
         
         if (statusError) throw statusError;
