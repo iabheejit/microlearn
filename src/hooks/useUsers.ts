@@ -219,9 +219,7 @@ export const useUsers = () => {
       if (!authUser) throw new Error("User not found in auth system");
 
       // Delete the user - fix the parameter format
-      const { error } = await supabase.auth.admin.deleteUser({
-        id: authUser.id
-      });
+      const { error } = await supabase.auth.admin.deleteUser(authUser.id);
       
       if (error) throw error;
 
