@@ -10,18 +10,22 @@ export const useUsers = () => {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
+  const handleServiceError = (action: string, error: unknown) => {
+    console.error(`Error ${action}:`, error);
+    toast({
+      title: `Error ${action}`,
+      description: (error as Error).message,
+      variant: "destructive",
+    });
+  };
+
   const fetchUsers = async () => {
     setLoading(true);
     try {
       const usersList = await fetchUsersList();
       setUsers(usersList);
     } catch (error) {
-      console.error("Error fetching users:", error);
-      toast({
-        title: "Error fetching users",
-        description: (error as Error).message,
-        variant: "destructive",
-      });
+      handleServiceError("fetching users", error);
     } finally {
       setLoading(false);
     }
@@ -36,12 +40,7 @@ export const useUsers = () => {
       });
       fetchUsers();
     } catch (error) {
-      console.error("Error adding user:", error);
-      toast({
-        title: "Error adding user",
-        description: (error as Error).message,
-        variant: "destructive",
-      });
+      handleServiceError("adding user", error);
     }
   };
 
@@ -54,12 +53,7 @@ export const useUsers = () => {
       });
       fetchUsers();
     } catch (error) {
-      console.error("Error updating user:", error);
-      toast({
-        title: "Error updating user",
-        description: (error as Error).message,
-        variant: "destructive",
-      });
+      handleServiceError("updating user", error);
     }
   };
 
@@ -72,12 +66,7 @@ export const useUsers = () => {
       });
       setUsers(users.filter(u => u.id !== userId));
     } catch (error) {
-      console.error("Error deleting user:", error);
-      toast({
-        title: "Error deleting user",
-        description: (error as Error).message,
-        variant: "destructive",
-      });
+      handleServiceError("deleting user", error);
     }
   };
 
