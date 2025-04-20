@@ -10,6 +10,8 @@ export const ROUTES = {
   COURSES: "/courses",
   ANALYTICS: "/analytics",
   WHATSAPP: "/whatsapp",
+  TELEGRAM: "/telegram",
+  CHAT_HISTORY: "/chat-history",
   SETTINGS: "/settings",
 };
 
@@ -19,6 +21,8 @@ export const DASHBOARD_SECTIONS = [
   { name: "Courses", path: ROUTES.COURSES, icon: "BookOpen" },
   { name: "Analytics", path: ROUTES.ANALYTICS, icon: "BarChart" },
   { name: "WhatsApp", path: ROUTES.WHATSAPP, icon: "MessageCircle" },
+  { name: "Telegram", path: ROUTES.TELEGRAM, icon: "Telegram" },
+  { name: "Chat History", path: ROUTES.CHAT_HISTORY, icon: "MessageCircle" },
   { name: "Settings", path: ROUTES.SETTINGS, icon: "Settings" },
 ];
 

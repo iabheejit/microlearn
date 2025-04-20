@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -11,7 +12,7 @@ import {
   Settings,
   ChevronLeft,
   LogOut,
-  Telegram
+  MessageSquare
 } from "lucide-react";
 
 const getIcon = (icon: string) => {
@@ -29,7 +30,7 @@ const getIcon = (icon: string) => {
     case "Settings":
       return <Settings size={20} />;
     case "Telegram":
-      return <Telegram size={20} />;
+      return <MessageSquare size={20} />;
     default:
       return <LayoutDashboard size={20} />;
   }
