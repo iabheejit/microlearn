@@ -23,8 +23,8 @@ export const useAITutor = () => {
           .eq('id', tutorId)
           .single();
         
-        if (!tutorError && tutorConfig?.metadata?.persona) {
-          persona = tutorConfig.metadata.persona;
+        if (!tutorError && tutorConfig?.metadata && typeof tutorConfig.metadata === 'object') {
+          persona = (tutorConfig.metadata as { persona?: string }).persona || persona;
         }
       }
 
@@ -53,3 +53,4 @@ export const useAITutor = () => {
     error
   };
 };
+

@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -69,6 +68,11 @@ const App = () => (
             <Route path="/telegram" element={
               <RequireAuth>
                 <Telegram />
+              </RequireAuth>
+            } />
+            <Route path="/chat-history" element={
+              <RequireAuth>
+                <ChatHistory />
               </RequireAuth>
             } />
             <Route path={ROUTES.ANALYTICS} element={

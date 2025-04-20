@@ -136,6 +136,41 @@ export type Database = {
           },
         ]
       }
+      course_documents: {
+        Row: {
+          content: string
+          course_id: string
+          created_at: string
+          id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          course_id: string
+          created_at?: string
+          id?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          course_id?: string
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_documents_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_paragraphs: {
         Row: {
           content: string
@@ -320,6 +355,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      telegram_metadata: {
+        Row: {
+          chat_id: string
+          conversation_state: Json | null
+          created_at: string
+          id: string
+          last_interaction_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          chat_id: string
+          conversation_state?: Json | null
+          created_at?: string
+          id?: string
+          last_interaction_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          chat_id?: string
+          conversation_state?: Json | null
+          created_at?: string
+          id?: string
+          last_interaction_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       user_progress: {
         Row: {
