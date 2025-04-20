@@ -29,3 +29,14 @@ export interface UserRoleRecord {
 }
 
 export type AuthUser = SupabaseUser;
+
+// Define an AppUser interface for the UI representation
+export interface AppUser {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  courses: number;
+  joined: string;
+  status: "active" | "inactive";
+}

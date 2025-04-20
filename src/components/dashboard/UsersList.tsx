@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { User } from "@/lib/types";
+import { AppUser } from "@/lib/types/user";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -55,9 +55,9 @@ import * as z from "zod";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface UsersListProps {
-  users: User[];
-  onAddUser: (user: Partial<User>) => Promise<void>;
-  onUpdateUser: (userId: number, updates: Partial<User>) => Promise<void>;
+  users: AppUser[];
+  onAddUser: (user: Partial<AppUser>) => Promise<void>;
+  onUpdateUser: (userId: number, updates: Partial<AppUser>) => Promise<void>;
   onDeleteUser: (userId: number) => Promise<void>;
 }
 

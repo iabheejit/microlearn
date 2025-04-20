@@ -1,6 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { AuthUser } from "@/lib/types/user";
+import { AuthUser, UserRole } from "@/lib/types/user";
 
 /**
  * Fetches all authenticated users from Supabase
@@ -54,7 +54,7 @@ export const updateUserProfile = async (userId: string, updates: { first_name?: 
 /**
  * Update user role
  */
-export const updateUserRole = async (userId: string, role: string) => {
+export const updateUserRole = async (userId: string, role: UserRole) => {
   // Check if user already has a role
   const { data: existingRoles } = await supabase
     .from('user_roles')

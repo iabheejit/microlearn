@@ -1,10 +1,17 @@
 
-import { useEffect, useState, ReactNode } from "react";
+import { useEffect, useState, ReactNode, createContext, useContext } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { ROUTES } from "@/lib/constants";
-import { AuthContext } from "@/hooks/useAuthContext";
+import { AuthContextProps } from "@/hooks/useAuthContext";
+
+export const AuthContext = createContext<AuthContextProps>({
+  session: null,
+  user: null,
+  loading: true,
+  signOut: async () => {},
+});
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -74,6 +81,3 @@ export const RequireAuth = ({ children }: { children: ReactNode }) => {
 
   return user ? <>{children}</> : null;
 };
-
-import { useContext } from 'react';
-import { AuthContext } from '@/hooks/useAuthContext';

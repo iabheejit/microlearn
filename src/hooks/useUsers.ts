@@ -1,12 +1,11 @@
 
 import { useState } from "react";
-import { User } from "@/lib/types";
+import { AppUser, UserValidation } from "@/lib/types/user";
 import { useToast } from "@/components/ui/use-toast";
-import { UserValidation } from "@/lib/types/user";
 import { createUser, deleteUserById, fetchUsersList, updateUserById } from "@/services/userService";
 
 export const useUsers = () => {
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
