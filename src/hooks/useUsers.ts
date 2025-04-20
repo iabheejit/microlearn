@@ -50,7 +50,7 @@ export const useUsers = () => {
           role: role,
           courses: 0, // Would need another query to get actual courses
           joined: new Date(authUser.created_at).toISOString().split('T')[0],
-          status: authUser.banned ? "inactive" : "active"
+          status: authUser.banned_at ? "inactive" : "active"
         } as User;
       });
 
@@ -59,7 +59,7 @@ export const useUsers = () => {
       console.error("Error fetching users:", error);
       toast({
         title: "Error fetching users",
-        description: error.message,
+        description: (error as Error).message,
         variant: "destructive",
       });
     } finally {
@@ -109,7 +109,7 @@ export const useUsers = () => {
       console.error("Error adding user:", error);
       toast({
         title: "Error adding user",
-        description: error.message,
+        description: (error as Error).message,
         variant: "destructive",
       });
     }
@@ -132,10 +132,10 @@ export const useUsers = () => {
 
       // Update user status if needed
       if (updates.status !== undefined) {
-        const { error: statusError } = await supabase.auth.admin.updateUserById({
-          id: authUser.id,
-          user_metadata: { banned: updates.status === 'inactive' }
-        });
+        const { error: statusError } = await supabase.auth.admin.updateUserById(
+          authUser.id, 
+          { user_metadata: { banned_at: updates.status === 'inactive' ? new Date().toISOString() : null } }
+        );
         
         if (statusError) throw statusError;
       }
@@ -196,7 +196,7 @@ export const useUsers = () => {
       console.error("Error updating user:", error);
       toast({
         title: "Error updating user",
-        description: error.message,
+        description: (error as Error).message,
         variant: "destructive",
       });
     }
@@ -217,7 +217,7 @@ export const useUsers = () => {
       
       if (!authUser) throw new Error("User not found in auth system");
 
-      // Delete the user with the correct parameter format
+      // Delete the user
       const { error } = await supabase.auth.admin.deleteUser(authUser.id);
       
       if (error) throw error;
@@ -233,7 +233,7 @@ export const useUsers = () => {
       console.error("Error deleting user:", error);
       toast({
         title: "Error deleting user",
-        description: error.message,
+        description: (error as Error).message,
         variant: "destructive",
       });
     }
