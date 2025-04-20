@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { User } from "@/lib/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -132,7 +133,7 @@ export const useUsers = () => {
       if (updates.status !== undefined) {
         const { error: statusError } = await supabase.auth.admin.updateUserById(
           authUser.id, 
-          { user_metadata: { banned_at: updates.status === 'inactive' ? new Date().toISOString() : null } }
+          { ban_duration: updates.status === 'inactive' ? 'none' : null }
         );
         
         if (statusError) throw statusError;

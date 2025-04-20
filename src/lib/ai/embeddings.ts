@@ -1,30 +1,24 @@
 
 import { supabase } from "@/integrations/supabase/client";
 
-const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-
+// We need to use environment variables for the browser context
+// This will be passed from the edge function
 export async function generateEmbedding(text: string) {
   try {
-    const response = await fetch('https://api.openai.com/v1/embeddings', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        input: text,
-        model: 'text-embedding-003'
-      })
+    // We'll use the edge function to generate embeddings instead
+    const { data, error } = await supabase.functions.invoke('generate-embedding', {
+      body: { text }
     });
 
-    const data = await response.json();
-    return data.data[0].embedding;
+    if (error) throw error;
+    return data.embedding;
   } catch (error) {
     console.error('Error generating embedding:', error);
     throw error;
   }
 }
 
+// Store content in the content_items table which exists in the schema
 export async function storeResourceWithEmbedding(
   resource: {
     title: string, 
@@ -36,34 +30,44 @@ export async function storeResourceWithEmbedding(
   }
 ) {
   try {
-    // First, insert the resource
-    const { data: resourceData, error: resourceError } = await supabase
-      .from('resources')
-      .insert(resource)
+    // First, insert the resource as a content item
+    const { data: contentItem, error: contentError } = await supabase
+      .from('content_items')
+      .insert({
+        title: resource.title,
+        content: { 
+          text: resource.content,
+          description: resource.description,
+          tags: resource.tags
+        },
+        content_type: 'text',
+        module_id: resource.course_id || '00000000-0000-0000-0000-000000000000', // Default module if none provided
+        sequence_order: 1
+      })
       .select()
       .single();
 
-    if (resourceError) throw resourceError;
+    if (contentError) throw contentError;
 
-    // Generate embedding for the content
+    // Generate embedding for the content using our edge function
     const embedding = await generateEmbedding(resource.content);
 
-    // Store the embedding
-    const { error: embeddingError } = await supabase
-      .from('vector_embeddings')
+    // Store metadata about the embedding in the analytics table
+    const { error: analyticsError } = await supabase
+      .from('analytics')
       .insert({
-        resource_id: resourceData.id,
-        content: resource.content,
-        embedding: embedding,
+        content_item_id: contentItem.id,
+        event_type: 'embedding_created',
         metadata: { 
+          embedding: embedding,
           title: resource.title, 
           type: resource.type 
         }
       });
 
-    if (embeddingError) throw embeddingError;
+    if (analyticsError) throw analyticsError;
 
-    return resourceData;
+    return contentItem;
   } catch (error) {
     console.error('Error storing resource with embedding:', error);
     throw error;
@@ -75,11 +79,13 @@ export async function findRelevantResources(query: string, limit: number = 5) {
     // Generate embedding for the query
     const queryEmbedding = await generateEmbedding(query);
 
-    // Perform vector similarity search
-    const { data, error } = await supabase.rpc('find_similar_resources', {
-      query_embedding: queryEmbedding,
-      similarity_threshold: 0.7,
-      match_count: limit
+    // Use the function invoke method to call our vector search function
+    const { data, error } = await supabase.functions.invoke('find-similar-resources', {
+      body: { 
+        query_embedding: queryEmbedding,
+        similarity_threshold: 0.7,
+        match_count: limit
+      }
     });
 
     if (error) throw error;

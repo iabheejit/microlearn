@@ -11,11 +11,28 @@ export const useAITutor = () => {
     setError(null);
 
     try {
+      // Determine the persona to use
+      let persona = 'helpful assistant';
+      
+      if (tutorId) {
+        // Find tutor configuration in analytics table where we store metadata
+        const { data: tutorConfig, error: tutorError } = await supabase
+          .from('analytics')
+          .select('metadata')
+          .eq('event_type', 'tutor_created')
+          .eq('id', tutorId)
+          .single();
+        
+        if (!tutorError && tutorConfig?.metadata?.persona) {
+          persona = tutorConfig.metadata.persona;
+        }
+      }
+
       const { data, error } = await supabase.functions.invoke('ai-tutor', {
         body: JSON.stringify({ 
           query, 
           context,
-          persona: tutorId ? await getTutorPersona(tutorId) : 'helpful assistant' 
+          persona
         })
       });
 
@@ -28,17 +45,6 @@ export const useAITutor = () => {
       setLoading(false);
       return null;
     }
-  };
-
-  const getTutorPersona = async (tutorId: string) => {
-    const { data, error } = await supabase
-      .from('ai_tutors')
-      .select('persona')
-      .eq('id', tutorId)
-      .single();
-
-    if (error) throw error;
-    return data.persona;
   };
 
   return {

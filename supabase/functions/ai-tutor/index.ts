@@ -18,8 +18,49 @@ serve(async (req) => {
   try {
     const { query, context = [], persona = 'helpful assistant' } = await req.json();
 
-    // Find relevant resources
-    const relevantResources = await findRelevantResources(query);
+    // Find relevant resources using our find-similar-resources function
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY');
+    
+    // First generate embeddings for the query
+    const embeddingResponse = await fetch(`${supabaseUrl}/functions/v1/generate-embedding`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${supabaseKey}`,
+        'apikey': supabaseKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        text: query
+      })
+    });
+    
+    if (!embeddingResponse.ok) {
+      throw new Error(`Failed to generate embedding: ${embeddingResponse.statusText}`);
+    }
+    
+    const embeddingData = await embeddingResponse.json();
+    
+    // Then find similar resources
+    const resourceResponse = await fetch(`${supabaseUrl}/functions/v1/find-similar-resources`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${supabaseKey}`,
+        'apikey': supabaseKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        query_embedding: embeddingData.embedding,
+        similarity_threshold: 0.7,
+        match_count: 5
+      })
+    });
+    
+    if (!resourceResponse.ok) {
+      throw new Error(`Failed to find resources: ${resourceResponse.statusText}`);
+    }
+    
+    const relevantResources = await resourceResponse.json();
 
     // Prepare context with found resources
     const ragContext = relevantResources.map(
@@ -49,6 +90,11 @@ serve(async (req) => {
     });
 
     const data = await response.json();
+    
+    if (!data.choices || !data.choices[0]) {
+      throw new Error('Invalid response from OpenAI');
+    }
+    
     const generatedResponse = data.choices[0].message.content;
 
     return new Response(JSON.stringify({ 
@@ -65,52 +111,3 @@ serve(async (req) => {
     });
   }
 });
-
-async function findRelevantResources(query: string, limit: number = 5) {
-  try {
-    // Generate embedding for the query
-    const queryEmbedding = await generateEmbedding(query);
-
-    // Since this is an edge function, we'll use a direct fetch to Supabase
-    const response = await fetch(`https://cvwylbvmrhcwktrtidvh.supabase.co/rest/v1/rpc/find_similar_resources`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': Deno.env.get('SUPABASE_ANON_KEY'),
-      },
-      body: JSON.stringify({
-        query_embedding: queryEmbedding,
-        similarity_threshold: 0.7,
-        match_count: limit
-      })
-    });
-
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Error finding relevant resources:', error);
-    throw error;
-  }
-}
-
-async function generateEmbedding(text: string) {
-  try {
-    const response = await fetch('https://api.openai.com/v1/embeddings', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        input: text,
-        model: 'text-embedding-003'
-      })
-    });
-
-    const data = await response.json();
-    return data.data[0].embedding;
-  } catch (error) {
-    console.error('Error generating embedding:', error);
-    throw error;
-  }
-}
