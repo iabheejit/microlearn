@@ -7,7 +7,7 @@ export const validateRole = (role: string): UserRole | null => {
 };
 
 export const getUserDisplayId = (uuid: string): number => {
-  return Number(uuid.substring(0, 8), 16);
+  return parseInt(uuid.substring(0, 8), 16);
 };
 
 export const formatUserName = (firstName: string | null, lastName: string | null, email: string | null): string => {
