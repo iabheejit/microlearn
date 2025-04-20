@@ -12,6 +12,7 @@ import CourseEditor from "./pages/CourseEditor";
 import CoursePreview from "./pages/CoursePreview";
 import Users from "./pages/Users";
 import WhatsApp from "./pages/WhatsApp";
+import Telegram from "./pages/Telegram";
 import Analytics from "./pages/Analytics";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
@@ -63,6 +64,11 @@ const App = () => (
             <Route path={ROUTES.WHATSAPP} element={
               <RequireAuth>
                 <WhatsApp />
+              </RequireAuth>
+            } />
+            <Route path="/telegram" element={
+              <RequireAuth>
+                <Telegram />
               </RequireAuth>
             } />
             <Route path={ROUTES.ANALYTICS} element={

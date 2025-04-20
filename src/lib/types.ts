@@ -57,6 +57,14 @@ export interface WhatsAppTemplate {
   status: "approved" | "pending" | "rejected";
 }
 
+export interface TelegramTemplate {
+  id: number;
+  name: string;
+  content: string;
+  variables: string[];
+  status: "active" | "inactive";
+}
+
 export interface Organization {
   id: number;
   name: string;
@@ -65,3 +73,33 @@ export interface Organization {
   courses: number;
 }
 
+export interface Resource {
+  id: number;
+  title: string;
+  description: string;
+  url?: string;
+  content?: string;
+  type: "document" | "video" | "link" | "image";
+  tags: string[];
+  courseId?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VectorEmbedding {
+  id: number;
+  content: string;
+  metadata: Record<string, any>;
+  embedding: number[];
+  resourceId: number;
+}
+
+export interface AITutor {
+  id: number;
+  name: string;
+  description: string;
+  persona: string;
+  courseId: number;
+  capabilities: string[];
+  active: boolean;
+}
