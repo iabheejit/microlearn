@@ -63,6 +63,7 @@ export const updateUserById = async (displayId: number, updates: UserUpdatePaylo
   const { data: authUsers } = await supabase.auth.admin.listUsers();
   if (!authUsers?.users) throw new Error("Failed to fetch auth users");
   
+  // Find the auth user that matches our display ID
   const authUser = authUsers.users.find(u => getUserDisplayId(u.id) === displayId);
   if (!authUser) throw new Error("User not found in auth system");
 
