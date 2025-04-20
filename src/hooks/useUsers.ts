@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { User } from "@/lib/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,7 +39,6 @@ export const useUsers = () => {
       const combinedUsers = authUsers.users.map(authUser => {
         const profile = profiles?.find(p => p.id === authUser.id);
         const userRole = userRoles?.find(ur => ur.user_id === authUser.id);
-        // Ensure role is one of the allowed enum types
         const role = userRole?.role || 'learner';
 
         return {
