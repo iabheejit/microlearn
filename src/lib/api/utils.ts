@@ -35,10 +35,20 @@ export const dbCourseToAppCourse = (dbCourse: any, days: any[] = []): Course => 
 
 // Helper to prepare course for database insertion
 export const appCourseToDbFormat = (course: Course) => {
-  // Generate a proper UUID if the id is a number
-  const courseId = typeof course.id === 'number' ? 
-    crypto.randomUUID() : // Generate a valid UUID for new courses
-    course.id.toString(); // Use existing ID if it's already a string
+  // Generate a proper UUID if the id is a number or string
+  // We need to handle the type properly to avoid TypeScript errors
+  let courseId: string;
+  
+  if (typeof course.id === 'number') {
+    // Generate a valid UUID for new courses (when id is a number)
+    courseId = crypto.randomUUID();
+  } else if (typeof course.id === 'string') {
+    // Use existing ID if it's already a string
+    courseId = course.id;
+  } else {
+    // Fallback to generate a new UUID if id is undefined or another type
+    courseId = crypto.randomUUID();
+  }
 
   // Extract course data for the courses table
   // Only include fields that exist in the database
