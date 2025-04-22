@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -9,7 +10,7 @@ import { Plus } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Course } from "@/lib/types";
 import { fetchCourses } from "@/lib/api";
-import { crypto } from "crypto";
+import { randomUUID } from "crypto";
 
 const Courses = () => {
   const { toast } = useToast();
@@ -24,7 +25,7 @@ const Courses = () => {
 
   const handleCreateNewCourse = () => {
     const newCourse: Course = {
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       title: "",
       enrolled: 0,
       completion: 0,
