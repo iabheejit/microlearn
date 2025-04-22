@@ -32,7 +32,8 @@ export const fetchUsersList = async () => {
       role: role,
       courses: 0,
       joined: new Date(authUser.created_at).toISOString().split('T')[0],
-      status: authUser.banned_until ? "inactive" : "active"
+      // Fix: Use user_metadata to determine if user is active instead of banned_until
+      status: authUser.user_metadata?.banned === true ? "inactive" : "active"
     } as AppUser;
   });
 };
