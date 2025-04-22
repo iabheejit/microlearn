@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { AppUser } from "@/lib/types/user";
 import { Button } from "@/components/ui/button";
@@ -75,7 +74,7 @@ const UsersList = ({ users, onAddUser, onUpdateUser, onDeleteUser }: UsersListPr
   const [deleteUserId, setDeleteUserId] = useState<number | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState<AppUser | null>(null);
 
   // Form for adding/editing users
   const form = useForm<UserFormValues>({
@@ -115,7 +114,7 @@ const UsersList = ({ users, onAddUser, onUpdateUser, onDeleteUser }: UsersListPr
     }
   };
 
-  const handleEditClick = (user: User) => {
+  const handleEditClick = (user: AppUser) => {
     setEditingUser(user);
     form.reset({
       name: user.name,
@@ -137,7 +136,7 @@ const UsersList = ({ users, onAddUser, onUpdateUser, onDeleteUser }: UsersListPr
     }
   };
 
-  const handleStatusToggle = async (user: User) => {
+  const handleStatusToggle = async (user: AppUser) => {
     const newStatus = user.status === "active" ? "inactive" : "active";
     await onUpdateUser(user.id, { status: newStatus });
   };
