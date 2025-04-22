@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import {
@@ -9,8 +8,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MOCK_STATS, MOCK_COURSES, MOCK_USERS } from "@/lib/constants";
 import { BarChart3, LineChart as LineChartIcon, PieChart as PieChartIcon } from "lucide-react";
+import { useAnalytics } from "@/hooks/useAnalytics";
+import { useCourseStats } from "@/hooks/useCourseStats";
 import { 
   Area, 
   AreaChart, 
@@ -31,8 +31,32 @@ import {
 
 const Analytics = () => {
   const [activeTab, setActiveTab] = useState("overview");
+  const { data: analytics, isLoading: isLoadingAnalytics } = useAnalytics();
+  const { data: courseStats, isLoading: isLoadingCourseStats } = useCourseStats();
 
-  // Sample data for charts
+  const stats = analytics ? [
+    { 
+      name: "Total Users", 
+      value: analytics.totalUsers.toLocaleString(),
+      trend: "up"
+    },
+    { 
+      name: "Active Courses", 
+      value: analytics.activeCourses.toLocaleString(),
+      trend: "up"
+    },
+    { 
+      name: "Completion Rate", 
+      value: `${analytics.completionRate}%`,
+      trend: analytics.completionRate > 70 ? "up" : "down"
+    },
+    { 
+      name: "Messages Sent", 
+      value: analytics.messagesSent.toLocaleString(),
+      trend: "up"
+    }
+  ] : [];
+
   const engagementData = [
     { month: "Jan", users: 2100, courses: 32, completion: 68 },
     { month: "Feb", users: 2200, courses: 38, completion: 70 },
@@ -80,7 +104,7 @@ const Analytics = () => {
 
             <TabsContent value="overview" className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {MOCK_STATS.map((stat, index) => (
+                {(isLoadingAnalytics ? Array(4).fill({}) : stats).map((stat, index) => (
                   <Card key={index} className="animate-fade-in" style={{ animationDelay: `${index * 0.1}s` }}>
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm font-medium">
@@ -184,11 +208,7 @@ const Analytics = () => {
                 </CardHeader>
                 <CardContent className="h-96">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={MOCK_COURSES.map(course => ({
-                      name: course.title,
-                      enrolled: course.enrolled,
-                      completion: course.completion
-                    }))}>
+                    <BarChart data={isLoadingCourseStats ? [] : courseStats}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" />
                       <YAxis />

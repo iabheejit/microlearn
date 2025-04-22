@@ -1,6 +1,5 @@
-
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,13 +7,16 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { APP_NAME, ROUTES } from "@/lib/constants";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { PasswordReset } from "@/components/auth/PasswordReset";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
+  const [showReset, setShowReset] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const handleAuthentication = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,7 +32,6 @@ const Login = () => {
       let result;
       
       if (isSignUp) {
-        // Sign up - add proper metadata for profile creation
         result = await supabase.auth.signUp({
           email,
           password,
@@ -43,7 +44,6 @@ const Login = () => {
           }
         });
       } else {
-        // Sign in
         result = await supabase.auth.signInWithPassword({
           email,
           password,
@@ -54,7 +54,6 @@ const Login = () => {
         throw result.error;
       }
       
-      // Success
       toast.success(isSignUp ? "Account created successfully" : "Login successful");
       navigate(ROUTES.DASHBOARD);
     } catch (error) {
@@ -66,6 +65,41 @@ const Login = () => {
       setIsLoading(false);
     }
   };
+
+  const isRecovery = searchParams.get("type") === "recovery";
+
+  if (isRecovery || showReset) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <Link to={ROUTES.HOME} className="inline-block">
+              <h1 className="text-3xl font-bold text-primary">{APP_NAME}</h1>
+            </Link>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Reset Password</CardTitle>
+              <CardDescription>
+                {isRecovery ? "Enter your new password" : "Enter your email to reset your password"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <PasswordReset />
+            </CardContent>
+            <CardFooter className="flex justify-center">
+              {!isRecovery && (
+                <Button variant="link" onClick={() => setShowReset(false)}>
+                  Back to Login
+                </Button>
+              )}
+            </CardFooter>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
@@ -104,14 +138,14 @@ const Login = () => {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Password</Label>
-                  {!isSignUp && (
-                    <Link
-                      to="#"
-                      className="text-xs text-primary hover:underline"
-                    >
-                      Forgot password?
-                    </Link>
-                  )}
+                  <Button
+                    variant="link"
+                    className="px-0"
+                    type="button"
+                    onClick={() => setShowReset(true)}
+                  >
+                    Forgot password?
+                  </Button>
                 </div>
                 <Input
                   id="password"
