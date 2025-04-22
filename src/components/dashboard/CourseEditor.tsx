@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -32,7 +33,7 @@ const CourseEditor = ({ initialCourse, onSave, isSaving = false }: CourseEditorP
   };
   
   const defaultCourse: Course = {
-    id: Date.now(),
+    id: crypto.randomUUID(),
     title: "",
     instructor: "",
     description: "",

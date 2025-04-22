@@ -16,7 +16,7 @@ export const duplicateCourse = async (id: number | string): Promise<Course> => {
     // Create a new course object based on the existing one
     const newCourse: Course = {
       ...course,
-      id: Date.now(), // Generate a new ID
+      id: crypto.randomUUID(), // Generate a new string ID
       title: `${course.title} (Copy)`,
       enrolled: 0,
       completion: 0,

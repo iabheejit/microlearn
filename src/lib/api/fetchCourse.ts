@@ -11,7 +11,7 @@ export const fetchCourse = async (id: number | string): Promise<Course> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       console.log("User not authenticated, returning mock course");
-      const mockCourse = MOCK_COURSES.find(c => c.id === Number(id));
+      const mockCourse = MOCK_COURSES.find(c => c.id === id.toString());
       if (!mockCourse) throw new Error(`Course with ID ${id} not found`);
       return mockCourse;
     }
@@ -23,7 +23,7 @@ export const fetchCourse = async (id: number | string): Promise<Course> => {
     
     // Determine if this is a UUID (string from Supabase) or number (from mock data)
     const isUuid = typeof id === 'string' && id.includes('-');
-    const courseIdForQuery = isUuid ? id : id.toString();
+    const courseIdForQuery = id.toString();
     
     console.log(`Fetching course with ID: ${courseIdForQuery}, isUuid: ${isUuid}`);
 
@@ -65,7 +65,7 @@ export const fetchCourse = async (id: number | string): Promise<Course> => {
     console.error(`Error fetching course ${id}:`, error);
     
     // Fallback to mock data in case of error
-    const mockCourse = MOCK_COURSES.find(c => c.id === Number(id));
+    const mockCourse = MOCK_COURSES.find(c => c.id === id.toString());
     if (!mockCourse) throw new Error(`Course with ID ${id} not found`);
     
     return mockCourse;

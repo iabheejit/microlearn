@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -24,9 +25,9 @@ const CoursePreview = () => {
   
   const { data: course, isLoading, error } = useQuery({
     queryKey: ['course', id],
-    queryFn: () => isValidId ? fetchCourse(id) : Promise.reject(new Error("Invalid course ID")),
+    queryFn: () => isValidId ? fetchCourse(id as string) : Promise.reject(new Error("Invalid course ID")),
     enabled: isValidId,
-    initialData: isValidId ? MOCK_COURSES.find(c => c.id === parseInt(id || "0")) : undefined
+    initialData: isValidId ? MOCK_COURSES.find(c => c.id === id) : undefined
   });
 
   if (!isValidId) {
