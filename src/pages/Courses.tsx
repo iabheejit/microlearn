@@ -10,7 +10,15 @@ import { Plus } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Course } from "@/lib/types";
 import { fetchCourses } from "@/lib/api";
-import { randomUUID } from "crypto";
+
+// Browser-compatible UUID generation function
+const generateUUID = () => {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function(c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
 
 const Courses = () => {
   const { toast } = useToast();
@@ -25,7 +33,7 @@ const Courses = () => {
 
   const handleCreateNewCourse = () => {
     const newCourse: Course = {
-      id: randomUUID(),
+      id: generateUUID(),
       title: "",
       enrolled: 0,
       completion: 0,
