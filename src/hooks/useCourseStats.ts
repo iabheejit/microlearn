@@ -12,7 +12,7 @@ export const useCourseStats = () => {
   return useQuery({
     queryKey: ["course-stats"],
     queryFn: async (): Promise<CourseStats[]> => {
-      const { data: courses } = await supabase
+      const { data: courses, error } = await supabase
         .from("courses")
         .select(`
           title,
@@ -22,10 +22,16 @@ export const useCourseStats = () => {
           )
         `);
 
+      if (error) {
+        console.error("Error fetching course stats:", error);
+        return [];
+      }
+
       if (!courses) return [];
 
       return courses.map(course => {
-        const progress = course.user_progress || [];
+        // Check if user_progress is an array before using array methods
+        const progress = Array.isArray(course.user_progress) ? course.user_progress : [];
         const enrolled = progress.length;
         const completed = progress.filter(p => p.status === "completed").length;
         const completion = enrolled > 0 ? Math.round((completed / enrolled) * 100) : 0;

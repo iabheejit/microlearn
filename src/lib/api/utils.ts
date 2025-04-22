@@ -35,16 +35,19 @@ export const dbCourseToAppCourse = (dbCourse: any, days: any[] = []): Course => 
 
 // Helper to prepare course for database insertion
 export const appCourseToDbFormat = (course: Course) => {
+  // Generate a proper UUID if the id is a number
+  const courseId = typeof course.id === 'number' ? 
+    crypto.randomUUID() : // Generate a valid UUID for new courses
+    course.id.toString(); // Use existing ID if it's already a string
+
   // Extract course data for the courses table
   // Only include fields that exist in the database
   const courseData = {
-    id: course.id.toString(), // Convert to string for Supabase UUID
+    id: courseId,
     title: course.title || "",
-    instructor: course.instructor || "", // Now included in DB format
+    instructor: course.instructor || "",
     description: course.description || "",
     is_published: course.status === "active" // Map status to is_published
-    // We don't include fields that don't exist in the database:
-    // category, language, price, enrolled, completion
   };
 
   return { courseData, days: course.days || [] };
