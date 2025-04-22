@@ -10,7 +10,7 @@ export interface User {
 }
 
 export interface Course {
-  id: number;
+  id: string;  // Changed from number to string
   title: string;
   instructor?: string;
   description?: string;

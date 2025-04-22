@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -23,9 +22,11 @@ const CourseEditorPage = () => {
   // Fetch course data if editing an existing course
   const { data: existingCourse, isLoading } = useQuery({
     queryKey: ['course', id],
-    queryFn: () => fetchCourse(id as string), 
-    enabled: !!id && !isNewCourse,
-    initialData: id && !isNewCourse ? MOCK_COURSES.find(c => c.id === parseInt(id as string)) : undefined
+    queryFn: () => fetchCourse(id as string),
+    enabled: !!id && !isNewCourse && id !== 'NaN',
+    initialData: id && !isNewCourse && id !== 'NaN' 
+      ? MOCK_COURSES.find(c => c.id === id) 
+      : undefined
   });
 
   // Mutation for saving course

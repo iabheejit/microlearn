@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -10,13 +9,13 @@ import { Plus } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Course } from "@/lib/types";
 import { fetchCourses } from "@/lib/api";
+import { crypto } from "crypto";
 
 const Courses = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   
-  // Fetch courses using React Query
   const { data: courses = [], isLoading, error } = useQuery({
     queryKey: ['courses'],
     queryFn: fetchCourses,
@@ -24,9 +23,8 @@ const Courses = () => {
   });
 
   const handleCreateNewCourse = () => {
-    // Create a minimal course object to pass to the editor
     const newCourse: Course = {
-      id: Date.now(),
+      id: crypto.randomUUID(),
       title: "",
       enrolled: 0,
       completion: 0,

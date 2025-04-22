@@ -1,4 +1,3 @@
-
 import { Course, CourseDay, CourseParagraph } from "../types";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -14,20 +13,17 @@ export const dbCourseToAppCourse = (dbCourse: any, days: any[] = []): Course => 
     media: day.media
   }));
 
-  // We need to adapt the database structure to match our application model
-  // Some fields like completion, enrolled, price, language don't exist in the DB
-  // so we provide default values for these fields
   return {
-    id: Number(dbCourse.id), // Convert UUID to number for app
+    id: dbCourse.id, // Keep as string, no conversion needed
     title: dbCourse.title,
-    instructor: dbCourse.instructor || "", // Now coming from DB
+    instructor: dbCourse.instructor || "",
     description: dbCourse.description || "",
-    category: "", // Default category as it's not in DB
-    language: "", // Default language as it's not in DB
-    price: 0, // Default price as it's not in DB
-    enrolled: 0, // Default enrolled as it's not in DB
-    completion: 0, // Default completion as it's not in DB
-    status: dbCourse.is_published ? "active" : "draft", // Map is_published to status
+    category: dbCourse.category || "",
+    language: dbCourse.language || "",
+    price: dbCourse.price || 0,
+    enrolled: dbCourse.enrolled_count || 0,
+    completion: dbCourse.completion_rate || 0,
+    status: dbCourse.is_published ? "active" : "draft",
     created: new Date(dbCourse.created_at).toISOString().split('T')[0],
     days: courseDays,
   };
@@ -35,29 +31,19 @@ export const dbCourseToAppCourse = (dbCourse: any, days: any[] = []): Course => 
 
 // Helper to prepare course for database insertion
 export const appCourseToDbFormat = (course: Course) => {
-  // Generate a proper UUID if the id is a number or string
-  // We need to handle the type properly to avoid TypeScript errors
-  let courseId: string;
-  
-  if (typeof course.id === 'number') {
-    // Generate a valid UUID for new courses (when id is a number)
-    courseId = crypto.randomUUID();
-  } else if (typeof course.id === 'string') {
-    // Use existing ID if it's already a string
-    courseId = course.id;
-  } else {
-    // Fallback to generate a new UUID if id is undefined or another type
-    courseId = crypto.randomUUID();
-  }
+  const courseId = course.id || crypto.randomUUID();
 
-  // Extract course data for the courses table
-  // Only include fields that exist in the database
   const courseData = {
     id: courseId,
     title: course.title || "",
     instructor: course.instructor || "",
     description: course.description || "",
-    is_published: course.status === "active" // Map status to is_published
+    category: course.category || "",
+    language: course.language || "",
+    price: course.price || 0,
+    enrolled_count: course.enrolled || 0,
+    completion_rate: course.completion || 0,
+    is_published: course.status === "active"
   };
 
   return { courseData, days: course.days || [] };

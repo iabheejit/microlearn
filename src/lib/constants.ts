@@ -1,4 +1,3 @@
-
 export const APP_NAME = "Ekatra";
 export const APP_DESCRIPTION = "Enterprise Learning Platform";
 
@@ -35,32 +34,52 @@ export const MOCK_STATS = [
 
 export const MOCK_COURSES = [
   {
-    id: 1,
+    id: "550e8400-e29b-41d4-a716-446655440000",
     title: "Introduction to Management",
+    instructor: "John Smith",
+    description: "Learn the fundamentals of management",
+    category: "Business",
+    language: "English",
+    price: 99.99,
     enrolled: 342,
     completion: 78,
     status: "active" as "active",
     created: "2023-10-15",
   },
   {
-    id: 2,
+    id: "550e8400-e29b-41d4-a716-446655440001",
     title: "Digital Marketing Essentials",
+    instructor: "Jane Doe",
+    description: "Master digital marketing strategies",
+    category: "Marketing",
+    language: "English",
+    price: 149.99,
     enrolled: 254,
     completion: 65,
     status: "active" as "active",
     created: "2023-11-20",
   },
   {
-    id: 3,
+    id: "550e8400-e29b-41d4-a716-446655440002",
     title: "Leadership Skills",
+    instructor: "Michael Johnson",
+    description: "Develop leadership skills",
+    category: "Leadership",
+    language: "English",
+    price: 79.99,
     enrolled: 189,
     completion: 82,
     status: "active" as "active",
     created: "2023-09-05",
   },
   {
-    id: 4,
+    id: "550e8400-e29b-41d4-a716-446655440003",
     title: "Data Analysis Fundamentals",
+    instructor: "Emily Brown",
+    description: "Learn data analysis techniques",
+    category: "Data Science",
+    language: "English",
+    price: 119.99,
     enrolled: 201,
     completion: 53,
     status: "draft" as "draft",

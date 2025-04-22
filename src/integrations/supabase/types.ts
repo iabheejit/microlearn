@@ -208,37 +208,52 @@ export type Database = {
       }
       courses: {
         Row: {
+          category: string | null
+          completion_rate: number | null
           created_at: string
           created_by: string | null
           description: string | null
+          enrolled_count: number | null
           id: string
           instructor: string | null
           is_published: boolean | null
+          language: string | null
           organization_id: string | null
+          price: number | null
           thumbnail_url: string | null
           title: string
           updated_at: string
         }
         Insert: {
+          category?: string | null
+          completion_rate?: number | null
           created_at?: string
           created_by?: string | null
           description?: string | null
+          enrolled_count?: number | null
           id?: string
           instructor?: string | null
           is_published?: boolean | null
+          language?: string | null
           organization_id?: string | null
+          price?: number | null
           thumbnail_url?: string | null
           title: string
           updated_at?: string
         }
         Update: {
+          category?: string | null
+          completion_rate?: number | null
           created_at?: string
           created_by?: string | null
           description?: string | null
+          enrolled_count?: number | null
           id?: string
           instructor?: string | null
           is_published?: boolean | null
+          language?: string | null
           organization_id?: string | null
+          price?: number | null
           thumbnail_url?: string | null
           title?: string
           updated_at?: string
