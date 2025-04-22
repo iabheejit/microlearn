@@ -20,11 +20,35 @@ const CoursePreview = () => {
   const [selectedDay, setSelectedDay] = useState(0);
   const [showPayment, setShowPayment] = useState(false);
 
+  const isValidId = id !== 'NaN' && id !== undefined && id !== null;
+  
   const { data: course, isLoading, error } = useQuery({
     queryKey: ['course', id],
-    queryFn: () => fetchCourse(Number(id)),
-    initialData: MOCK_COURSES.find(c => c.id === parseInt(id || "0"))
+    queryFn: () => isValidId ? fetchCourse(id) : Promise.reject(new Error("Invalid course ID")),
+    enabled: isValidId,
+    initialData: isValidId ? MOCK_COURSES.find(c => c.id === parseInt(id || "0")) : undefined
   });
+
+  if (!isValidId) {
+    return (
+      <div className="flex min-h-screen">
+        <Sidebar />
+        <main className="flex-1 overflow-y-auto">
+          <div className="container mx-auto py-6 px-4 md:px-6">
+            <div className="flex flex-col items-center justify-center h-[80vh] text-center">
+              <h1 className="text-2xl font-bold mb-4">Invalid Course ID</h1>
+              <p className="text-muted-foreground mb-6">
+                The course ID is invalid. Please select a valid course.
+              </p>
+              <Button onClick={() => navigate("/courses")}>
+                Back to Courses
+              </Button>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

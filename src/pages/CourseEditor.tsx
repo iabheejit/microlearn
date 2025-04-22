@@ -23,9 +23,9 @@ const CourseEditorPage = () => {
   // Fetch course data if editing an existing course
   const { data: existingCourse, isLoading } = useQuery({
     queryKey: ['course', id],
-    queryFn: () => fetchCourse(Number(id)),
+    queryFn: () => fetchCourse(id as string), 
     enabled: !!id && !isNewCourse,
-    initialData: id && !isNewCourse ? MOCK_COURSES.find(c => c.id === parseInt(id)) : undefined
+    initialData: id && !isNewCourse ? MOCK_COURSES.find(c => c.id === parseInt(id as string)) : undefined
   });
 
   // Mutation for saving course
@@ -34,15 +34,28 @@ const CourseEditorPage = () => {
     onSuccess: (savedCourse) => {
       // Invalidate and refetch
       queryClient.invalidateQueries({ queryKey: ['courses'] });
-      queryClient.invalidateQueries({ queryKey: ['course', savedCourse.id.toString()] });
       
-      // Redirect to the course preview
-      navigate(`/courses/preview/${savedCourse.id}`);
-      
-      toast({
-        title: isNewCourse ? "Course created" : "Course updated",
-        description: `${savedCourse.title} has been ${isNewCourse ? 'created' : 'updated'} successfully.`
-      });
+      // Make sure we have a valid ID before trying to navigate
+      const courseId = savedCourse.id;
+      if (courseId) {
+        // Invalidate the specific course query
+        queryClient.invalidateQueries({ queryKey: ['course', courseId.toString()] });
+        
+        // Redirect to the course preview with the correct ID format
+        navigate(`/courses/preview/${courseId}`);
+        
+        toast({
+          title: isNewCourse ? "Course created" : "Course updated",
+          description: `${savedCourse.title} has been ${isNewCourse ? 'created' : 'updated'} successfully.`
+        });
+      } else {
+        toast({
+          title: "Warning",
+          description: "Course saved but ID is missing. Please check the courses list.",
+          variant: "destructive"
+        });
+        navigate("/courses");
+      }
     },
     onError: (error) => {
       toast({

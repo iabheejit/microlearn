@@ -16,11 +16,22 @@ export const fetchCourse = async (id: number | string): Promise<Course> => {
       return mockCourse;
     }
 
+    // For Supabase, ensure we have a valid ID format
+    if (id === null || id === undefined || id.toString() === "NaN") {
+      throw new Error(`Invalid course ID: ${id}`);
+    }
+    
+    // Determine if this is a UUID (string from Supabase) or number (from mock data)
+    const isUuid = typeof id === 'string' && id.includes('-');
+    const courseIdForQuery = isUuid ? id : id.toString();
+    
+    console.log(`Fetching course with ID: ${courseIdForQuery}, isUuid: ${isUuid}`);
+
     // Query the course
     const { data: course, error } = await supabase
       .from('courses')
       .select('*')
-      .eq('id', id.toString())
+      .eq('id', courseIdForQuery)
       .single();
 
     if (error) throw error;
