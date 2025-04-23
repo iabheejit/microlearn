@@ -7,10 +7,18 @@ import { fetchUsersList, inviteUser, updateUserProfile, deleteUserAccount } from
 export const useUsers = () => {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [adminRequired, setAdminRequired] = useState(false);
   const { toast } = useToast();
 
   const handleServiceError = (action: string, error: unknown) => {
     console.error(`Error ${action}:`, error);
+    
+    // Check if error is admin-related
+    if ((error as Error).message?.includes("admin") || 
+        (error as any)?.code === "not_admin") {
+      setAdminRequired(true);
+    }
+    
     toast({
       title: `Error ${action}`,
       description: (error as Error).message,
@@ -23,6 +31,7 @@ export const useUsers = () => {
     try {
       const usersList = await fetchUsersList();
       setUsers(usersList);
+      setAdminRequired(false); // Reset admin required flag if successful
     } catch (error) {
       handleServiceError("fetching users", error);
     } finally {
@@ -92,6 +101,7 @@ export const useUsers = () => {
   return {
     users,
     loading,
+    adminRequired,
     fetchUsers,
     addUser,
     updateUser,

@@ -1,13 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
 import { AppUser, UserRole, UserUpdatePayload } from "@/lib/types/user";
-import { formatUserName, getUserDisplayId, validateRole } from "@/lib/utils/userUtils";
+import { formatUserName, getUserDisplayId } from "@/lib/utils/userUtils";
 import { 
   fetchProfiles, 
   fetchUserRoles,
   findUserByDisplayId,
   updateUserProfile as updateProfile,
-  updateUserRole,
-  updateUserStatus
 } from "./supabaseService";
 
 /**
@@ -19,6 +17,19 @@ export const fetchUsersList = async () => {
     // Get the current user's ID for reference
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
+    
+    // Check if user has admin role
+    const { data: userRole } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .single();
+      
+    if (!userRole || userRole.role !== 'admin') {
+      const error = new Error("Admin access required to manage users");
+      (error as any).code = "not_admin";
+      throw error;
+    }
     
     // Fetch profiles that are accessible to the current user
     const { data: profiles, error: profilesError } = await supabase
@@ -60,15 +71,30 @@ export const fetchUsersList = async () => {
  * This uses a different approach than direct creation which requires admin rights
  */
 export const inviteUser = async (email: string, role: UserRole) => {
-  // For demonstration only - in a real app, you'd implement a proper invitation flow
-  // that might involve sending emails or creating placeholder accounts
-  
-  throw new Error("User invitation requires admin access. Please contact your administrator to add new users.");
-  
-  // Alternative non-admin approaches could include:
-  // 1. Using Magic Link authentication if enabled in Supabase
-  // 2. Creating a custom invitation system with email notifications
-  // 3. Setting up a signup page with special invite codes
+  try {
+    // Check if current user is admin
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
+    
+    // Check admin role
+    const { data: userRole } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .single();
+      
+    if (!userRole || userRole.role !== 'admin') {
+      const error = new Error("Admin access required to invite users");
+      (error as any).code = "not_admin";
+      throw error;
+    }
+    
+    // For demonstration only - in a real app, you'd implement a proper invitation flow
+    throw new Error("User invitation requires admin access through the Supabase dashboard");
+  } catch (error) {
+    console.error("Error in inviteUser:", error);
+    throw error;
+  }
 };
 
 /**
@@ -82,10 +108,20 @@ export const updateUserProfile = async (displayId: number, updates: UserUpdatePa
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
     
-    // Check if user is updating their own profile or has permission somehow
+    // Check admin role for updating other users
     const userDisplayId = getUserDisplayId(user.id);
     if (userDisplayId !== displayId) {
-      throw new Error("You can only update your own profile without admin rights");
+      const { data: userRole } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .single();
+        
+      if (!userRole || userRole.role !== 'admin') {
+        const error = new Error("Admin access required to update other users");
+        (error as any).code = "not_admin";
+        throw error;
+      }
     }
     
     if (updates.name) {
@@ -97,9 +133,8 @@ export const updateUserProfile = async (displayId: number, updates: UserUpdatePa
     }
     
     // Note: Role and status changes typically require admin rights
-    // This is just a placeholder to maintain interface compatibility
     if (updates.role || updates.status) {
-      console.warn("Role and status changes require admin privileges");
+      throw new Error("Role and status changes require admin privileges through the Supabase dashboard");
     }
   } catch (error) {
     console.error("Error in updateUserProfile:", error);
@@ -112,22 +147,25 @@ export const updateUserProfile = async (displayId: number, updates: UserUpdatePa
  */
 export const deleteUserAccount = async (displayId: number) => {
   try {
-    // For regular users, they can typically only delete their own account
+    // Check if current user is admin
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
     
-    const userDisplayId = getUserDisplayId(user.id);
-    if (userDisplayId !== displayId) {
-      throw new Error("You can only delete your own account without admin rights");
+    // Check admin role
+    const { data: userRole } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .single();
+      
+    if (!userRole || userRole.role !== 'admin') {
+      const error = new Error("Admin access required to delete users");
+      (error as any).code = "not_admin";
+      throw error;
     }
     
-    // User deleting their own account
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
-    
-    // Note: Complete account deletion typically requires admin access
-    // This only signs the user out; actual deletion would need admin intervention
-    throw new Error("Complete account deletion requires admin access. Please contact your administrator.");
+    // For demonstration only
+    throw new Error("User deletion requires admin access through the Supabase dashboard");
   } catch (error) {
     console.error("Error in deleteUserAccount:", error);
     throw error;

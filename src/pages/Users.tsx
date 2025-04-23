@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import UsersList from "@/components/dashboard/UsersList";
 import { Loader2 } from "lucide-react";
@@ -8,23 +8,10 @@ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 
 const Users = () => {
-  const { users, loading, fetchUsers, addUser, updateUser, deleteUser } = useUsers();
-  const [adminRequired, setAdminRequired] = useState(false);
+  const { users, loading, adminRequired, fetchUsers, addUser, updateUser, deleteUser } = useUsers();
 
   useEffect(() => {
-    const loadUsers = async () => {
-      try {
-        await fetchUsers();
-      } catch (error) {
-        // Check if error is related to admin permissions
-        if ((error as Error).message?.includes("admin") || 
-            (error as any)?.code === "not_admin") {
-          setAdminRequired(true);
-        }
-      }
-    };
-    
-    loadUsers();
+    fetchUsers();
   }, []);
 
   return (

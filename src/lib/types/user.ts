@@ -1,4 +1,3 @@
-
 import { Database } from "@/integrations/supabase/types";
 import { User as SupabaseUser } from "@supabase/supabase-js";
 
@@ -8,6 +7,7 @@ export interface UserValidation {
   name: string;
   email: string;
   role: UserRole;
+  status?: 'active' | 'inactive';
 }
 
 export interface UserUpdatePayload {
