@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { AppUser, UserValidation } from "@/lib/types/user";
 import { useToast } from "@/components/ui/use-toast";
@@ -66,8 +65,6 @@ export const useUsers = () => {
         title: "User updated",
         description: "User has been updated successfully.",
       });
-      
-      // Update user in the local state to avoid refetching
       setUsers(currentUsers => 
         currentUsers.map(user => 
           user.id === userId 

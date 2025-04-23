@@ -107,7 +107,10 @@ const UsersList = ({ users, onAddUser, onUpdateUser, onDeleteUser, adminRequired
 
   const handleEditUserSubmit = async (data: UserFormValues) => {
     if (editingUser) {
-      await onUpdateUser(editingUser.id, data);
+      await onUpdateUser(editingUser.id, {
+        name: data.name,
+        role: data.role,
+      });
       setEditingUser(null);
       form.reset();
     }

@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
@@ -188,37 +187,32 @@ serve(async (req) => {
         result = { success: true, userId: newUser?.user?.id };
         break;
         
-      case 'updateUser':
+      case 'updateUser': {
         const { userId, updates } = payload;
-        
         // Find the actual uuid from the display id
         const { data: users } = await supabaseAdmin.auth.admin.listUsers();
         const user = users?.users.find(u => parseInt(u.id.substring(0, 8), 16) === userId);
-        
         if (!user) {
           throw new Error(`User with ID ${userId} not found`);
         }
-        
         let updateSuccess = true;
-        
+
         // Update name (profiles table)
         if (updates.name) {
           const nameParts = updates.name.split(' ');
           const first_name = nameParts[0];
           const last_name = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
-          
           const { error: profileError } = await supabaseAdmin
             .from('profiles')
             .update({ first_name, last_name })
             .eq('id', user.id);
-          
           if (profileError) {
             updateSuccess = false;
             console.error('Error updating profile:', profileError);
             throw new Error(`Error updating profile: ${profileError.message}`);
           }
         }
-        
+
         // Update role if provided
         if (updates.role) {
           // Check if user already has a role record
@@ -227,23 +221,24 @@ serve(async (req) => {
             .select()
             .eq('user_id', user.id)
             .maybeSingle();
-          
+
           if (existingRole) {
-            const { error: roleError } = await supabaseAdmin
-              .from('user_roles')
-              .update({ role: updates.role })
-              .eq('user_id', user.id);
-            
-            if (roleError) {
-              updateSuccess = false;
-              console.error('Error updating role:', roleError);
-              throw new Error(`Error updating role: ${roleError.message}`);
+            if (existingRole.role !== updates.role) {
+              const { error: roleError } = await supabaseAdmin
+                .from('user_roles')
+                .update({ role: updates.role })
+                .eq('user_id', user.id);
+              if (roleError) {
+                updateSuccess = false;
+                console.error('Error updating role:', roleError);
+                throw new Error(`Error updating role: ${roleError.message}`);
+              }
             }
           } else {
+            // Insert a new role record if not present
             const { error: roleError } = await supabaseAdmin
               .from('user_roles')
               .insert({ user_id: user.id, role: updates.role });
-            
             if (roleError) {
               updateSuccess = false;
               console.error('Error creating role:', roleError);
@@ -251,7 +246,7 @@ serve(async (req) => {
             }
           }
         }
-        
+
         // Update status (banned/active)
         if (updates.status !== undefined) {
           const { error: statusError } = await supabaseAdmin.auth.admin.updateUserById(
@@ -260,17 +255,16 @@ serve(async (req) => {
               banned_until: updates.status === 'inactive' ? '2100-01-01T00:00:00.000Z' : null 
             }
           );
-          
           if (statusError) {
             updateSuccess = false;
             console.error('Error updating status:', statusError);
             throw new Error(`Error updating status: ${statusError.message}`);
           }
         }
-        
         result = { success: updateSuccess };
         break;
-        
+      }
+      
       case 'deleteUser':
         const deleteUserId = payload.userId;
         
