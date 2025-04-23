@@ -58,9 +58,9 @@ interface UsersListProps {
   onAddUser: (user: Partial<AppUser>) => Promise<void>;
   onUpdateUser: (userId: number, updates: Partial<AppUser>) => Promise<void>;
   onDeleteUser: (userId: number) => Promise<void>;
+  adminRequired?: boolean;
 }
 
-// Schema for add/edit user form
 const userFormSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Invalid email address"),
@@ -69,14 +69,13 @@ const userFormSchema = z.object({
 
 type UserFormValues = z.infer<typeof userFormSchema>;
 
-const UsersList = ({ users, onAddUser, onUpdateUser, onDeleteUser }: UsersListProps) => {
+const UsersList = ({ users, onAddUser, onUpdateUser, onDeleteUser, adminRequired = false }: UsersListProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [deleteUserId, setDeleteUserId] = useState<number | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AppUser | null>(null);
 
-  // Form for adding/editing users
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userFormSchema),
     defaultValues: {
@@ -170,7 +169,7 @@ const UsersList = ({ users, onAddUser, onUpdateUser, onDeleteUser }: UsersListPr
           </Button>
           <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button disabled={adminRequired}>
                 <Plus className="mr-2 h-4 w-4" /> Add User
               </Button>
             </DialogTrigger>
@@ -290,7 +289,7 @@ const UsersList = ({ users, onAddUser, onUpdateUser, onDeleteUser }: UsersListPr
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
+                        <Button variant="ghost" size="icon" disabled={adminRequired}>
                           <MoreHorizontal className="h-4 w-4" />
                           <span className="sr-only">Open menu</span>
                         </Button>
@@ -405,7 +404,7 @@ const UsersList = ({ users, onAddUser, onUpdateUser, onDeleteUser }: UsersListPr
             ) : (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
-                  No users found
+                  {adminRequired ? "Admin access required to view users" : "No users found"}
                 </TableCell>
               </TableRow>
             )}
@@ -413,7 +412,6 @@ const UsersList = ({ users, onAddUser, onUpdateUser, onDeleteUser }: UsersListPr
         </Table>
       </div>
 
-      {/* Delete User Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>

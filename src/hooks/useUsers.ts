@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { AppUser, UserValidation } from "@/lib/types/user";
 import { useToast } from "@/components/ui/use-toast";
-import { createUser, deleteUserById, fetchUsersList, updateUserById } from "@/services/userService";
+import { fetchUsersList, inviteUser, updateUserProfile, deleteUserAccount } from "@/services/userService";
 
 export const useUsers = () => {
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -32,25 +32,45 @@ export const useUsers = () => {
 
   const addUser = async (newUser: Partial<UserValidation>) => {
     try {
-      await createUser(newUser.email!, newUser.role!);
+      if (!newUser.email || !newUser.role) {
+        throw new Error("Email and role are required");
+      }
+      
+      await inviteUser(newUser.email, newUser.role);
+      
       toast({
-        title: "User created",
-        description: `${newUser.email} has been created successfully.`,
+        title: "User invited",
+        description: `An invitation has been sent to ${newUser.email}.`,
       });
+      
+      // Refresh the users list
       fetchUsers();
     } catch (error) {
-      handleServiceError("adding user", error);
+      handleServiceError("inviting user", error);
     }
   };
 
   const updateUser = async (userId: number, updates: Partial<UserValidation>) => {
     try {
-      await updateUserById(userId, updates);
+      await updateUserProfile(userId, updates);
       toast({
         title: "User updated",
         description: "User has been updated successfully.",
       });
-      fetchUsers();
+      
+      // Update user in the local state to avoid refetching
+      setUsers(currentUsers => 
+        currentUsers.map(user => 
+          user.id === userId 
+            ? { 
+                ...user, 
+                name: updates.name || user.name,
+                role: updates.role || user.role,
+                status: updates.status || user.status
+              } 
+            : user
+        )
+      );
     } catch (error) {
       handleServiceError("updating user", error);
     }
@@ -58,7 +78,7 @@ export const useUsers = () => {
 
   const deleteUser = async (userId: number) => {
     try {
-      await deleteUserById(userId);
+      await deleteUserAccount(userId);
       toast({
         title: "User deleted",
         description: "User has been deleted successfully.",
