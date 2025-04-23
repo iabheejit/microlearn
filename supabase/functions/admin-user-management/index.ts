@@ -73,15 +73,15 @@ serve(async (req) => {
     console.log('User role data:', userRole);
     console.log('Role error:', roleError);
       
-    // Check for admin role - temporarily disable for debugging
-    // if (roleError || !userRole || userRole.role !== 'admin') {
-    //   return new Response(JSON.stringify({ error: 'Admin access required', code: 'not_admin' }), {
-    //     status: 403,
-    //     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    //   });
-    // }
+    // Check for admin role
+    if (roleError || !userRole || userRole.role !== 'admin') {
+      return new Response(JSON.stringify({ error: 'Admin access required', code: 'not_admin' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
     
-    // Proceed with the action regardless of role for now (temporary fix)
+    // Proceed with the action
     const { action, payload } = await req.json();
     let result;
     
@@ -147,18 +147,41 @@ serve(async (req) => {
           throw new Error(`Error creating user: ${createError.message}`);
         }
         
-        // Assign the role
+        // Assign the role - First check if a role already exists for this user
         if (newUser?.user) {
-          const { error: roleAssignError } = await supabaseAdmin
+          // Check if user already has any role assigned
+          const { data: existingRole } = await supabaseAdmin
             .from('user_roles')
-            .insert({ 
-              user_id: newUser.user.id, 
-              role: role 
-            });
-          
-          if (roleAssignError) {
-            console.error('Error assigning role:', roleAssignError);
-            throw new Error(`Error assigning role: ${roleAssignError.message}`);
+            .select()
+            .eq('user_id', newUser.user.id)
+            .maybeSingle();
+            
+          if (existingRole) {
+            // Update existing role if different
+            if (existingRole.role !== role) {
+              const { error: roleUpdateError } = await supabaseAdmin
+                .from('user_roles')
+                .update({ role: role })
+                .eq('user_id', newUser.user.id);
+                
+              if (roleUpdateError) {
+                console.error('Error updating role:', roleUpdateError);
+                throw new Error(`Error updating role: ${roleUpdateError.message}`);
+              }
+            }
+          } else {
+            // Insert new role record
+            const { error: roleAssignError } = await supabaseAdmin
+              .from('user_roles')
+              .insert({ 
+                user_id: newUser.user.id, 
+                role: role 
+              });
+            
+            if (roleAssignError) {
+              console.error('Error assigning role:', roleAssignError);
+              throw new Error(`Error assigning role: ${roleAssignError.message}`);
+            }
           }
         }
         
