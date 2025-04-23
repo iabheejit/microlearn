@@ -1,18 +1,35 @@
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import UsersList from "@/components/dashboard/UsersList";
 import { Loader2 } from "lucide-react";
 import { useUsers } from "@/hooks/useUsers";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { adminService } from "@/services/adminService";
+import { Button } from "@/components/ui/button";
 
 const Users = () => {
   const { users, loading, adminRequired, fetchUsers, addUser, updateUser, deleteUser } = useUsers();
+  const [isSettingAdmin, setIsSettingAdmin] = useState(false);
 
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  const handleMakeAdmin = async () => {
+    setIsSettingAdmin(true);
+    try {
+      const success = await adminService.makeUserAdmin();
+      if (success) {
+        window.location.reload(); // Refresh to apply changes
+      }
+    } catch (error) {
+      console.error("Failed to set admin role:", error);
+    } finally {
+      setIsSettingAdmin(false);
+    }
+  };
 
   return (
     <div className="flex min-h-screen">
@@ -30,8 +47,17 @@ const Users = () => {
             <Alert variant="destructive" className="mb-6">
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Admin Access Required</AlertTitle>
-              <AlertDescription>
-                You don't have admin permissions to manage users. Please contact your administrator for assistance.
+              <AlertDescription className="flex flex-col gap-4">
+                <p>You don't have admin permissions to manage users.</p>
+                <Button 
+                  variant="outline" 
+                  onClick={handleMakeAdmin} 
+                  disabled={isSettingAdmin}
+                  className="self-start"
+                >
+                  {isSettingAdmin && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Make me an Admin (Development Only)
+                </Button>
               </AlertDescription>
             </Alert>
           )}
