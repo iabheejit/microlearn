@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { AppUser, UserRole, UserUpdatePayload } from "@/lib/types/user";
 import { formatUserName, getUserDisplayId } from "@/lib/utils/userUtils";
@@ -10,56 +11,37 @@ import {
 
 /**
  * Fetch all visible users with their profiles and roles
- * Note: This won't use admin APIs which require special privileges
+ * Note: This now uses the secure admin edge function
  */
 export const fetchUsersList = async () => {
   try {
-    // Get the current user's ID for reference
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
+
+    // Get the JWT token for authentication with the edge function
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
     
-    // Check if user has admin role
-    const { data: userRole } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .single();
-      
-    if (!userRole || userRole.role !== 'admin') {
-      const error = new Error("Admin access required to manage users");
-      (error as any).code = "not_admin";
+    if (!token) {
+      throw new Error("No active session found");
+    }
+    
+    // Call the secure edge function for user management
+    const { data, error } = await supabase.functions.invoke("admin-user-management", {
+      body: {
+        action: "fetchUsers",
+      },
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (error) {
+      console.error("Error invoking admin-user-management:", error);
       throw error;
     }
     
-    // Fetch profiles that are accessible to the current user
-    const { data: profiles, error: profilesError } = await supabase
-      .from('profiles')
-      .select('*');
-    
-    if (profilesError) throw profilesError;
-    
-    // Fetch user roles that are accessible to the current user
-    const { data: userRoles, error: rolesError } = await supabase
-      .from('user_roles')
-      .select('*');
-      
-    if (rolesError) throw rolesError;
-    
-    // Map the data to AppUser format
-    return profiles.map(profile => {
-      const userRole = userRoles.find(ur => ur.user_id === profile.id);
-      const role = userRole?.role || 'learner';
-      
-      return {
-        id: getUserDisplayId(profile.id),
-        name: formatUserName(profile.first_name, profile.last_name, profile.id), // Using ID as fallback
-        email: profile.id, // We may not have access to real emails without admin
-        role: role,
-        courses: 0, // Default value or fetch from another table if accessible
-        joined: new Date(profile.created_at).toISOString().split('T')[0],
-        status: "active" // Default status as we may not have access to admin metadata
-      } as AppUser;
-    });
+    return data as AppUser[];
   } catch (error) {
     console.error("Error in fetchUsersList:", error);
     throw error;
@@ -68,29 +50,41 @@ export const fetchUsersList = async () => {
 
 /**
  * Invite a new user via email
- * This uses a different approach than direct creation which requires admin rights
+ * Now uses the secure admin edge function
  */
 export const inviteUser = async (email: string, role: UserRole) => {
   try {
-    // Check if current user is admin
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
     
-    // Check admin role
-    const { data: userRole } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .single();
-      
-    if (!userRole || userRole.role !== 'admin') {
-      const error = new Error("Admin access required to invite users");
-      (error as any).code = "not_admin";
+    // Get the JWT token for authentication with the edge function
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    
+    if (!token) {
+      throw new Error("No active session found");
+    }
+    
+    // Call the secure edge function for user management
+    const { data, error } = await supabase.functions.invoke("admin-user-management", {
+      body: {
+        action: "inviteUser",
+        payload: {
+          email,
+          role,
+        },
+      },
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (error) {
+      console.error("Error invoking admin-user-management:", error);
       throw error;
     }
     
-    // For demonstration only - in a real app, you'd implement a proper invitation flow
-    throw new Error("User invitation requires admin access through the Supabase dashboard");
+    return data;
   } catch (error) {
     console.error("Error in inviteUser:", error);
     throw error;
@@ -99,43 +93,55 @@ export const inviteUser = async (email: string, role: UserRole) => {
 
 /**
  * Update a user's profile
+ * Now uses the secure admin edge function for admin operations
  */
 export const updateUserProfile = async (displayId: number, updates: UserUpdatePayload) => {
   try {
-    // Since we don't have admin access, we'll limit what can be updated
-    // Typically, users can only update their own profiles without admin rights
-    
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
     
-    // Check admin role for updating other users
+    // Check if current user is the same as the one being updated
     const userDisplayId = getUserDisplayId(user.id);
-    if (userDisplayId !== displayId) {
-      const { data: userRole } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id)
-        .single();
+    
+    // For self-updates, use the standard method without admin privileges
+    if (userDisplayId === displayId && !updates.role && !updates.status) {
+      if (updates.name) {
+        const nameParts = updates.name.split(' ');
+        const first_name = nameParts[0];
+        const last_name = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
         
-      if (!userRole || userRole.role !== 'admin') {
-        const error = new Error("Admin access required to update other users");
-        (error as any).code = "not_admin";
-        throw error;
+        await updateProfile(user.id, { first_name, last_name });
       }
+      return;
     }
     
-    if (updates.name) {
-      const nameParts = updates.name.split(' ');
-      const first_name = nameParts[0];
-      const last_name = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
-      
-      await updateProfile(user.id, { first_name, last_name });
+    // For admin operations (updating others, changing roles or status), use the secure endpoint
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    
+    if (!token) {
+      throw new Error("No active session found");
     }
     
-    // Note: Role and status changes typically require admin rights
-    if (updates.role || updates.status) {
-      throw new Error("Role and status changes require admin privileges through the Supabase dashboard");
+    const { data, error } = await supabase.functions.invoke("admin-user-management", {
+      body: {
+        action: "updateUser",
+        payload: {
+          userId: displayId,
+          updates,
+        },
+      },
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (error) {
+      console.error("Error invoking admin-user-management:", error);
+      throw error;
     }
+    
+    return data;
   } catch (error) {
     console.error("Error in updateUserProfile:", error);
     throw error;
@@ -143,29 +149,40 @@ export const updateUserProfile = async (displayId: number, updates: UserUpdatePa
 };
 
 /**
- * Delete a user account (limited functionality without admin rights)
+ * Delete a user account
+ * Now uses the secure admin edge function
  */
 export const deleteUserAccount = async (displayId: number) => {
   try {
-    // Check if current user is admin
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
     
-    // Check admin role
-    const { data: userRole } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .single();
-      
-    if (!userRole || userRole.role !== 'admin') {
-      const error = new Error("Admin access required to delete users");
-      (error as any).code = "not_admin";
+    // Get the JWT token for authentication with the edge function
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    
+    if (!token) {
+      throw new Error("No active session found");
+    }
+    
+    const { data, error } = await supabase.functions.invoke("admin-user-management", {
+      body: {
+        action: "deleteUser",
+        payload: {
+          userId: displayId,
+        },
+      },
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (error) {
+      console.error("Error invoking admin-user-management:", error);
       throw error;
     }
     
-    // For demonstration only
-    throw new Error("User deletion requires admin access through the Supabase dashboard");
+    return data;
   } catch (error) {
     console.error("Error in deleteUserAccount:", error);
     throw error;

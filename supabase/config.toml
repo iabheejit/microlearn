@@ -57,3 +57,6 @@ verify_jwt = true
 
 [functions.find-similar-resources]
 verify_jwt = true
+
+[functions.admin-user-management]
+verify_jwt = true
