@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -5,7 +6,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const BASE_URL = "https://live-mt-server.wati.io/8076";
+// Fix the BASE_URL to use the correct WhatsApp API endpoint
+const BASE_URL = "https://live-server.wati.io";
 const ACCESS_TOKEN = Deno.env.get("WHATSAPP_API_KEY");
 
 interface WatiTemplate {
@@ -74,7 +76,7 @@ serve(async (req) => {
         console.log("Fetching templates from WATI API");
         const response = await fetch(`${BASE_URL}/api/v1/getMessageTemplates`, {
           headers: {
-            'Authorization': ACCESS_TOKEN,
+            'Authorization': `Bearer ${ACCESS_TOKEN}`,
             'Content-Type': 'application/json'
           }
         });
@@ -117,7 +119,7 @@ serve(async (req) => {
         console.log("Fetching contacts from WATI API");
         const response = await fetch(`${BASE_URL}/api/v1/getContacts`, {
           headers: {
-            'Authorization': ACCESS_TOKEN,
+            'Authorization': `Bearer ${ACCESS_TOKEN}`,
             'Content-Type': 'application/json'
           }
         });
@@ -169,7 +171,7 @@ serve(async (req) => {
         const response = await fetch(`${BASE_URL}/api/v1/sendTemplateMessage`, {
           method: 'POST',
           headers: {
-            'Authorization': ACCESS_TOKEN,
+            'Authorization': `Bearer ${ACCESS_TOKEN}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
@@ -205,7 +207,7 @@ serve(async (req) => {
         // Fetch message statistics
         const messagesResponse = await fetch(`${BASE_URL}/api/v1/getMessageStatistics?startDate=${start}&endDate=${end}`, {
           headers: {
-            'Authorization': ACCESS_TOKEN,
+            'Authorization': `Bearer ${ACCESS_TOKEN}`,
             'Content-Type': 'application/json'
           }
         });
@@ -224,7 +226,7 @@ serve(async (req) => {
         // Fetch conversation analytics
         const conversationsResponse = await fetch(`${BASE_URL}/api/v1/getConversationStatistics?startDate=${start}&endDate=${end}`, {
           headers: {
-            'Authorization': ACCESS_TOKEN,
+            'Authorization': `Bearer ${ACCESS_TOKEN}`,
             'Content-Type': 'application/json'
           }
         });
@@ -259,7 +261,7 @@ serve(async (req) => {
         
         const response = await fetch(`${BASE_URL}/api/v1/getMessages/${phoneNumber}`, {
           headers: {
-            'Authorization': ACCESS_TOKEN,
+            'Authorization': `Bearer ${ACCESS_TOKEN}`,
             'Content-Type': 'application/json'
           }
         });

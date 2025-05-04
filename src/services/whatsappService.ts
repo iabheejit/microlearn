@@ -16,6 +16,8 @@ const extractVariables = (content: string): string[] => {
 
 export const fetchWhatsAppTemplates = async (): Promise<WhatsAppTemplate[]> => {
   try {
+    console.log("Fetching WhatsApp templates from Supabase...");
+    
     // First, try to get templates from Supabase
     const { data: localTemplates, error: localError } = await supabase
       .from('whatsapp_templates')
@@ -24,6 +26,7 @@ export const fetchWhatsAppTemplates = async (): Promise<WhatsAppTemplate[]> => {
     
     // If we have templates in Supabase and no error, return them
     if (localTemplates?.length && !localError) {
+      console.log(`Found ${localTemplates.length} templates in Supabase.`);
       return localTemplates.map((template: any) => ({
         id: template.wati_id,
         name: template.name,
@@ -32,6 +35,8 @@ export const fetchWhatsAppTemplates = async (): Promise<WhatsAppTemplate[]> => {
         status: template.status
       }));
     }
+    
+    console.log("No templates found in Supabase or error occurred. Syncing from API...");
     
     // Otherwise, fetch from WATI API
     return await syncWhatsAppTemplates();
@@ -65,8 +70,8 @@ export const syncWhatsAppTemplates = async (): Promise<WhatsAppTemplate[]> => {
     // Transform WATI templates to our app's template format
     const templates = data.templates.map((template: any) => {
       const variables = extractVariables(template.content);
-      const status = template.status.toLowerCase() === "approved" ? "approved" : 
-                     template.status.toLowerCase() === "rejected" ? "rejected" : "pending";
+      const status = template.status?.toLowerCase() === "approved" ? "approved" : 
+                     template.status?.toLowerCase() === "rejected" ? "rejected" : "pending";
       
       return {
         id: template.id,
@@ -122,6 +127,8 @@ export const syncWhatsAppTemplates = async (): Promise<WhatsAppTemplate[]> => {
 
 export const fetchContacts = async (): Promise<any[]> => {
   try {
+    console.log("Fetching WhatsApp contacts from Supabase...");
+    
     // First, try to get contacts from Supabase
     const { data: localContacts, error: localError } = await supabase
       .from('whatsapp_contacts')
@@ -129,8 +136,11 @@ export const fetchContacts = async (): Promise<any[]> => {
     
     // If we have contacts in Supabase and no error, return them
     if (localContacts?.length && !localError) {
+      console.log(`Found ${localContacts.length} contacts in Supabase.`);
       return localContacts;
     }
+    
+    console.log("No contacts found in Supabase or error occurred. Syncing from API...");
     
     // Otherwise, fetch from WATI API
     return await syncWhatsAppContacts();

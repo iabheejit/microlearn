@@ -29,7 +29,8 @@ const WhatsApp = () => {
   } = useQuery({
     queryKey: ['whatsapp-templates'],
     queryFn: fetchWhatsAppTemplates,
-    enabled: isConfigured
+    enabled: isConfigured,
+    retry: 1
   });
 
   const { 
@@ -40,7 +41,8 @@ const WhatsApp = () => {
   } = useQuery({
     queryKey: ['whatsapp-contacts'],
     queryFn: fetchContacts,
-    enabled: isConfigured
+    enabled: isConfigured,
+    retry: 1
   });
 
   const isLoading = templatesLoading || contactsLoading;
@@ -56,11 +58,17 @@ const WhatsApp = () => {
       // Perform syncs sequentially for better error handling
       // First sync templates
       console.log("Syncing templates...");
-      await syncWhatsAppTemplates();
+      await syncWhatsAppTemplates().catch(error => {
+        console.error("Template sync failed:", error);
+        throw new Error(`Failed to sync templates: ${error.message}`);
+      });
       
       // Then sync contacts
       console.log("Syncing contacts...");
-      await syncWhatsAppContacts();
+      await syncWhatsAppContacts().catch(error => {
+        console.error("Contact sync failed:", error);
+        throw new Error(`Failed to sync contacts: ${error.message}`);
+      });
       
       // Refetch the data to update the UI
       console.log("Refetching data...");
