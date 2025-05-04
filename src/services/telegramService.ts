@@ -3,11 +3,14 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const fetchTelegramAnalytics = async (): Promise<any> => {
   try {
+    // Get the session using the async getSession method
+    const { data: { session } } = await supabase.auth.getSession();
+    
     // Call our telegram-webhook edge function with the getAnalytics path
     const response = await fetch(`${window.location.origin}/api/functions/v1/telegram-webhook/getAnalytics`, {
       method: "GET",
       headers: {
-        "Authorization": `Bearer ${supabase.auth.session()?.access_token}`
+        "Authorization": `Bearer ${session?.access_token}`
       }
     });
     
@@ -27,11 +30,14 @@ export const fetchTelegramAnalytics = async (): Promise<any> => {
 
 export const fetchTelegramUpdates = async (): Promise<any[]> => {
   try {
+    // Get the session using the async getSession method
+    const { data: { session } } = await supabase.auth.getSession();
+    
     // Call our telegram-webhook edge function with the getUpdates path
     const response = await fetch(`${window.location.origin}/api/functions/v1/telegram-webhook/getUpdates`, {
       method: "GET",
       headers: {
-        "Authorization": `Bearer ${supabase.auth.session()?.access_token}`
+        "Authorization": `Bearer ${session?.access_token}`
       }
     });
     
@@ -51,12 +57,15 @@ export const fetchTelegramUpdates = async (): Promise<any[]> => {
 
 export const sendTelegramMessage = async (chatId: string, text: string): Promise<any> => {
   try {
+    // Get the session using the async getSession method
+    const { data: { session } } = await supabase.auth.getSession();
+    
     // Call our telegram-webhook edge function with the sendMessage path
     const response = await fetch(`${window.location.origin}/api/functions/v1/telegram-webhook/sendMessage`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${supabase.auth.session()?.access_token}`
+        "Authorization": `Bearer ${session?.access_token}`
       },
       body: JSON.stringify({ chatId, text })
     });
