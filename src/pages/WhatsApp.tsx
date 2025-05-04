@@ -9,19 +9,22 @@ import {
   syncWhatsAppTemplates,
   syncWhatsAppContacts 
 } from "@/services/whatsappService";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const WhatsApp = () => {
   const [isConfigured] = useState(true); // We assume the API is already configured with the token
   const { toast } = useToast();
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   const { 
     data: templates, 
     isLoading: templatesLoading,
+    error: templatesError,
     refetch: refetchTemplates 
   } = useQuery({
     queryKey: ['whatsapp-templates'],
@@ -32,6 +35,7 @@ const WhatsApp = () => {
   const { 
     data: contacts, 
     isLoading: contactsLoading,
+    error: contactsError,
     refetch: refetchContacts 
   } = useQuery({
     queryKey: ['whatsapp-contacts'],
@@ -40,15 +44,26 @@ const WhatsApp = () => {
   });
 
   const isLoading = templatesLoading || contactsLoading;
+  const hasError = templatesError || contactsError || syncError;
 
   const handleSync = async () => {
     setIsSyncing(true);
+    setSyncError(null);
+    
     try {
-      await Promise.all([
-        syncWhatsAppTemplates(),
-        syncWhatsAppContacts()
-      ]);
+      console.log("Starting WhatsApp sync process...");
       
+      // Perform syncs sequentially for better error handling
+      // First sync templates
+      console.log("Syncing templates...");
+      await syncWhatsAppTemplates();
+      
+      // Then sync contacts
+      console.log("Syncing contacts...");
+      await syncWhatsAppContacts();
+      
+      // Refetch the data to update the UI
+      console.log("Refetching data...");
       await Promise.all([
         refetchTemplates(),
         refetchContacts()
@@ -59,10 +74,17 @@ const WhatsApp = () => {
         description: "WhatsApp templates and contacts have been synced successfully."
       });
     } catch (error) {
+      const errorMsg = error instanceof Error 
+        ? error.message 
+        : "An unknown error occurred during sync";
+      
       console.error("Error syncing WhatsApp data:", error);
+      
+      setSyncError(errorMsg);
+      
       toast({
         title: "Sync failed",
-        description: "Could not sync WhatsApp data. Please try again.",
+        description: errorMsg,
         variant: "destructive"
       });
     } finally {
@@ -91,6 +113,36 @@ const WhatsApp = () => {
               {isSyncing ? 'Syncing...' : 'Sync from WATI'}
             </Button>
           </header>
+
+          {syncError && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Sync Error</AlertTitle>
+              <AlertDescription>
+                {syncError}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {templatesError && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Templates Error</AlertTitle>
+              <AlertDescription>
+                {templatesError instanceof Error ? templatesError.message : "Failed to load templates"}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {contactsError && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Contacts Error</AlertTitle>
+              <AlertDescription>
+                {contactsError instanceof Error ? contactsError.message : "Failed to load contacts"}
+              </AlertDescription>
+            </Alert>
+          )}
 
           {isLoading ? (
             <div className="flex items-center justify-center h-64">

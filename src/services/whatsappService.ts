@@ -34,51 +34,7 @@ export const fetchWhatsAppTemplates = async (): Promise<WhatsAppTemplate[]> => {
     }
     
     // Otherwise, fetch from WATI API
-    const { data, error } = await supabase.functions.invoke("whatsapp-api", {
-      body: { endpoint: "getTemplates" }
-    });
-
-    if (error) {
-      console.error("Error fetching WhatsApp templates:", error);
-      throw error;
-    }
-    
-    // Transform WATI templates to our app's template format
-    const templates = data.templates.map((template: any) => {
-      const variables = extractVariables(template.content);
-      const status = template.status.toLowerCase() === "approved" ? "approved" : 
-                     template.status.toLowerCase() === "rejected" ? "rejected" : "pending";
-      
-      return {
-        id: template.id,
-        name: template.elementName,
-        content: template.content,
-        variables,
-        status
-      };
-    });
-    
-    // Store the templates in Supabase
-    if (templates.length > 0) {
-      const { error: upsertError } = await supabase
-        .from('whatsapp_templates')
-        .upsert(
-          templates.map(t => ({
-            wati_id: t.id,
-            name: t.name, 
-            content: t.content,
-            variables: t.variables,
-            status: t.status
-          })),
-          { onConflict: 'wati_id' }
-        );
-      
-      if (upsertError) {
-        console.error("Error storing templates in Supabase:", upsertError);
-      }
-    }
-    
-    return templates;
+    return await syncWhatsAppTemplates();
   } catch (error) {
     console.error("Error fetching WhatsApp templates:", error);
     throw error;
@@ -87,6 +43,8 @@ export const fetchWhatsAppTemplates = async (): Promise<WhatsAppTemplate[]> => {
 
 export const syncWhatsAppTemplates = async (): Promise<WhatsAppTemplate[]> => {
   try {
+    console.log("Starting WhatsApp templates sync...");
+    
     // Force fetch from WATI API
     const { data, error } = await supabase.functions.invoke("whatsapp-api", {
       body: { endpoint: "getTemplates" }
@@ -97,6 +55,13 @@ export const syncWhatsAppTemplates = async (): Promise<WhatsAppTemplate[]> => {
       throw error;
     }
     
+    if (!data || !data.templates || !Array.isArray(data.templates)) {
+      console.error("Invalid response from WhatsApp API:", data);
+      throw new Error("Invalid response format from WhatsApp API");
+    }
+    
+    console.log(`Received ${data.templates.length} templates from WATI API`);
+    
     // Transform WATI templates to our app's template format
     const templates = data.templates.map((template: any) => {
       const variables = extractVariables(template.content);
@@ -112,10 +77,21 @@ export const syncWhatsAppTemplates = async (): Promise<WhatsAppTemplate[]> => {
       };
     });
     
+    console.log(`Processed ${templates.length} templates`);
+    
     // Store the templates in Supabase
     if (templates.length > 0) {
       // First delete all existing templates
-      await supabase.from('whatsapp_templates').delete().gt('id', '0');
+      const { error: deleteError } = await supabase
+        .from('whatsapp_templates')
+        .delete()
+        .gt('id', '0');
+      
+      if (deleteError) {
+        console.error("Error deleting existing templates:", deleteError);
+      } else {
+        console.log("Successfully deleted existing templates");
+      }
       
       // Then insert the fresh ones
       const { error: insertError } = await supabase
@@ -132,6 +108,8 @@ export const syncWhatsAppTemplates = async (): Promise<WhatsAppTemplate[]> => {
       
       if (insertError) {
         console.error("Error storing templates in Supabase:", insertError);
+      } else {
+        console.log(`Successfully stored ${templates.length} templates in Supabase`);
       }
     }
     
@@ -155,36 +133,7 @@ export const fetchContacts = async (): Promise<any[]> => {
     }
     
     // Otherwise, fetch from WATI API
-    const { data, error } = await supabase.functions.invoke("whatsapp-api", {
-      body: { endpoint: "getContacts" }
-    });
-
-    if (error) {
-      console.error("Error fetching contacts:", error);
-      throw error;
-    }
-
-    const contacts = data.contacts || [];
-    
-    // Store the contacts in Supabase
-    if (contacts.length > 0) {
-      const { error: upsertError } = await supabase
-        .from('whatsapp_contacts')
-        .upsert(
-          contacts.map((contact: any) => ({
-            wati_id: contact.id || null, 
-            phone_number: contact.phoneNumber || contact.phone_number,
-            name: contact.name || null
-          })),
-          { onConflict: 'phone_number' }
-        );
-      
-      if (upsertError) {
-        console.error("Error storing contacts in Supabase:", upsertError);
-      }
-    }
-
-    return contacts;
+    return await syncWhatsAppContacts();
   } catch (error) {
     console.error("Error fetching contacts:", error);
     throw error;
@@ -193,6 +142,8 @@ export const fetchContacts = async (): Promise<any[]> => {
 
 export const syncWhatsAppContacts = async (): Promise<any[]> => {
   try {
+    console.log("Starting WhatsApp contacts sync...");
+    
     // Force fetch from WATI API
     const { data, error } = await supabase.functions.invoke("whatsapp-api", {
       body: { endpoint: "getContacts" }
@@ -203,12 +154,28 @@ export const syncWhatsAppContacts = async (): Promise<any[]> => {
       throw error;
     }
 
+    if (!data || !data.contacts || !Array.isArray(data.contacts)) {
+      console.error("Invalid response from WhatsApp API:", data);
+      throw new Error("Invalid response format from WhatsApp API for contacts");
+    }
+    
+    console.log(`Received ${data.contacts.length} contacts from WATI API`);
+    
     const contacts = data.contacts || [];
     
     // Store the contacts in Supabase
     if (contacts.length > 0) {
       // First delete all existing contacts
-      await supabase.from('whatsapp_contacts').delete().gt('id', '0');
+      const { error: deleteError } = await supabase
+        .from('whatsapp_contacts')
+        .delete()
+        .gt('id', '0');
+      
+      if (deleteError) {
+        console.error("Error deleting existing contacts:", deleteError);
+      } else {
+        console.log("Successfully deleted existing contacts");
+      }
       
       // Then insert the fresh ones
       const { error: insertError } = await supabase
@@ -223,6 +190,8 @@ export const syncWhatsAppContacts = async (): Promise<any[]> => {
       
       if (insertError) {
         console.error("Error storing contacts in Supabase:", insertError);
+      } else {
+        console.log(`Successfully stored ${contacts.length} contacts in Supabase`);
       }
     }
 
