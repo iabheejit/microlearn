@@ -23,6 +23,8 @@ interface RequestBody {
   phoneNumber?: string;
   templateName?: string;
   parameters?: string[];
+  startDate?: string;
+  endDate?: string;
 }
 
 serve(async (req) => {
@@ -127,6 +129,90 @@ serve(async (req) => {
         if (!response.ok) {
           const errorText = await response.text();
           console.error('Error sending message:', errorText);
+          return new Response(JSON.stringify({ error: `API error: ${response.status}` }), {
+            status: response.status,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        const data = await response.json();
+        return new Response(JSON.stringify(data), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      case 'getAnalytics': {
+        const { startDate, endDate } = requestBody;
+        
+        // Format dates for API call
+        const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // Default 30 days ago
+        const end = endDate || new Date().toISOString().split('T')[0]; // Default today
+        
+        // Fetch message statistics
+        const messagesResponse = await fetch(`${BASE_URL}/api/v1/getMessageStatistics?startDate=${start}&endDate=${end}`, {
+          headers: {
+            'Authorization': ACCESS_TOKEN,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!messagesResponse.ok) {
+          const errorText = await messagesResponse.text();
+          console.error('Error fetching message statistics:', errorText);
+          return new Response(JSON.stringify({ error: `API error: ${messagesResponse.status}` }), {
+            status: messagesResponse.status,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+        
+        const messagesData = await messagesResponse.json();
+        
+        // Fetch conversation analytics
+        const conversationsResponse = await fetch(`${BASE_URL}/api/v1/getConversationStatistics?startDate=${start}&endDate=${end}`, {
+          headers: {
+            'Authorization': ACCESS_TOKEN,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!conversationsResponse.ok) {
+          const errorText = await conversationsResponse.text();
+          console.error('Error fetching conversation statistics:', errorText);
+        }
+        
+        const conversationsData = await conversationsResponse.json().catch(() => ({}));
+        
+        // Combine data for a comprehensive analytics response
+        const analyticsData = {
+          messages: messagesData,
+          conversations: conversationsData
+        };
+
+        return new Response(JSON.stringify(analyticsData), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      case 'getMessages': {
+        const { phoneNumber } = requestBody;
+        
+        if (!phoneNumber) {
+          return new Response(JSON.stringify({ error: 'Phone number is required' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+        
+        const response = await fetch(`${BASE_URL}/api/v1/getMessages/${phoneNumber}`, {
+          headers: {
+            'Authorization': ACCESS_TOKEN,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Error fetching messages:', errorText);
           return new Response(JSON.stringify({ error: `API error: ${response.status}` }), {
             status: response.status,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }

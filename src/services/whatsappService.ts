@@ -85,3 +85,49 @@ export const fetchContacts = async (): Promise<any[]> => {
     throw error;
   }
 };
+
+export const fetchWhatsAppMessages = async (phoneNumber: string): Promise<any[]> => {
+  try {
+    const { data, error } = await supabase.functions.invoke("whatsapp-api", {
+      body: { 
+        endpoint: "getMessages", 
+        phoneNumber 
+      }
+    });
+
+    if (error) {
+      console.error("Error fetching WhatsApp messages:", error);
+      throw error;
+    }
+
+    return data.messages || [];
+  } catch (error) {
+    console.error("Error fetching WhatsApp messages:", error);
+    throw error;
+  }
+};
+
+export const fetchWhatsAppAnalytics = async (
+  startDate?: string,
+  endDate?: string
+): Promise<any> => {
+  try {
+    const { data, error } = await supabase.functions.invoke("whatsapp-api", {
+      body: { 
+        endpoint: "getAnalytics", 
+        startDate, 
+        endDate 
+      }
+    });
+
+    if (error) {
+      console.error("Error fetching WhatsApp analytics:", error);
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Error fetching WhatsApp analytics:", error);
+    throw error;
+  }
+};
