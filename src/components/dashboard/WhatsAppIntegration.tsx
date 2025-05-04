@@ -1,4 +1,5 @@
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -6,9 +7,80 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { MessageCircle, Send, Code, Plus, Save } from "lucide-react";
+import { MessageCircle, Send, Code, Plus, Save, Check } from "lucide-react";
+import { WhatsAppTemplate } from "@/lib/types";
+import { useToast } from "@/components/ui/use-toast";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { sendTestMessage } from "@/services/whatsappService";
 
-const WhatsAppIntegration = () => {
+interface WhatsAppIntegrationProps {
+  templates?: WhatsAppTemplate[];
+  contacts?: any[];
+  isConfigured?: boolean;
+}
+
+const WhatsAppIntegration = ({ 
+  templates = [], 
+  contacts = [],
+  isConfigured = false 
+}: WhatsAppIntegrationProps) => {
+  const { toast } = useToast();
+  const [recipient, setRecipient] = useState("");
+  const [selectedTemplate, setSelectedTemplate] = useState("");
+  const [message, setMessage] = useState("");
+  const [parameters, setParameters] = useState<string[]>([]);
+  const [sending, setSending] = useState(false);
+
+  // Set message content when template is selected
+  const handleTemplateChange = (templateName: string) => {
+    setSelectedTemplate(templateName);
+    const template = templates.find(t => t.name === templateName);
+    if (template) {
+      setMessage(template.content);
+      // Initialize parameters array with empty strings based on variables count
+      setParameters(new Array(template.variables.length).fill(""));
+    } else {
+      setMessage("");
+      setParameters([]);
+    }
+  };
+
+  // Update a specific parameter value
+  const handleParameterChange = (index: number, value: string) => {
+    const newParameters = [...parameters];
+    newParameters[index] = value;
+    setParameters(newParameters);
+  };
+
+  // Send test message
+  const handleSendTest = async () => {
+    if (!recipient || !selectedTemplate) {
+      toast({
+        title: "Missing information",
+        description: "Please select a recipient and template",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      setSending(true);
+      await sendTestMessage(recipient, selectedTemplate, parameters);
+      toast({
+        title: "Message sent",
+        description: "Test message has been sent successfully!"
+      });
+    } catch (error) {
+      toast({
+        title: "Failed to send message",
+        description: error instanceof Error ? error.message : "An unknown error occurred",
+        variant: "destructive"
+      });
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -16,52 +88,60 @@ const WhatsAppIntegration = () => {
           <CardHeader>
             <CardTitle>WhatsApp Configuration</CardTitle>
             <CardDescription>
-              Connect your WhatsApp Business API account to start sending messages.
+              Your WhatsApp Business API connection status
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="phone_number_id">Phone Number ID</Label>
-              <Input
-                id="phone_number_id"
-                placeholder="Enter your WhatsApp phone number ID"
-              />
+            <div className="flex items-center gap-2 p-4 bg-emerald-50 text-emerald-700 rounded-md">
+              <Check className="h-5 w-5" />
+              <p>Your WhatsApp Business API is connected and active</p>
             </div>
+            
             <div className="space-y-2">
-              <Label htmlFor="business_account_id">Business Account ID</Label>
-              <Input
-                id="business_account_id"
-                placeholder="Enter your WhatsApp business account ID"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="access_token">Access Token</Label>
-              <Input
-                id="access_token"
-                type="password"
-                placeholder="Enter your WhatsApp access token"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="webhook_url">Webhook URL</Label>
+              <Label>API Endpoint</Label>
               <div className="flex gap-2">
                 <Input
-                  id="webhook_url"
+                  readOnly
+                  value="https://live-mt-server.wati.io/8076"
+                  className="bg-muted"
+                />
+                <Button variant="outline" size="icon" onClick={() => {
+                  navigator.clipboard.writeText("https://live-mt-server.wati.io/8076");
+                  toast({ title: "API endpoint copied to clipboard" });
+                }}>
+                  <Code size={16} />
+                </Button>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Tenant ID</Label>
+              <Input
+                readOnly
+                value="8076"
+                className="bg-muted"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Webhook URL</Label>
+              <div className="flex gap-2">
+                <Input
                   readOnly
                   value="https://api.ekatra.io/webhooks/whatsapp"
                 />
-                <Button variant="outline" size="icon">
+                <Button variant="outline" size="icon" onClick={() => {
+                  navigator.clipboard.writeText("https://api.ekatra.io/webhooks/whatsapp");
+                  toast({ title: "Webhook URL copied to clipboard" });
+                }}>
                   <Code size={16} />
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Configure this URL in your WhatsApp Business API dashboard to receive messages.
+                Configure this URL in your WATI dashboard to receive messages.
               </p>
             </div>
           </CardContent>
-          <CardFooter>
-            <Button className="w-full sm:w-auto">Save Configuration</Button>
-          </CardFooter>
         </Card>
 
         <Card className="animate-fade-in" style={{ animationDelay: "0.1s" }}>
@@ -73,20 +153,24 @@ const WhatsAppIntegration = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex justify-between items-center pb-4 border-b">
-              <span className="text-sm text-muted-foreground">Messages Sent</span>
-              <span className="text-lg font-semibold">2,543</span>
+              <span className="text-sm text-muted-foreground">Templates</span>
+              <span className="text-lg font-semibold">{templates.length}</span>
             </div>
             <div className="flex justify-between items-center pb-4 border-b">
-              <span className="text-sm text-muted-foreground">Messages Received</span>
-              <span className="text-lg font-semibold">1,862</span>
+              <span className="text-sm text-muted-foreground">Contacts</span>
+              <span className="text-lg font-semibold">{contacts.length}</span>
             </div>
             <div className="flex justify-between items-center pb-4 border-b">
-              <span className="text-sm text-muted-foreground">Active Sessions</span>
-              <span className="text-lg font-semibold">128</span>
+              <span className="text-sm text-muted-foreground">Active</span>
+              <span className="text-lg font-semibold">
+                {templates.filter(t => t.status === "approved").length} templates
+              </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Response Rate</span>
-              <span className="text-lg font-semibold">92%</span>
+              <span className="text-sm text-muted-foreground">Pending Approval</span>
+              <span className="text-lg font-semibold">
+                {templates.filter(t => t.status === "pending").length} templates
+              </span>
             </div>
           </CardContent>
         </Card>
@@ -104,57 +188,49 @@ const WhatsAppIntegration = () => {
                 <div>
                   <CardTitle>Message Templates</CardTitle>
                   <CardDescription>
-                    Create and manage your WhatsApp message templates.
+                    View and manage your WhatsApp message templates.
                   </CardDescription>
                 </div>
-                <Button>
+                <Button disabled>
                   <Plus className="mr-2 h-4 w-4" /> New Template
                 </Button>
               </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="rounded-lg border p-4 hover:bg-accent/50 transition-colors">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-medium">Welcome Message</h3>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Sent when a new user joins a course
-                      </p>
+                {templates.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No templates found. Templates must be created in your WATI dashboard.
+                  </div>
+                ) : (
+                  templates.map((template) => (
+                    <div key={template.id} className="rounded-lg border p-4 hover:bg-accent/50 transition-colors">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="font-medium">{template.name}</h3>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {template.variables.length} variables
+                          </p>
+                        </div>
+                        <Badge variant="outline" className={
+                          template.status === "approved" 
+                            ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100" 
+                            : template.status === "rejected"
+                            ? "bg-red-100 text-red-800 hover:bg-red-100"
+                            : "bg-amber-100 text-amber-800 hover:bg-amber-100"
+                        }>
+                          {template.status.charAt(0).toUpperCase() + template.status.slice(1)}
+                        </Badge>
+                      </div>
+                      <div className="mt-4 p-3 bg-muted rounded-md text-sm">
+                        {template.content}
+                      </div>
+                      <div className="mt-4 flex gap-2">
+                        <Button variant="outline" size="sm">Preview</Button>
+                      </div>
                     </div>
-                    <Badge variant="outline" className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Approved</Badge>
-                  </div>
-                  <div className="mt-4 p-3 bg-muted rounded-md text-sm">
-                    Hello, {'{'}{'{'}{1}{'}'}{'}'}{`!`} Welcome to {'{'}{'{'}{2}{'}'}{'}'}. Your course starts on {'{'}{'{'}{3}{'}'}{'}'}{`!`} Reply INFO for more details.
-                  </div>
-                  <div className="mt-4 flex gap-2">
-                    <Button variant="outline" size="sm">Preview</Button>
-                    <Button variant="outline" size="sm">Edit</Button>
-                  </div>
-                </div>
-
-                <div className="rounded-lg border p-4 hover:bg-accent/50 transition-colors">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-medium">Daily Lesson</h3>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Delivers daily course content
-                      </p>
-                    </div>
-                    <Badge variant="outline" className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Approved</Badge>
-                  </div>
-                  <div className="mt-4 p-3 bg-muted rounded-md text-sm">
-                    Today's lesson: {'{'}{'{'}{1}{'}'}{'}'}
-                    
-                    {'{'}{'{'}{2}{'}'}{'}'}{`
-                    
-                    Reply with your answer to the question above.`}
-                  </div>
-                  <div className="mt-4 flex gap-2">
-                    <Button variant="outline" size="sm">Preview</Button>
-                    <Button variant="outline" size="sm">Edit</Button>
-                  </div>
-                </div>
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>
@@ -174,29 +250,73 @@ const WhatsAppIntegration = () => {
                   <Input
                     id="recipient"
                     placeholder="+1234567890"
+                    value={recipient}
+                    onChange={(e) => setRecipient(e.target.value)}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Enter the full number with country code (e.g., +919876543210)
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="template">Template</Label>
-                  <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2">
-                    <option value="">Select a template...</option>
-                    <option value="welcome">Welcome Message</option>
-                    <option value="daily_lesson">Daily Lesson</option>
-                  </select>
+                  <Select value={selectedTemplate} onValueChange={handleTemplateChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a template..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {templates.map(template => (
+                        <SelectItem key={template.id} value={template.name}>
+                          {template.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+                
+                {parameters.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Template Parameters</Label>
+                    {parameters.map((param, index) => (
+                      <div key={index} className="mt-2">
+                        <Label htmlFor={`param-${index}`}>Parameter {index + 1}</Label>
+                        <Input
+                          id={`param-${index}`}
+                          value={param}
+                          onChange={(e) => handleParameterChange(index, e.target.value)}
+                          placeholder={`Value for {{${index + 1}}}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
                 <div className="space-y-2">
-                  <Label htmlFor="message">Message</Label>
+                  <Label htmlFor="message">Preview</Label>
                   <Textarea
                     id="message"
-                    placeholder="Enter your message..."
+                    value={message}
+                    readOnly
                     rows={5}
+                    className="bg-muted"
                   />
                 </div>
               </div>
             </CardContent>
             <CardFooter>
-              <Button className="w-full sm:w-auto">
-                <Send className="mr-2 h-4 w-4" /> Send Test Message
+              <Button 
+                className="w-full sm:w-auto" 
+                onClick={handleSendTest}
+                disabled={sending}
+              >
+                {sending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="mr-2 h-4 w-4" /> Send Test Message
+                  </>
+                )}
               </Button>
             </CardFooter>
           </Card>
