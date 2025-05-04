@@ -30,6 +30,7 @@ const WhatsAppIntegration = ({
   const [message, setMessage] = useState("");
   const [parameters, setParameters] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
+  const [contactsTab, setContactsTab] = useState("list");
 
   // Set message content when template is selected
   const handleTemplateChange = (templateName: string) => {
@@ -50,6 +51,13 @@ const WhatsAppIntegration = ({
     const newParameters = [...parameters];
     newParameters[index] = value;
     setParameters(newParameters);
+  };
+
+  // Select a contact from the list
+  const handleSelectContact = (phoneNumber: string) => {
+    setRecipient(phoneNumber);
+    // Switch back to tester tab
+    setContactsTab("list");
   };
 
   // Send test message
@@ -177,10 +185,12 @@ const WhatsAppIntegration = ({
       </div>
 
       <Tabs defaultValue="templates" className="animate-fade-in" style={{ animationDelay: "0.2s" }}>
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="templates">Message Templates</TabsTrigger>
           <TabsTrigger value="tester">Message Tester</TabsTrigger>
+          <TabsTrigger value="contacts">Contacts</TabsTrigger>
         </TabsList>
+        
         <TabsContent value="templates" className="mt-4">
           <Card>
             <CardHeader>
@@ -235,6 +245,7 @@ const WhatsAppIntegration = ({
             </CardContent>
           </Card>
         </TabsContent>
+        
         <TabsContent value="tester" className="mt-4">
           <Card>
             <CardHeader>
@@ -247,16 +258,56 @@ const WhatsAppIntegration = ({
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="recipient">Recipient Phone Number</Label>
-                  <Input
-                    id="recipient"
-                    placeholder="+1234567890"
-                    value={recipient}
-                    onChange={(e) => setRecipient(e.target.value)}
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="recipient"
+                      placeholder="+1234567890"
+                      value={recipient}
+                      onChange={(e) => setRecipient(e.target.value)}
+                      className="flex-grow"
+                    />
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setContactsTab("select")}
+                    >
+                      Select Contact
+                    </Button>
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     Enter the full number with country code (e.g., +919876543210)
                   </p>
                 </div>
+                {contactsTab === "select" && (
+                  <Card className="mt-4">
+                    <CardHeader className="py-4">
+                      <CardTitle className="text-base">Select a Contact</CardTitle>
+                    </CardHeader>
+                    <CardContent className="max-h-60 overflow-y-auto p-0">
+                      {contacts.length === 0 ? (
+                        <div className="p-4 text-center text-muted-foreground">
+                          No contacts found
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          {contacts.map((contact, index) => (
+                            <div
+                              key={index}
+                              className="px-4 py-3 hover:bg-accent/20 cursor-pointer"
+                              onClick={() => handleSelectContact(contact.phone_number || contact.phoneNumber)}
+                            >
+                              <div className="font-medium">
+                                {contact.name || 'Unknown Name'}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                {contact.phone_number || contact.phoneNumber}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="template">Template</Label>
                   <Select value={selectedTemplate} onValueChange={handleTemplateChange}>
@@ -319,6 +370,54 @@ const WhatsAppIntegration = ({
                 )}
               </Button>
             </CardFooter>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="contacts" className="mt-4">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>WhatsApp Contacts</CardTitle>
+                  <CardDescription>
+                    View and manage your WhatsApp contacts.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {contacts.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No contacts found. Contacts will appear here after they message your WhatsApp Business number.
+                  </div>
+                ) : (
+                  contacts.map((contact, index) => (
+                    <div key={index} className="rounded-lg border p-4 hover:bg-accent/50 transition-colors">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <h3 className="font-medium">
+                            {contact.name || 'Unknown Name'}
+                          </h3>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {contact.phone_number || contact.phoneNumber}
+                          </p>
+                        </div>
+                        <Button variant="outline" size="sm" onClick={() => {
+                          setRecipient(contact.phone_number || contact.phoneNumber);
+                          // Navigate to tester tab
+                          document.querySelector('[data-value="tester"]')?.dispatchEvent(
+                            new MouseEvent('click', { bubbles: true })
+                          );
+                        }}>
+                          Message
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardContent>
           </Card>
         </TabsContent>
       </Tabs>

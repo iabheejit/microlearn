@@ -469,6 +469,33 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_contacts: {
+        Row: {
+          created_at: string
+          id: string
+          name: string | null
+          phone_number: string
+          updated_at: string
+          wati_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name?: string | null
+          phone_number: string
+          updated_at?: string
+          wati_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string | null
+          phone_number?: string
+          updated_at?: string
+          wati_id?: string | null
+        }
+        Relationships: []
+      }
       whatsapp_metadata: {
         Row: {
           conversation_state: Json | null
@@ -496,6 +523,39 @@ export type Database = {
           phone_number?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      whatsapp_templates: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          name: string
+          status: string
+          updated_at: string
+          variables: Json | null
+          wati_id: number
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          name: string
+          status: string
+          updated_at?: string
+          variables?: Json | null
+          wati_id: number
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          name?: string
+          status?: string
+          updated_at?: string
+          variables?: Json | null
+          wati_id?: number
         }
         Relationships: []
       }

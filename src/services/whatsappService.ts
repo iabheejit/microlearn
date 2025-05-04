@@ -1,4 +1,3 @@
-
 import { WhatsAppTemplate } from "@/lib/types";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -17,6 +16,24 @@ const extractVariables = (content: string): string[] => {
 
 export const fetchWhatsAppTemplates = async (): Promise<WhatsAppTemplate[]> => {
   try {
+    // First, try to get templates from Supabase
+    const { data: localTemplates, error: localError } = await supabase
+      .from('whatsapp_templates')
+      .select('*')
+      .order('name');
+    
+    // If we have templates in Supabase and no error, return them
+    if (localTemplates?.length && !localError) {
+      return localTemplates.map((template: any) => ({
+        id: template.wati_id,
+        name: template.name,
+        content: template.content,
+        variables: template.variables || [],
+        status: template.status
+      }));
+    }
+    
+    // Otherwise, fetch from WATI API
     const { data, error } = await supabase.functions.invoke("whatsapp-api", {
       body: { endpoint: "getTemplates" }
     });
@@ -27,16 +44,191 @@ export const fetchWhatsAppTemplates = async (): Promise<WhatsAppTemplate[]> => {
     }
     
     // Transform WATI templates to our app's template format
-    return data.templates.map((template: any) => ({
-      id: template.id,
-      name: template.elementName,
-      content: template.content,
-      variables: extractVariables(template.content),
-      status: template.status.toLowerCase() === "approved" ? "approved" : 
-              template.status.toLowerCase() === "rejected" ? "rejected" : "pending"
-    }));
+    const templates = data.templates.map((template: any) => {
+      const variables = extractVariables(template.content);
+      const status = template.status.toLowerCase() === "approved" ? "approved" : 
+                     template.status.toLowerCase() === "rejected" ? "rejected" : "pending";
+      
+      return {
+        id: template.id,
+        name: template.elementName,
+        content: template.content,
+        variables,
+        status
+      };
+    });
+    
+    // Store the templates in Supabase
+    if (templates.length > 0) {
+      const { error: upsertError } = await supabase
+        .from('whatsapp_templates')
+        .upsert(
+          templates.map(t => ({
+            wati_id: t.id,
+            name: t.name, 
+            content: t.content,
+            variables: t.variables,
+            status: t.status
+          })),
+          { onConflict: 'wati_id' }
+        );
+      
+      if (upsertError) {
+        console.error("Error storing templates in Supabase:", upsertError);
+      }
+    }
+    
+    return templates;
   } catch (error) {
     console.error("Error fetching WhatsApp templates:", error);
+    throw error;
+  }
+};
+
+export const syncWhatsAppTemplates = async (): Promise<WhatsAppTemplate[]> => {
+  try {
+    // Force fetch from WATI API
+    const { data, error } = await supabase.functions.invoke("whatsapp-api", {
+      body: { endpoint: "getTemplates" }
+    });
+
+    if (error) {
+      console.error("Error syncing WhatsApp templates:", error);
+      throw error;
+    }
+    
+    // Transform WATI templates to our app's template format
+    const templates = data.templates.map((template: any) => {
+      const variables = extractVariables(template.content);
+      const status = template.status.toLowerCase() === "approved" ? "approved" : 
+                     template.status.toLowerCase() === "rejected" ? "rejected" : "pending";
+      
+      return {
+        id: template.id,
+        name: template.elementName,
+        content: template.content,
+        variables,
+        status
+      };
+    });
+    
+    // Store the templates in Supabase
+    if (templates.length > 0) {
+      // First delete all existing templates
+      await supabase.from('whatsapp_templates').delete().gt('id', '0');
+      
+      // Then insert the fresh ones
+      const { error: insertError } = await supabase
+        .from('whatsapp_templates')
+        .insert(
+          templates.map(t => ({
+            wati_id: t.id,
+            name: t.name, 
+            content: t.content,
+            variables: t.variables,
+            status: t.status
+          }))
+        );
+      
+      if (insertError) {
+        console.error("Error storing templates in Supabase:", insertError);
+      }
+    }
+    
+    return templates;
+  } catch (error) {
+    console.error("Error syncing WhatsApp templates:", error);
+    throw error;
+  }
+};
+
+export const fetchContacts = async (): Promise<any[]> => {
+  try {
+    // First, try to get contacts from Supabase
+    const { data: localContacts, error: localError } = await supabase
+      .from('whatsapp_contacts')
+      .select('*');
+    
+    // If we have contacts in Supabase and no error, return them
+    if (localContacts?.length && !localError) {
+      return localContacts;
+    }
+    
+    // Otherwise, fetch from WATI API
+    const { data, error } = await supabase.functions.invoke("whatsapp-api", {
+      body: { endpoint: "getContacts" }
+    });
+
+    if (error) {
+      console.error("Error fetching contacts:", error);
+      throw error;
+    }
+
+    const contacts = data.contacts || [];
+    
+    // Store the contacts in Supabase
+    if (contacts.length > 0) {
+      const { error: upsertError } = await supabase
+        .from('whatsapp_contacts')
+        .upsert(
+          contacts.map((contact: any) => ({
+            wati_id: contact.id || null, 
+            phone_number: contact.phoneNumber || contact.phone_number,
+            name: contact.name || null
+          })),
+          { onConflict: 'phone_number' }
+        );
+      
+      if (upsertError) {
+        console.error("Error storing contacts in Supabase:", upsertError);
+      }
+    }
+
+    return contacts;
+  } catch (error) {
+    console.error("Error fetching contacts:", error);
+    throw error;
+  }
+};
+
+export const syncWhatsAppContacts = async (): Promise<any[]> => {
+  try {
+    // Force fetch from WATI API
+    const { data, error } = await supabase.functions.invoke("whatsapp-api", {
+      body: { endpoint: "getContacts" }
+    });
+
+    if (error) {
+      console.error("Error syncing contacts:", error);
+      throw error;
+    }
+
+    const contacts = data.contacts || [];
+    
+    // Store the contacts in Supabase
+    if (contacts.length > 0) {
+      // First delete all existing contacts
+      await supabase.from('whatsapp_contacts').delete().gt('id', '0');
+      
+      // Then insert the fresh ones
+      const { error: insertError } = await supabase
+        .from('whatsapp_contacts')
+        .insert(
+          contacts.map((contact: any) => ({
+            wati_id: contact.id || null, 
+            phone_number: contact.phoneNumber || contact.phone_number,
+            name: contact.name || null
+          }))
+        );
+      
+      if (insertError) {
+        console.error("Error storing contacts in Supabase:", insertError);
+      }
+    }
+
+    return contacts;
+  } catch (error) {
+    console.error("Error syncing contacts:", error);
     throw error;
   }
 };
@@ -64,24 +256,6 @@ export const sendTestMessage = async (
     return data;
   } catch (error) {
     console.error("Error sending test message:", error);
-    throw error;
-  }
-};
-
-export const fetchContacts = async (): Promise<any[]> => {
-  try {
-    const { data, error } = await supabase.functions.invoke("whatsapp-api", {
-      body: { endpoint: "getContacts" }
-    });
-
-    if (error) {
-      console.error("Error fetching contacts:", error);
-      throw error;
-    }
-
-    return data.contacts || [];
-  } catch (error) {
-    console.error("Error fetching contacts:", error);
     throw error;
   }
 };
