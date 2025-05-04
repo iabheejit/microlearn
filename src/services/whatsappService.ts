@@ -18,9 +18,7 @@ const extractVariables = (content: string): string[] => {
 export const fetchWhatsAppTemplates = async (): Promise<WhatsAppTemplate[]> => {
   try {
     const { data, error } = await supabase.functions.invoke("whatsapp-api", {
-      body: {},
-      method: "GET",
-      path: "/getTemplates"
+      body: { endpoint: "getTemplates" }
     });
 
     if (error) {
@@ -50,9 +48,12 @@ export const sendTestMessage = async (
 ): Promise<any> => {
   try {
     const { data, error } = await supabase.functions.invoke("whatsapp-api", {
-      body: { phoneNumber, templateName, parameters },
-      method: "POST",
-      path: "/sendMessage"
+      body: { 
+        endpoint: "sendMessage",
+        phoneNumber, 
+        templateName, 
+        parameters 
+      }
     });
 
     if (error) {
@@ -70,9 +71,7 @@ export const sendTestMessage = async (
 export const fetchContacts = async (): Promise<any[]> => {
   try {
     const { data, error } = await supabase.functions.invoke("whatsapp-api", {
-      body: {},
-      method: "GET",
-      path: "/getContacts"
+      body: { endpoint: "getContacts" }
     });
 
     if (error) {

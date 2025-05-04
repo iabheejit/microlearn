@@ -18,10 +18,11 @@ interface WatiTemplate {
   content: string;
 }
 
-interface MessageParams {
-  phoneNumber: string;
-  templateName: string;
-  parameters: string[];
+interface RequestBody {
+  endpoint: string;
+  phoneNumber?: string;
+  templateName?: string;
+  parameters?: string[];
 }
 
 serve(async (req) => {
@@ -31,9 +32,6 @@ serve(async (req) => {
   }
 
   try {
-    const url = new URL(req.url);
-    const endpoint = url.pathname.split('/').pop();
-
     // Check authentication
     const authorization = req.headers.get('Authorization');
     if (!authorization) {
@@ -50,6 +48,9 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
+
+    const requestBody: RequestBody = await req.json();
+    const { endpoint } = requestBody;
 
     // Handle different endpoints
     switch (endpoint) {
@@ -100,14 +101,14 @@ serve(async (req) => {
       }
 
       case 'sendMessage': {
-        if (req.method !== 'POST') {
-          return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-            status: 405,
+        const { phoneNumber, templateName, parameters } = requestBody;
+
+        if (!phoneNumber || !templateName || !parameters) {
+          return new Response(JSON.stringify({ error: 'Missing required parameters' }), {
+            status: 400,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           });
         }
-
-        const { phoneNumber, templateName, parameters } = await req.json() as MessageParams;
 
         const response = await fetch(`${BASE_URL}/api/v1/sendTemplateMessage`, {
           method: 'POST',
