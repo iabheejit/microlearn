@@ -60,3 +60,9 @@ verify_jwt = true
 
 [functions.admin-user-management]
 verify_jwt = true
+
+[functions.whatsapp-api]
+verify_jwt = true
+
+[functions.telegram-webhook]
+verify_jwt = false
