@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { MessageCircle, Send, Code, Plus, Save, Check } from "lucide-react";
+import { MessageCircle, Send, Code, Plus, Save, Check, Loader2 } from "lucide-react";
 import { WhatsAppTemplate } from "@/lib/types";
 import { useToast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
