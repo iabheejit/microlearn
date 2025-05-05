@@ -6,8 +6,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Fix the BASE_URL to use the correct WhatsApp API endpoint
-const BASE_URL = "https://live-server.wati.io";
+// Updated BASE_URL to the correct WATI API endpoint
+const BASE_URL = "https://api.wati.io";
 const ACCESS_TOKEN = Deno.env.get("WHATSAPP_API_KEY");
 
 interface WatiTemplate {
@@ -70,7 +70,7 @@ serve(async (req) => {
     const { endpoint } = requestBody;
     console.log(`Processing endpoint: ${endpoint}`);
 
-    // Handle different endpoints
+    // Handle different endpoints with updated API paths
     switch (endpoint) {
       case 'getTemplates': {
         console.log("Fetching templates from WATI API");
@@ -81,10 +81,10 @@ serve(async (req) => {
           }
         });
 
-        const responseText = await response.text();
         console.log(`WATI API templates response status: ${response.status}`);
         
         if (!response.ok) {
+          const responseText = await response.text();
           console.error('Error fetching templates:', responseText);
           return new Response(JSON.stringify({ 
             error: `API error: ${response.status}`, 
@@ -95,22 +95,15 @@ serve(async (req) => {
           });
         }
 
-        let data;
-        try {
-          data = JSON.parse(responseText);
-          console.log(`Successfully parsed templates response. Found ${data.templates?.length || 0} templates`);
-        } catch (e) {
-          console.error("Error parsing templates response:", e, "Response text:", responseText);
-          return new Response(JSON.stringify({ 
-            error: 'Invalid JSON response from WATI API', 
-            details: responseText.substring(0, 200) + (responseText.length > 200 ? '...' : '')
-          }), {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-
-        return new Response(JSON.stringify(data), {
+        const data = await response.json();
+        console.log(`Successfully parsed templates response. Found ${data.messageTemplates?.length || 0} templates`);
+        
+        // Transform the response to match the expected format
+        const transformedData = {
+          templates: data.messageTemplates || []
+        };
+        
+        return new Response(JSON.stringify(transformedData), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
@@ -124,10 +117,10 @@ serve(async (req) => {
           }
         });
 
-        const responseText = await response.text();
         console.log(`WATI API contacts response status: ${response.status}`);
         
         if (!response.ok) {
+          const responseText = await response.text();
           console.error('Error fetching contacts:', responseText);
           return new Response(JSON.stringify({ 
             error: `API error: ${response.status}`, 
@@ -138,21 +131,9 @@ serve(async (req) => {
           });
         }
 
-        let data;
-        try {
-          data = JSON.parse(responseText);
-          console.log(`Successfully parsed contacts response. Found ${data.contacts?.length || 0} contacts`);
-        } catch (e) {
-          console.error("Error parsing contacts response:", e, "Response text:", responseText);
-          return new Response(JSON.stringify({ 
-            error: 'Invalid JSON response from WATI API', 
-            details: responseText.substring(0, 200) + (responseText.length > 200 ? '...' : '')
-          }), {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-
+        const data = await response.json();
+        console.log(`Successfully parsed contacts response. Found ${data.contacts?.length || 0} contacts`);
+        
         return new Response(JSON.stringify(data), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
@@ -168,6 +149,7 @@ serve(async (req) => {
           });
         }
 
+        console.log(`Sending template message to ${phoneNumber} using template ${templateName}`);
         const response = await fetch(`${BASE_URL}/api/v1/sendTemplateMessage`, {
           method: 'POST',
           headers: {
@@ -182,10 +164,15 @@ serve(async (req) => {
           })
         });
 
+        console.log(`WATI API send message response status: ${response.status}`);
+        
         if (!response.ok) {
           const errorText = await response.text();
           console.error('Error sending message:', errorText);
-          return new Response(JSON.stringify({ error: `API error: ${response.status}` }), {
+          return new Response(JSON.stringify({ 
+            error: `API error: ${response.status}`,
+            details: errorText
+          }), {
             status: response.status,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           });
@@ -204,6 +191,8 @@ serve(async (req) => {
         const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // Default 30 days ago
         const end = endDate || new Date().toISOString().split('T')[0]; // Default today
         
+        console.log(`Fetching analytics from ${start} to ${end}`);
+        
         // Fetch message statistics
         const messagesResponse = await fetch(`${BASE_URL}/api/v1/getMessageStatistics?startDate=${start}&endDate=${end}`, {
           headers: {
@@ -212,10 +201,15 @@ serve(async (req) => {
           }
         });
 
+        console.log(`WATI API message statistics response status: ${messagesResponse.status}`);
+        
         if (!messagesResponse.ok) {
           const errorText = await messagesResponse.text();
           console.error('Error fetching message statistics:', errorText);
-          return new Response(JSON.stringify({ error: `API error: ${messagesResponse.status}` }), {
+          return new Response(JSON.stringify({ 
+            error: `API error: ${messagesResponse.status}`,
+            details: errorText
+          }), {
             status: messagesResponse.status,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           });
@@ -231,12 +225,15 @@ serve(async (req) => {
           }
         });
 
+        console.log(`WATI API conversation statistics response status: ${conversationsResponse.status}`);
+        
         if (!conversationsResponse.ok) {
           const errorText = await conversationsResponse.text();
           console.error('Error fetching conversation statistics:', errorText);
         }
         
-        const conversationsData = await conversationsResponse.json().catch(() => ({}));
+        const conversationsData = conversationsResponse.ok ? 
+          await conversationsResponse.json() : {};
         
         // Combine data for a comprehensive analytics response
         const analyticsData = {
@@ -259,6 +256,7 @@ serve(async (req) => {
           });
         }
         
+        console.log(`Fetching messages for phone number: ${phoneNumber}`);
         const response = await fetch(`${BASE_URL}/api/v1/getMessages/${phoneNumber}`, {
           headers: {
             'Authorization': `Bearer ${ACCESS_TOKEN}`,
@@ -266,10 +264,15 @@ serve(async (req) => {
           }
         });
 
+        console.log(`WATI API get messages response status: ${response.status}`);
+        
         if (!response.ok) {
           const errorText = await response.text();
           console.error('Error fetching messages:', errorText);
-          return new Response(JSON.stringify({ error: `API error: ${response.status}` }), {
+          return new Response(JSON.stringify({ 
+            error: `API error: ${response.status}`,
+            details: errorText
+          }), {
             status: response.status,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           });

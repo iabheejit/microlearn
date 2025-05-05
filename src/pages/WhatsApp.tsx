@@ -9,10 +9,9 @@ import {
   syncWhatsAppTemplates,
   syncWhatsAppContacts 
 } from "@/services/whatsappService";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
-import { RefreshCw } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const WhatsApp = () => {
@@ -56,19 +55,23 @@ const WhatsApp = () => {
       console.log("Starting WhatsApp sync process...");
       
       // Perform syncs sequentially for better error handling
-      // First sync templates
-      console.log("Syncing templates...");
-      await syncWhatsAppTemplates().catch(error => {
+      try {
+        // First sync templates
+        console.log("Syncing templates...");
+        await syncWhatsAppTemplates();
+      } catch (error) {
         console.error("Template sync failed:", error);
-        throw new Error(`Failed to sync templates: ${error.message}`);
-      });
+        throw new Error(`Failed to sync templates: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
       
-      // Then sync contacts
-      console.log("Syncing contacts...");
-      await syncWhatsAppContacts().catch(error => {
+      try {
+        // Then sync contacts
+        console.log("Syncing contacts...");
+        await syncWhatsAppContacts();
+      } catch (error) {
         console.error("Contact sync failed:", error);
-        throw new Error(`Failed to sync contacts: ${error.message}`);
-      });
+        throw new Error(`Failed to sync contacts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
       
       // Refetch the data to update the UI
       console.log("Refetching data...");
