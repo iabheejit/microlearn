@@ -9,7 +9,7 @@ import {
   syncWhatsAppTemplates,
   syncWhatsAppContacts 
 } from "@/services/whatsappService";
-import { Loader2, AlertCircle, RefreshCw } from "lucide-react";
+import { Loader2, AlertCircle, RefreshCw, Info } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -46,6 +46,17 @@ const WhatsApp = () => {
 
   const isLoading = templatesLoading || contactsLoading;
   const hasError = templatesError || contactsError || syncError;
+
+  const formatErrorMessage = (error: any): string => {
+    if (error instanceof Error) {
+      if (error.message.includes("Edge Function returned a non-2xx status code")) {
+        return "API connection error. Please check your WhatsApp API key and access.";
+      }
+      return error.message;
+    }
+    
+    return "An unknown error occurred";
+  };
 
   const handleSync = async () => {
     setIsSyncing(true);
@@ -125,32 +136,45 @@ const WhatsApp = () => {
             </Button>
           </header>
 
-          {syncError && (
+          {hasError && (
             <Alert variant="destructive" className="mb-6">
               <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Sync Error</AlertTitle>
+              <AlertTitle>Connection Issue</AlertTitle>
               <AlertDescription>
-                {syncError}
+                <p>Unable to connect to WhatsApp Business API. Please check:</p>
+                <ul className="list-disc ml-5 mt-2">
+                  <li>Your API key is correct and active</li>
+                  <li>Your tenant ID (8076) is correct</li>
+                  <li>The WATI service is operational</li>
+                </ul>
+                {syncError && (
+                  <div className="mt-2">
+                    <p className="font-semibold">Sync error:</p>
+                    <p>{formatErrorMessage(syncError)}</p>
+                  </div>
+                )}
+                {templatesError && (
+                  <div className="mt-2">
+                    <p className="font-semibold">Templates error:</p>
+                    <p>{formatErrorMessage(templatesError)}</p>
+                  </div>
+                )}
+                {contactsError && (
+                  <div className="mt-2">
+                    <p className="font-semibold">Contacts error:</p>
+                    <p>{formatErrorMessage(contactsError)}</p>
+                  </div>
+                )}
               </AlertDescription>
             </Alert>
           )}
 
-          {templatesError && (
-            <Alert variant="destructive" className="mb-6">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Templates Error</AlertTitle>
+          {!hasError && (
+            <Alert className="mb-6">
+              <Info className="h-4 w-4" />
+              <AlertTitle>API Connection</AlertTitle>
               <AlertDescription>
-                {templatesError instanceof Error ? templatesError.message : "Failed to load templates"}
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {contactsError && (
-            <Alert variant="destructive" className="mb-6">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Contacts Error</AlertTitle>
-              <AlertDescription>
-                {contactsError instanceof Error ? contactsError.message : "Failed to load contacts"}
+                Connected to WhatsApp Business API at <span className="font-mono">https://live-mt-server.wati.io/8076</span>
               </AlertDescription>
             </Alert>
           )}

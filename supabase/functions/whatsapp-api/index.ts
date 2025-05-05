@@ -6,18 +6,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Updated BASE_URL to the correct WATI API endpoint
-const BASE_URL = "https://api.wati.io";
+// The BASE_URL needs to include the base domain only
+const BASE_URL = "https://live-mt-server.wati.io";
 const ACCESS_TOKEN = Deno.env.get("WHATSAPP_API_KEY");
-
-interface WatiTemplate {
-  id: number;
-  elementName: string;
-  status: string;
-  category: string;
-  languageCode: string;
-  content: string;
-}
+const TENANT_ID = "8076"; // Based on your API endpoint information
 
 interface RequestBody {
   endpoint: string;
@@ -70,11 +62,11 @@ serve(async (req) => {
     const { endpoint } = requestBody;
     console.log(`Processing endpoint: ${endpoint}`);
 
-    // Handle different endpoints with updated API paths
+    // Handle different endpoints with the correct API paths including tenant ID
     switch (endpoint) {
       case 'getTemplates': {
         console.log("Fetching templates from WATI API");
-        const response = await fetch(`${BASE_URL}/api/v1/getMessageTemplates`, {
+        const response = await fetch(`${BASE_URL}/${TENANT_ID}/api/v1/getMessageTemplates`, {
           headers: {
             'Authorization': `Bearer ${ACCESS_TOKEN}`,
             'Content-Type': 'application/json'
@@ -110,7 +102,7 @@ serve(async (req) => {
 
       case 'getContacts': {
         console.log("Fetching contacts from WATI API");
-        const response = await fetch(`${BASE_URL}/api/v1/getContacts`, {
+        const response = await fetch(`${BASE_URL}/${TENANT_ID}/api/v1/getContacts`, {
           headers: {
             'Authorization': `Bearer ${ACCESS_TOKEN}`,
             'Content-Type': 'application/json'
@@ -150,7 +142,7 @@ serve(async (req) => {
         }
 
         console.log(`Sending template message to ${phoneNumber} using template ${templateName}`);
-        const response = await fetch(`${BASE_URL}/api/v1/sendTemplateMessage`, {
+        const response = await fetch(`${BASE_URL}/${TENANT_ID}/api/v1/sendTemplateMessage`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${ACCESS_TOKEN}`,
@@ -194,7 +186,7 @@ serve(async (req) => {
         console.log(`Fetching analytics from ${start} to ${end}`);
         
         // Fetch message statistics
-        const messagesResponse = await fetch(`${BASE_URL}/api/v1/getMessageStatistics?startDate=${start}&endDate=${end}`, {
+        const messagesResponse = await fetch(`${BASE_URL}/${TENANT_ID}/api/v1/getMessageStatistics?startDate=${start}&endDate=${end}`, {
           headers: {
             'Authorization': `Bearer ${ACCESS_TOKEN}`,
             'Content-Type': 'application/json'
@@ -218,7 +210,7 @@ serve(async (req) => {
         const messagesData = await messagesResponse.json();
         
         // Fetch conversation analytics
-        const conversationsResponse = await fetch(`${BASE_URL}/api/v1/getConversationStatistics?startDate=${start}&endDate=${end}`, {
+        const conversationsResponse = await fetch(`${BASE_URL}/${TENANT_ID}/api/v1/getConversationStatistics?startDate=${start}&endDate=${end}`, {
           headers: {
             'Authorization': `Bearer ${ACCESS_TOKEN}`,
             'Content-Type': 'application/json'
@@ -257,7 +249,7 @@ serve(async (req) => {
         }
         
         console.log(`Fetching messages for phone number: ${phoneNumber}`);
-        const response = await fetch(`${BASE_URL}/api/v1/getMessages/${phoneNumber}`, {
+        const response = await fetch(`${BASE_URL}/${TENANT_ID}/api/v1/getMessages/${phoneNumber}`, {
           headers: {
             'Authorization': `Bearer ${ACCESS_TOKEN}`,
             'Content-Type': 'application/json'
