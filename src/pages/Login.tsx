@@ -161,6 +161,27 @@ const Login = () => {
                  ? (isSignUp ? "Creating Account..." : "Logging in...") 
                  : (isSignUp ? "Create Account" : "Login")}
               </Button>
+              
+              <div className="relative my-4">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">Or</span>
+                </div>
+              </div>
+              
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  toast.success("Demo login successful");
+                  navigate(ROUTES.DASHBOARD);
+                }}
+              >
+                Demo Login (No Auth)
+              </Button>
             </form>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
