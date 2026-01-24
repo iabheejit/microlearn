@@ -18,11 +18,22 @@ const Login = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
+  // Demo credentials for testing without DB
+  const DEMO_EMAIL = "demo@example.com";
+  const DEMO_PASSWORD = "demo123";
+
   const handleAuthentication = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!email || !password) {
       toast.error("Please fill in all fields");
+      return;
+    }
+    
+    // Check for demo credentials first (bypasses DB)
+    if (email === DEMO_EMAIL && password === DEMO_PASSWORD) {
+      toast.success("Demo login successful");
+      navigate(ROUTES.DASHBOARD);
       return;
     }
     
@@ -37,8 +48,8 @@ const Login = () => {
           password,
           options: {
             data: {
-              first_name: "",  // Add empty first_name for the profile
-              last_name: "",   // Add empty last_name for the profile
+              first_name: "",
+              last_name: "",
               email_verified: true
             }
           }
@@ -121,6 +132,11 @@ const Login = () => {
                ? "Register to start creating and managing courses" 
                : "Enter your credentials to access your account"}
             </CardDescription>
+            <div className="mt-3 p-3 bg-muted rounded-md text-sm">
+              <p className="font-medium text-foreground">Demo Credentials:</p>
+              <p className="text-muted-foreground">Email: demo@example.com</p>
+              <p className="text-muted-foreground">Password: demo123</p>
+            </div>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleAuthentication} className="space-y-4">
@@ -162,26 +178,6 @@ const Login = () => {
                  : (isSignUp ? "Create Account" : "Login")}
               </Button>
               
-              <div className="relative my-4">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">Or</span>
-                </div>
-              </div>
-              
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                onClick={() => {
-                  toast.success("Demo login successful");
-                  navigate(ROUTES.DASHBOARD);
-                }}
-              >
-                Demo Login (No Auth)
-              </Button>
             </form>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
