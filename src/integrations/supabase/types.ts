@@ -160,11 +160,15 @@ export type Database = {
       }
       courses: {
         Row: {
+          category: string | null
           created_at: string
           created_by: string
           description: string | null
           id: string
+          instructor: string | null
           is_published: boolean
+          language: string | null
+          price: number
           published_at: string | null
           status: Database["public"]["Enums"]["course_status"]
           thumbnail_url: string | null
@@ -172,11 +176,15 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          category?: string | null
           created_at?: string
           created_by: string
           description?: string | null
           id?: string
+          instructor?: string | null
           is_published?: boolean
+          language?: string | null
+          price?: number
           published_at?: string | null
           status?: Database["public"]["Enums"]["course_status"]
           thumbnail_url?: string | null
@@ -184,11 +192,15 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          category?: string | null
           created_at?: string
           created_by?: string
           description?: string | null
           id?: string
+          instructor?: string | null
           is_published?: boolean
+          language?: string | null
+          price?: number
           published_at?: string | null
           status?: Database["public"]["Enums"]["course_status"]
           thumbnail_url?: string | null
