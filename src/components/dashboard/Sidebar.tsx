@@ -4,7 +4,8 @@ import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/AuthProvider";
-import { DASHBOARD_SECTIONS, APP_NAME } from "@/lib/constants";
+import BrandLogo from "@/components/BrandLogo";
+import { DASHBOARD_SECTIONS } from "@/lib/constants";
 import { 
   LayoutDashboard, 
   Users, 
@@ -67,9 +68,7 @@ const Sidebar = () => {
     >
       <div className="flex items-center h-16 px-4 border-b border-border">
         <Link to="/" className="flex items-center">
-          <span className="text-primary font-bold text-xl">
-            {collapsed ? "E" : APP_NAME}
-          </span>
+          <BrandLogo compact={collapsed} imageClassName="h-8 w-8" className="text-lg" />
         </Link>
         {!isMobile && (
           <button

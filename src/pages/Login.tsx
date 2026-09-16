@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { PasswordReset } from "@/components/auth/PasswordReset";
 import { useAuth } from "@/components/AuthProvider";
+import BrandLogo from "@/components/BrandLogo";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -88,7 +89,7 @@ const Login = () => {
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <Link to={ROUTES.HOME} className="inline-block">
-              <h1 className="text-3xl font-bold text-primary">{APP_NAME}</h1>
+              <BrandLogo className="text-2xl" imageClassName="h-14 w-14" />
             </Link>
           </div>
 
@@ -120,7 +121,7 @@ const Login = () => {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link to={ROUTES.HOME} className="inline-block">
-            <h1 className="text-3xl font-bold text-primary">{APP_NAME}</h1>
+            <BrandLogo className="text-2xl" imageClassName="h-14 w-14" />
           </Link>
           <p className="mt-2 text-muted-foreground">
             Enterprise Learning Platform
