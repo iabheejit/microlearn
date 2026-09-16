@@ -40,11 +40,13 @@ Deno.serve(async (req) => {
   const deliveryId = req.headers.get('x-lovable-delivery')?.trim() || crypto.randomUUID();
   const client = createServiceClient();
   let callbackId: string | null = null;
+  let verified = false;
 
   try {
     const secret = Deno.env.get('LOVABLE_API_KEY');
     if (!secret) throw new Error('Callback verification is not configured');
     const { payload } = await verifyWebhookRequest({ req, secret, maxBodyBytes: 1024 * 1024 });
+    verified = true;
     const parsed = PayloadSchema.safeParse(payload);
     if (!parsed.success) throw new Error('Unsupported WhatsApp callback payload');
 
@@ -108,7 +110,7 @@ Deno.serve(async (req) => {
     const safeMessage = error instanceof WebhookError ? `Verification failed: ${error.code}` : error instanceof Error ? error.message.slice(0, 2000) : 'Callback processing failed';
     if (callbackId) {
       await client.from('whatsapp_webhook_callbacks').update({ status: 'error', error_message: safeMessage, processed_at: new Date().toISOString() }).eq('id', callbackId);
-    } else {
+    } else if (verified) {
       await client.from('whatsapp_webhook_callbacks').upsert({ delivery_id: deliveryId, event_type: 'unknown', status: 'error', error_message: safeMessage, processed_at: new Date().toISOString() }, { onConflict: 'delivery_id' });
     }
     console.error(`WhatsApp callback ${deliveryId}: ${safeMessage}`);
