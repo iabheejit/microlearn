@@ -1,51 +1,20 @@
+import { z } from 'npm:zod';
+import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
+import { requireUser } from '../_shared/auth.ts';
+import { createEmbedding } from '../_shared/ai.ts';
+import { errorResponse, jsonResponse, optionsResponse } from '../_shared/responses.ts';
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
+const Schema = z.object({ text: z.string().trim().min(1).max(30000) });
 
-const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return optionsResponse();
   try {
-    const { text } = await req.json();
-
-    const response = await fetch('https://api.openai.com/v1/embeddings', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        input: text,
-        model: 'text-embedding-3-small'
-      })
+    await requireUser(req);
+    const parsed = Schema.safeParse(await req.json());
+    if (!parsed.success) return jsonResponse({ error: parsed.error.flatten().fieldErrors }, 400);
+    const result = await createEmbedding(parsed.data.text, req);
+    return jsonResponse({ embedding: result.embedding, model: 'google/gemini-embedding-2' }, 200, {
+      ...(result.headers.get('X-Lovable-AIG-Run-ID') ? { 'X-Lovable-AIG-Run-ID': result.headers.get('X-Lovable-AIG-Run-ID') as string, 'Access-Control-Expose-Headers': 'X-Lovable-AIG-Run-ID' } : {}),
     });
-
-    const data = await response.json();
-    
-    if (!data.data || !data.data[0]) {
-      throw new Error('Invalid response from OpenAI');
-    }
-
-    return new Response(JSON.stringify({
-      embedding: data.data[0].embedding
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  } catch (error) {
-    console.error('Error generating embedding:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
+  } catch (error) { return errorResponse(error); }
 });

@@ -160,11 +160,15 @@ export type Database = {
       }
       courses: {
         Row: {
+          category: string | null
           created_at: string
           created_by: string
           description: string | null
           id: string
+          instructor: string | null
           is_published: boolean
+          language: string | null
+          price: number
           published_at: string | null
           status: Database["public"]["Enums"]["course_status"]
           thumbnail_url: string | null
@@ -172,11 +176,15 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          category?: string | null
           created_at?: string
           created_by: string
           description?: string | null
           id?: string
+          instructor?: string | null
           is_published?: boolean
+          language?: string | null
+          price?: number
           published_at?: string | null
           status?: Database["public"]["Enums"]["course_status"]
           thumbnail_url?: string | null
@@ -184,11 +192,15 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          category?: string | null
           created_at?: string
           created_by?: string
           description?: string | null
           id?: string
+          instructor?: string | null
           is_published?: boolean
+          language?: string | null
+          price?: number
           published_at?: string | null
           status?: Database["public"]["Enums"]["course_status"]
           thumbnail_url?: string | null
@@ -473,16 +485,21 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      get_user_role: {
-        Args: { _user_id: string }
-        Returns: Database["public"]["Enums"]["app_role"]
-      }
-      has_role: {
+      match_course_resources: {
         Args: {
-          _role: Database["public"]["Enums"]["app_role"]
-          _user_id: string
+          match_count?: number
+          query_embedding: string
+          requested_course_id?: string
         }
-        Returns: boolean
+        Returns: {
+          content: string
+          course_id: string
+          module_id: string
+          resource_id: string
+          resource_type: string
+          similarity: number
+          title: string
+        }[]
       }
     }
     Enums: {

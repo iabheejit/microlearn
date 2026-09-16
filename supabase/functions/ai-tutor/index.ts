@@ -1,113 +1,39 @@
+import { z } from 'npm:zod';
+import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
+import { requireUser } from '../_shared/auth.ts';
+import { createEmbedding, generateTutorReply } from '../_shared/ai.ts';
+import { errorResponse, jsonResponse, optionsResponse } from '../_shared/responses.ts';
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
+const Schema = z.object({
+  query: z.string().trim().min(1).max(5000), courseId: z.string().uuid().nullable().optional(), persona: z.string().trim().max(500).default('supportive microlearning tutor'),
+  context: z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string().max(5000) })).max(20).default([]),
+});
 
-const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return optionsResponse();
   try {
-    const { query, context = [], persona = 'helpful assistant' } = await req.json();
-
-    // Find relevant resources using our find-similar-resources function
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY');
-    
-    // First generate embeddings for the query
-    const embeddingResponse = await fetch(`${supabaseUrl}/functions/v1/generate-embedding`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${supabaseKey}`,
-        'apikey': supabaseKey,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        text: query
-      })
+    const { client, user } = await requireUser(req);
+    const parsed = Schema.safeParse(await req.json());
+    if (!parsed.success) return jsonResponse({ error: parsed.error.flatten().fieldErrors }, 400);
+    const embeddingResult = await createEmbedding(parsed.data.query, req);
+    const { data: resources, error: searchError } = await client.rpc('match_course_resources', {
+      query_embedding: `[${embeddingResult.embedding.join(',')}]`, requested_course_id: parsed.data.courseId || null, match_count: 5,
     });
-    
-    if (!embeddingResponse.ok) {
-      throw new Error(`Failed to generate embedding: ${embeddingResponse.statusText}`);
-    }
-    
-    const embeddingData = await embeddingResponse.json();
-    
-    // Then find similar resources
-    const resourceResponse = await fetch(`${supabaseUrl}/functions/v1/find-similar-resources`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${supabaseKey}`,
-        'apikey': supabaseKey,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        query_embedding: embeddingData.embedding,
-        similarity_threshold: 0.7,
-        match_count: 5
-      })
-    });
-    
-    if (!resourceResponse.ok) {
-      throw new Error(`Failed to find resources: ${resourceResponse.statusText}`);
-    }
-    
-    const relevantResources = await resourceResponse.json();
-
-    // Prepare context with found resources
-    const ragContext = relevantResources.map(
-      (resource: any) => `Source: ${resource.title}\nContent: ${resource.content}`
-    ).join('\n\n');
-
-    // Prepare messages for OpenAI
-    const messages = [
-      { role: 'system', content: `You are a ${persona}. Use the following context to help answer the user's query:\n\n${ragContext}` },
-      { role: 'user', content: query },
-      ...context
+    if (searchError) throw searchError;
+    const sources = (resources || []).filter((item: { similarity: number }) => item.similarity >= 0.35);
+    const sourceText = sources.length ? sources.map((resource: { title: string; content: string }, index: number) => `[${index + 1}] ${resource.title}\n${resource.content}`).join('\n\n') : 'No matching course material was found.';
+    const input = [
+      ...parsed.data.context.map((item) => ({ role: item.role, content: [{ type: item.role === 'assistant' ? 'output_text' : 'input_text', text: item.content }] })),
+      { role: 'user', content: [{ type: 'input_text', text: parsed.data.query }] },
     ];
-
-    // Call OpenAI API
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
-        messages: messages,
-        temperature: 0.7,
-        max_tokens: 500
-      }),
-    });
-
-    const data = await response.json();
-    
-    if (!data.choices || !data.choices[0]) {
-      throw new Error('Invalid response from OpenAI');
-    }
-    
-    const generatedResponse = data.choices[0].message.content;
-
-    return new Response(JSON.stringify({ 
-      response: generatedResponse,
-      sources: relevantResources 
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    const result = await generateTutorReply(input, `You are a ${parsed.data.persona}. Answer clearly and concisely using the course material below. If the material does not answer the question, say that before offering general guidance. Cite useful sources as [1], [2], and so on.\n\nCOURSE MATERIAL\n${sourceText}`, req);
+    const { error: historyError } = await client.from('chat_history').insert({ user_id: user.id, course_id: parsed.data.courseId || null, message: parsed.data.query, response: result.text, sources });
+    if (historyError) throw historyError;
+    return jsonResponse({ response: result.text, sources }, 200, {
+      ...(result.headers.get('X-Lovable-AIG-Run-ID') ? { 'X-Lovable-AIG-Run-ID': result.headers.get('X-Lovable-AIG-Run-ID') as string, 'Access-Control-Expose-Headers': 'X-Lovable-AIG-Run-ID' } : {}),
     });
   } catch (error) {
-    console.error('Error in AI tutor function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    if (error instanceof DOMException && error.name === 'AbortError') return jsonResponse({ error: 'Request cancelled' }, 499);
+    return errorResponse(error);
   }
 });
