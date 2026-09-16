@@ -253,6 +253,83 @@ export type Database = {
           },
         ]
       }
+      telegram_contacts: {
+        Row: {
+          chat_id: string
+          created_at: string
+          first_name: string | null
+          id: string
+          last_interaction_at: string
+          last_name: string | null
+          telegram_user_id: string | null
+          updated_at: string
+          username: string | null
+        }
+        Insert: {
+          chat_id: string
+          created_at?: string
+          first_name?: string | null
+          id?: string
+          last_interaction_at?: string
+          last_name?: string | null
+          telegram_user_id?: string | null
+          updated_at?: string
+          username?: string | null
+        }
+        Update: {
+          chat_id?: string
+          created_at?: string
+          first_name?: string | null
+          id?: string
+          last_interaction_at?: string
+          last_name?: string | null
+          telegram_user_id?: string | null
+          updated_at?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
+      telegram_messages: {
+        Row: {
+          chat_id: string
+          content: string
+          created_at: string
+          direction: string
+          id: string
+          sent_at: string
+          telegram_message_id: string
+          update_id: string | null
+        }
+        Insert: {
+          chat_id: string
+          content: string
+          created_at?: string
+          direction: string
+          id?: string
+          sent_at?: string
+          telegram_message_id: string
+          update_id?: string | null
+        }
+        Update: {
+          chat_id?: string
+          content?: string
+          created_at?: string
+          direction?: string
+          id?: string
+          sent_at?: string
+          telegram_message_id?: string
+          update_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "telegram_messages_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "telegram_contacts"
+            referencedColumns: ["chat_id"]
+          },
+        ]
+      }
       user_progress: {
         Row: {
           completed_at: string | null
