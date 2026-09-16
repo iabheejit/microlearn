@@ -2,8 +2,9 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ROUTES, APP_NAME } from "@/lib/constants";
+import { ROUTES } from "@/lib/constants";
 import { Menu, X } from "lucide-react";
+import BrandLogo from "@/components/BrandLogo";
 
 const Header = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -30,9 +31,9 @@ const Header = () => {
         <div className="flex items-center justify-between">
           <Link
             to={ROUTES.HOME}
-            className="text-2xl font-bold text-primary transition-all duration-300 hover:opacity-80"
+            className="transition-opacity duration-300 hover:opacity-80"
           >
-            {APP_NAME}
+            <BrandLogo className="text-xl" />
           </Link>
 
           {/* Desktop Navigation */}

@@ -1,6 +1,7 @@
 
 import { Link } from "react-router-dom";
 import { APP_NAME } from "@/lib/constants";
+import BrandLogo from "@/components/BrandLogo";
 
 const Footer = () => {
   return (
@@ -8,8 +9,8 @@ const Footer = () => {
       <div className="container mx-auto px-4 md:px-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           <div>
-            <Link to="/" className="text-2xl font-bold text-primary">
-              {APP_NAME}
+            <Link to="/" className="inline-flex">
+              <BrandLogo className="text-xl" />
             </Link>
             <p className="mt-4 text-muted-foreground text-sm">
               Transforming enterprise learning with personalized, bite-sized content
