@@ -91,10 +91,37 @@ Deno.serve(async (req) => {
     }
 
     for (const status of statuses) {
-      const { error: updateError } = await client.from('whatsapp_messages').update({
+      const occurredAt = isoFromSeconds(status.timestamp);
+      const errorMessage = statusError(status);
+      const deliveryFields = {
         status: status.status,
+        status_error: errorMessage,
+        ...(status.status === 'delivered' ? { delivered_at: occurredAt } : {}),
+        ...(status.status === 'read' ? { read_at: occurredAt } : {}),
+        ...(status.status === 'failed' ? { failed_at: occurredAt } : {}),
+      };
+      const { error: updateError } = await client.from('whatsapp_messages').update({
+        ...deliveryFields,
       }).eq('provider_message_id', status.id);
       if (updateError) throw updateError;
+      const { data: job, error: jobLookupError } = await client.from('whatsapp_template_send_jobs')
+        .select('id,template_version_id').eq('provider_message_id', status.id).maybeSingle();
+      if (jobLookupError) throw jobLookupError;
+      if (job) {
+        const { error: jobUpdateError } = await client.from('whatsapp_template_send_jobs').update({
+          status: status.status,
+          error_message: errorMessage,
+          ...(status.status === 'delivered' ? { delivered_at: occurredAt } : {}),
+          ...(status.status === 'read' ? { read_at: occurredAt } : {}),
+          ...(status.status === 'failed' ? { failed_at: occurredAt } : {}),
+        }).eq('id', job.id);
+        if (jobUpdateError) throw jobUpdateError;
+        const { error: auditError } = await client.from('whatsapp_template_events').insert({
+          template_version_id: job.template_version_id, send_job_id: job.id, event_type: 'delivery_status',
+          status: status.status, details: { provider_message_id: status.id, occurred_at: occurredAt, error: errorMessage },
+        });
+        if (auditError) throw auditError;
+      }
     }
 
     const errors = statuses.map(statusError).filter((value): value is string => Boolean(value));
