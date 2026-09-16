@@ -8,6 +8,7 @@ import { APP_NAME, ROUTES } from "@/lib/constants";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { PasswordReset } from "@/components/auth/PasswordReset";
+import { useAuth } from "@/components/AuthProvider";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -17,6 +18,7 @@ const Login = () => {
   const [showReset, setShowReset] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { signInDemo } = useAuth();
 
   // Demo credentials for testing without DB
   const DEMO_EMAIL = "demo@example.com";
@@ -32,6 +34,7 @@ const Login = () => {
     
     // Check for demo credentials first (bypasses DB)
     if (email === DEMO_EMAIL && password === DEMO_PASSWORD) {
+      signInDemo();
       toast.success("Demo login successful");
       navigate(ROUTES.DASHBOARD);
       return;

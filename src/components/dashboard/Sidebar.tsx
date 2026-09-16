@@ -2,6 +2,8 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/components/AuthProvider";
 import { DASHBOARD_SECTIONS, APP_NAME } from "@/lib/constants";
 import { 
   LayoutDashboard, 
@@ -40,6 +42,7 @@ const Sidebar = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const location = useLocation();
+  const { signOut } = useAuth();
 
   useEffect(() => {
     const checkMobile = () => {
@@ -117,17 +120,17 @@ const Sidebar = () => {
       </nav>
 
       <div className="p-4 border-t border-border">
-        <Link
-          to="/login"
-          className={cn(
-            "flex items-center text-muted-foreground hover:text-foreground transition-colors"
-          )}
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => void signOut()}
+          className="w-full justify-start px-0 text-muted-foreground hover:text-foreground"
         >
           <span className="inline-flex items-center justify-center w-8 h-8">
             <LogOut size={20} />
           </span>
           {!collapsed && <span className="ml-2 text-sm">Log out</span>}
-        </Link>
+        </Button>
       </div>
     </div>
   );
