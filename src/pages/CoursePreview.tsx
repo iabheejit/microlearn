@@ -188,7 +188,7 @@ const CoursePreview = () => {
 
               <Card>
                 <CardContent className="pt-6">
-                  <Tabs defaultValue="content" onValueChange={setActiveTab}>
+                  <Tabs value={activeTab} onValueChange={setActiveTab}>
                     <TabsList className="mb-6">
                       <TabsTrigger value="content">Course Content</TabsTrigger>
                       <TabsTrigger value="whatsapp">WhatsApp Preview</TabsTrigger>
