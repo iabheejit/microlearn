@@ -62,10 +62,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signInDemo = async () => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email: "demo@example.com", password: "demo123" });
+    const { data, error } = await supabase.functions.invoke('demo-auth', { body: { email: "demo@example.com", password: "demo123" } });
     if (error) throw error;
-    setSession(data.session);
-    setUser(data.user);
+    if (!data?.session?.access_token || !data?.session?.refresh_token) throw new Error('Demo access returned no session');
+    const { data: sessionData, error: sessionError } = await supabase.auth.setSession({ access_token: data.session.access_token, refresh_token: data.session.refresh_token });
+    if (sessionError) throw sessionError;
+    setSession(sessionData.session);
+    setUser(sessionData.user);
     setIsDemo(true);
   };
 
