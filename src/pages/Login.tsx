@@ -33,15 +33,21 @@ const Login = () => {
       return;
     }
     
-    // Check for demo credentials first (bypasses DB)
+    setIsLoading(true);
+
+    // Demo credentials use a real account so all protected portal features work.
     if (email === DEMO_EMAIL && password === DEMO_PASSWORD) {
-      signInDemo();
-      toast.success("Demo login successful");
-      navigate(ROUTES.DASHBOARD);
+      try {
+        await signInDemo();
+        toast.success("Demo login successful");
+        navigate(ROUTES.DASHBOARD);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Demo login failed");
+      } finally {
+        setIsLoading(false);
+      }
       return;
     }
-    
-    setIsLoading(true);
     
     try {
       let result;

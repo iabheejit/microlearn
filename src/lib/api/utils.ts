@@ -1,13 +1,13 @@
-import { Course, CourseDay, CourseParagraph } from "../types";
+import { Course } from "../types";
 import { supabase } from "@/integrations/supabase/client";
 
 // Helper to convert database course format to application format
 export const dbCourseToAppCourse = (dbCourse: any, days: any[] = []): Course => {
   const courseDays = days.map(day => ({
-    id: day.order_index,
+    id: day.id,
     title: day.title,
     paragraphs: day.paragraphs?.map((para: any) => ({
-      id: para.order_index,
+      id: para.id,
       content: para.content
     })) || [],
     media: day.description || undefined
@@ -16,11 +16,11 @@ export const dbCourseToAppCourse = (dbCourse: any, days: any[] = []): Course => 
   return {
     id: dbCourse.id, // Keep as string, no conversion needed
     title: dbCourse.title,
-    instructor: "",
+    instructor: dbCourse.instructor || "",
     description: dbCourse.description || "",
-    category: "",
-    language: "",
-    price: 0,
+    category: dbCourse.category || "",
+    language: dbCourse.language || "",
+    price: Number(dbCourse.price || 0),
     enrolled: 0,
     completion: 0,
     status: dbCourse.is_published ? "active" : "draft",
@@ -37,6 +37,10 @@ export const appCourseToDbFormat = (course: Course) => {
     id: courseId,
     title: course.title || "",
     description: course.description || "",
+    instructor: course.instructor || null,
+    category: course.category || null,
+    language: course.language || null,
+    price: course.price || 0,
     is_published: course.status === "active",
     status: course.status === "active" ? "published" as const : course.status
   };

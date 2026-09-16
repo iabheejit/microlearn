@@ -7,7 +7,7 @@ export interface AuthContextProps {
   user: User | null;
   isDemo: boolean;
   loading: boolean;
-  signInDemo: () => void;
+  signInDemo: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -16,7 +16,7 @@ export const AuthContext = createContext<AuthContextProps>({
   user: null,
   isDemo: false,
   loading: true,
-  signInDemo: () => {},
+  signInDemo: async () => {},
   signOut: async () => {},
 });
 

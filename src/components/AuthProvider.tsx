@@ -6,14 +6,12 @@ import { useNavigate } from "react-router-dom";
 import { ROUTES } from "@/lib/constants";
 import { AuthContextProps } from "@/hooks/useAuthContext";
 
-const DEMO_SESSION_KEY = "ekatra-demo-session";
-
 export const AuthContext = createContext<AuthContextProps>({
   session: null,
   user: null,
   isDemo: false,
   loading: true,
-  signInDemo: () => {},
+  signInDemo: async () => {},
   signOut: async () => {},
 });
 
@@ -28,9 +26,7 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [isDemo, setIsDemo] = useState(
-    () => window.localStorage.getItem(DEMO_SESSION_KEY) === "active"
-  );
+  const [isDemo, setIsDemo] = useState(false);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -40,6 +36,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
+        setIsDemo(session?.user?.email === "demo@example.com");
         setLoading(false);
       }
     );
@@ -48,6 +45,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
+      setIsDemo(session?.user?.email === "demo@example.com");
       setLoading(false);
     });
 
@@ -58,14 +56,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const signOut = async () => {
-    window.localStorage.removeItem(DEMO_SESSION_KEY);
     setIsDemo(false);
     await supabase.auth.signOut();
     navigate(ROUTES.LOGIN);
   };
 
-  const signInDemo = () => {
-    window.localStorage.setItem(DEMO_SESSION_KEY, "active");
+  const signInDemo = async () => {
+    const { data, error } = await supabase.functions.invoke('demo-auth', { body: { email: "demo@example.com", password: "demo123" } });
+    if (error) throw error;
+    if (!data?.session?.access_token || !data?.session?.refresh_token) throw new Error('Demo access returned no session');
+    const { data: sessionData, error: sessionError } = await supabase.auth.setSession({ access_token: data.session.access_token, refresh_token: data.session.refresh_token });
+    if (sessionError) throw sessionError;
+    setSession(sessionData.session);
+    setUser(sessionData.user);
     setIsDemo(true);
   };
 
@@ -82,18 +85,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 };
 
 export const RequireAuth = ({ children }: { children: ReactNode }) => {
-  const { user, isDemo, loading } = useAuth();
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!loading && !user && !isDemo) {
+    if (!loading && !user) {
       navigate(ROUTES.LOGIN);
     }
-  }, [user, isDemo, loading, navigate]);
+  }, [user, loading, navigate]);
 
   if (loading) {
     return <div>Loading...</div>;
   }
 
-  return user || isDemo ? <>{children}</> : null;
+  return user ? <>{children}</> : null;
 };

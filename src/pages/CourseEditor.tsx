@@ -6,7 +6,6 @@ import CourseEditorComponent from "@/components/dashboard/CourseEditor";
 import { useToast } from "@/components/ui/use-toast";
 import { Course } from "@/lib/types";
 import { fetchCourse, saveCourse } from "@/lib/api";
-import { MOCK_COURSES } from "@/lib/constants";
 
 const CourseEditorPage = () => {
   const { id } = useParams();
@@ -24,9 +23,6 @@ const CourseEditorPage = () => {
     queryKey: ['course', id],
     queryFn: () => fetchCourse(id as string),
     enabled: !!id && !isNewCourse && id !== 'NaN',
-    initialData: id && !isNewCourse && id !== 'NaN' 
-      ? MOCK_COURSES.find(c => c.id === id) 
-      : undefined
   });
 
   // Mutation for saving course

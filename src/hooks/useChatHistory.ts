@@ -2,7 +2,8 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchWhatsAppMessages } from '@/services/whatsappService';
-import { fetchTelegramUpdates } from '@/services/telegramService';
+import { fetchTelegramUpdates, sendTelegramMessage } from '@/services/telegramService';
+import { sendTestMessage } from '@/services/whatsappService';
 
 // For WhatsApp chats
 export const useWhatsAppChat = (phoneNumber?: string) => {
@@ -22,24 +23,7 @@ export const useWhatsAppChat = (phoneNumber?: string) => {
   }, [data]);
   
   const sendMessage = async (content: string) => {
-    // Placeholder for future functionality
-    // In a real implementation, you would hook this up to the WhatsApp API
-    console.log(`Sending message to ${phoneNumber}: ${content}`);
-    
-    // For now, we can add the message to local state to simulate sending
-    const newMessage = {
-      id: Date.now().toString(),
-      content,
-      sent: true,
-      timestamp: new Date().toISOString()
-    };
-    
-    setMessages([...messages, newMessage]);
-    
-    // Refresh after a short delay to get new messages
-    setTimeout(() => refetch(), 1000);
-    
-    return newMessage;
+    throw new Error('WhatsApp replies require an approved template. Send from WhatsApp Integration.');
   };
   
   return {
@@ -64,10 +48,8 @@ export const useTelegramChat = (chatId?: string) => {
   useEffect(() => {
     if (data) {
       // Filter updates for this chat if chatId is provided
-      const relevantUpdates = chatId 
-        ? data.filter((update: any) => 
-            update.message && update.message.chat.id.toString() === chatId
-          )
+      const relevantUpdates = chatId
+        ? data.filter((message: any) => message.chat_id === chatId)
         : data;
       
       setUpdates(relevantUpdates);
@@ -80,7 +62,6 @@ export const useTelegramChat = (chatId?: string) => {
     }
     
     try {
-      const { sendTelegramMessage } = await import('@/services/telegramService');
       const result = await sendTelegramMessage(chatId, content);
       
       // Refresh to get the new message

@@ -1,19 +1,14 @@
 
 import { Course } from "../types";
-import { MOCK_COURSES } from "../constants";
 import { supabase } from "@/integrations/supabase/client";
 import { dbCourseToAppCourse } from "./utils";
 
 // Fetch a single course by ID
 export const fetchCourse = async (id: number | string): Promise<Course> => {
   try {
-    // If we're not authenticated, find in mock courses for development
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      console.log("User not authenticated, returning mock course");
-      const mockCourse = MOCK_COURSES.find(c => c.id === id.toString());
-      if (!mockCourse) throw new Error(`Course with ID ${id} not found`);
-      return mockCourse;
+      throw new Error("Sign in to view this course");
     }
 
     // For Supabase, ensure we have a valid ID format
@@ -21,11 +16,7 @@ export const fetchCourse = async (id: number | string): Promise<Course> => {
       throw new Error(`Invalid course ID: ${id}`);
     }
     
-    // Determine if this is a UUID (string from Supabase) or number (from mock data)
-    const isUuid = typeof id === 'string' && id.includes('-');
     const courseIdForQuery = id.toString();
-    
-    console.log(`Fetching course with ID: ${courseIdForQuery}, isUuid: ${isUuid}`);
 
     // Query the course
     const { data: course, error } = await supabase
@@ -64,10 +55,6 @@ export const fetchCourse = async (id: number | string): Promise<Course> => {
   } catch (error) {
     console.error(`Error fetching course ${id}:`, error);
     
-    // Fallback to mock data in case of error
-    const mockCourse = MOCK_COURSES.find(c => c.id === id.toString());
-    if (!mockCourse) throw new Error(`Course with ID ${id} not found`);
-    
-    return mockCourse;
+    throw error;
   }
 };

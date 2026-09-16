@@ -3,25 +3,14 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const fetchTelegramAnalytics = async (): Promise<any> => {
   try {
-    // Get the session using the async getSession method
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    // Call our telegram-webhook edge function with the getAnalytics path
-    const response = await fetch(`${window.location.origin}/api/functions/v1/telegram-webhook/getAnalytics`, {
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer ${session?.access_token}`
-      }
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error("Error fetching Telegram analytics:", errorData);
-      throw new Error("Failed to fetch Telegram analytics");
-    }
-    
-    const data = await response.json();
-    return data.analytics;
+    const [{ count: contacts, error: contactsError }, { data: messages, error: messagesError }] = await Promise.all([
+      supabase.from('telegram_contacts').select('*', { count: 'exact', head: true }),
+      supabase.from('telegram_messages').select('direction,sent_at'),
+    ]);
+    if (contactsError) throw contactsError;
+    if (messagesError) throw messagesError;
+    const incoming = messages.filter((message) => message.direction === 'incoming').length;
+    return { totalUpdates: messages.length, uniqueUsers: contacts || 0, incoming, outgoing: messages.length - incoming };
   } catch (error) {
     console.error("Error fetching Telegram analytics:", error);
     throw error;
@@ -30,25 +19,9 @@ export const fetchTelegramAnalytics = async (): Promise<any> => {
 
 export const fetchTelegramUpdates = async (): Promise<any[]> => {
   try {
-    // Get the session using the async getSession method
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    // Call our telegram-webhook edge function with the getUpdates path
-    const response = await fetch(`${window.location.origin}/api/functions/v1/telegram-webhook/getUpdates`, {
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer ${session?.access_token}`
-      }
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error("Error fetching Telegram updates:", errorData);
-      throw new Error("Failed to fetch Telegram updates");
-    }
-    
-    const data = await response.json();
-    return data.updates || [];
+    const { data, error } = await supabase.from('telegram_messages').select('*').order('sent_at', { ascending: true }).limit(200);
+    if (error) throw error;
+    return data || [];
   } catch (error) {
     console.error("Error fetching Telegram updates:", error);
     throw error;
@@ -57,26 +30,8 @@ export const fetchTelegramUpdates = async (): Promise<any[]> => {
 
 export const sendTelegramMessage = async (chatId: string, text: string): Promise<any> => {
   try {
-    // Get the session using the async getSession method
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    // Call our telegram-webhook edge function with the sendMessage path
-    const response = await fetch(`${window.location.origin}/api/functions/v1/telegram-webhook/sendMessage`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${session?.access_token}`
-      },
-      body: JSON.stringify({ chatId, text })
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error("Error sending Telegram message:", errorData);
-      throw new Error("Failed to send Telegram message");
-    }
-    
-    const data = await response.json();
+    const { data, error } = await supabase.functions.invoke('telegram-webhook', { body: { endpoint: 'sendMessage', chatId, text } });
+    if (error) throw error;
     return data;
   } catch (error) {
     console.error("Error sending Telegram message:", error);

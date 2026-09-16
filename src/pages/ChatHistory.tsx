@@ -49,10 +49,7 @@ const ChatHistory = () => {
   const { data: whatsappChats, isLoading: loadingWhatsapp } = useQuery({
     queryKey: ['whatsapp-chats'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('whatsapp_contacts')
-        .select('id, phone_number, updated_at')
-        .order('updated_at', { ascending: false });
+      const { data, error } = await supabase.from('whatsapp_contacts').select('id, phone_number, updated_at').order('updated_at', { ascending: false });
 
       if (error) throw error;
       return data.map((contact): ChatSummary => ({
@@ -66,7 +63,11 @@ const ChatHistory = () => {
 
   const { data: telegramChats, isLoading: loadingTelegram } = useQuery({
     queryKey: ['telegram-chats'],
-    queryFn: async (): Promise<ChatSummary[]> => []
+    queryFn: async (): Promise<ChatSummary[]> => {
+      const { data, error } = await supabase.from('telegram_contacts').select('id,chat_id,last_interaction_at').order('last_interaction_at', { ascending: false });
+      if (error) throw error;
+      return data.map((contact) => ({ id: contact.id, platform: 'telegram', chat_id: contact.chat_id, last_interaction_at: contact.last_interaction_at }));
+    }
   });
 
   const handleSendMessage = async () => {
@@ -94,7 +95,7 @@ const ChatHistory = () => {
       console.error("Error sending message:", error);
       toast({
         title: "Error sending message",
-        description: "There was a problem sending your message",
+        description: error instanceof Error ? error.message : "There was a problem sending your message",
         variant: "destructive"
       });
     }
@@ -309,18 +310,16 @@ const ChatHistory = () => {
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
               ) : telegramUpdates.length > 0 ? (
-                telegramUpdates
-                  .filter((update) => update.message)
-                  .map((update, idx) => (
+                telegramUpdates.map((message) => (
                     <div 
-                      key={idx}
+                      key={message.id}
                       className={`mb-2 p-2 rounded-lg ${
-                        update.message.from.is_bot ? 'ml-auto bg-primary/10' : 'mr-auto bg-secondary/10'
+                        message.direction === 'outgoing' ? 'ml-auto bg-primary/10' : 'mr-auto bg-secondary/10'
                       } max-w-[80%]`}
                     >
-                      <p className="text-sm">{update.message.text}</p>
+                      <p className="text-sm">{message.content}</p>
                       <span className="text-xs text-muted-foreground">
-                        {new Date(update.message.date * 1000).toLocaleTimeString()}
+                        {new Date(message.sent_at).toLocaleTimeString()}
                       </span>
                     </div>
                   ))

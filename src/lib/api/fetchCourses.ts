@@ -1,17 +1,14 @@
 
 import { Course } from "../types";
-import { MOCK_COURSES } from "../constants";
 import { supabase } from "@/integrations/supabase/client";
 import { dbCourseToAppCourse } from "./utils";
 
 // Fetch all courses
 export const fetchCourses = async (): Promise<Course[]> => {
   try {
-    // If we're not authenticated, return mock courses for development
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      console.log("User not authenticated, returning mock courses");
-      return MOCK_COURSES;
+      throw new Error("Sign in to view courses");
     }
 
     // Query the courses table
@@ -55,6 +52,6 @@ export const fetchCourses = async (): Promise<Course[]> => {
     return coursesWithDays;
   } catch (error) {
     console.error('Error fetching courses:', error);
-    return MOCK_COURSES; // Fallback to mock data in case of error
+    throw error;
   }
 };

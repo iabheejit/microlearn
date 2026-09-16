@@ -6,34 +6,13 @@ export const useAITutor = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const askAITutor = async (query: string, tutorId?: string, context: any[] = []) => {
+  const askAITutor = async (query: string, courseId?: string, context: any[] = []) => {
     setLoading(true);
     setError(null);
 
     try {
-      // Determine the persona to use
-      let persona = 'helpful assistant';
-      
-      if (tutorId) {
-        // Find tutor configuration in analytics events.
-        const { data: tutorConfig, error: tutorError } = await supabase
-          .from('analytics')
-          .select('event_data')
-          .eq('event_type', 'tutor_created')
-          .eq('id', tutorId)
-          .single();
-        
-        if (!tutorError && tutorConfig?.event_data && typeof tutorConfig.event_data === 'object' && !Array.isArray(tutorConfig.event_data)) {
-          persona = (tutorConfig.event_data as { persona?: string }).persona || persona;
-        }
-      }
-
       const { data, error } = await supabase.functions.invoke('ai-tutor', {
-        body: JSON.stringify({ 
-          query, 
-          context,
-          persona
-        })
+        body: { query, courseId: courseId || null, context, persona: 'supportive microlearning tutor' }
       });
 
       if (error) throw error;

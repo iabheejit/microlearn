@@ -24,14 +24,14 @@ export interface Course {
 }
 
 export interface CourseDay {
-  id: number;
+  id: string;
   title: string;
   paragraphs: CourseParagraph[];
   media?: string;
 }
 
 export interface CourseParagraph {
-  id: number;
+  id: string;
   content: string;
 }
 

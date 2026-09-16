@@ -1,10 +1,8 @@
 
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import Sidebar from "@/components/dashboard/Sidebar";
 import CoursesList from "@/components/dashboard/CoursesList";
-import { MOCK_COURSES } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
@@ -23,12 +21,10 @@ const generateUUID = () => {
 const Courses = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  
+
   const { data: courses = [], isLoading, error } = useQuery({
     queryKey: ['courses'],
     queryFn: fetchCourses,
-    initialData: MOCK_COURSES,
   });
 
   const handleCreateNewCourse = () => {
@@ -40,9 +36,9 @@ const Courses = () => {
       status: "draft",
       created: new Date().toISOString().split('T')[0],
       days: [{
-        id: 1,
+        id: generateUUID(),
         title: "Day 1",
-        paragraphs: [{ id: 1, content: "" }]
+        paragraphs: [{ id: generateUUID(), content: "" }]
       }]
     };
 
