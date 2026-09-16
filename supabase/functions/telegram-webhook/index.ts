@@ -1,250 +1,96 @@
+import { z } from 'npm:zod';
+import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
+import { createServiceClient, requireStaff, requireUser } from '../_shared/auth.ts';
+import { errorResponse, jsonResponse, optionsResponse } from '../_shared/responses.ts';
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+const GATEWAY_URL = 'https://connector-gateway.lovable.dev/telegram';
+const TELEGRAM_API_KEY = Deno.env.get('TELEGRAM_API_KEY');
+const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+const WEBHOOK_SECRET = Deno.env.get('TELEGRAM_WEBHOOK_SECRET');
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+const SendSchema = z.object({ chatId: z.union([z.string(), z.number()]).transform(String), text: z.string().trim().min(1).max(4096) });
+const MessageSchema = z.object({
+  message_id: z.number(), date: z.number(), text: z.string().optional(),
+  from: z.object({ id: z.number(), first_name: z.string().optional(), last_name: z.string().optional(), username: z.string().optional(), is_bot: z.boolean().optional() }),
+  chat: z.object({ id: z.number(), first_name: z.string().optional(), last_name: z.string().optional(), username: z.string().optional() }),
+});
+const UpdateSchema = z.object({ update_id: z.number(), message: MessageSchema.optional(), edited_message: MessageSchema.optional() });
+
+const telegramCall = async (path: string, body: object) => {
+  if (!LOVABLE_API_KEY || !TELEGRAM_API_KEY) throw new Error('Telegram connection is not configured');
+  const response = await fetch(`${GATEWAY_URL}/${path}`, { method: 'POST', headers: {
+    Authorization: `Bearer ${LOVABLE_API_KEY}`, 'X-Connection-Api-Key': TELEGRAM_API_KEY, 'Content-Type': 'application/json',
+  }, body: JSON.stringify(body) });
+  const responseBody = await response.text();
+  if (!response.ok) throw new Response(JSON.stringify({ error: responseBody, status: response.status }), { status: response.status });
+  const data = JSON.parse(responseBody);
+  if (data.ok === false) throw new Response(JSON.stringify({ error: data.description || data.error || 'Telegram request failed' }), { status: 400 });
+  return data;
 };
 
-// Telegram Bot token should be set in Supabase secrets
-const TELEGRAM_BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN');
-
-interface TelegramUpdate {
-  update_id: number;
-  message?: {
-    message_id: number;
-    from: {
-      id: number;
-      is_bot: boolean;
-      first_name: string;
-      username?: string;
-    };
-    chat: {
-      id: number;
-      type: string;
-      first_name: string;
-      username?: string;
-    };
-    date: number;
-    text?: string;
-  };
-}
-
-// Store recent updates for real-time functionality
-// This is a simple in-memory store that will be lost on function restarts
-// In a production environment, consider using a database
-const recentUpdates: TelegramUpdate[] = [];
-const maxUpdates = 100;
-
-serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return optionsResponse();
   try {
-    const url = new URL(req.url);
-    const path = url.pathname.split('/').pop();
-    
-    // Get recent updates endpoint
-    if (path === 'getUpdates' && req.method === 'GET') {
-      // This endpoint allows the frontend to get recent updates without polling the Telegram API
-      return new Response(JSON.stringify({ updates: recentUpdates }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+    const endpoint = new URL(req.url).pathname.split('/').filter(Boolean).pop();
+    if (endpoint === 'getUpdates' && req.method === 'GET') {
+      await requireUser(req);
+      const client = createServiceClient();
+      const { data, error } = await client.from('telegram_messages').select('*').order('sent_at', { ascending: true }).limit(200);
+      if (error) throw error;
+      return jsonResponse({ messages: data });
     }
-    
-    // Get analytics endpoint
-    if (path === 'getAnalytics' && req.method === 'GET') {
-      if (!TELEGRAM_BOT_TOKEN) {
-        return new Response(JSON.stringify({ error: 'TELEGRAM_BOT_TOKEN environment variable is not set' }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-      
-      // Fetch updates from Telegram API for analytics
-      const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          offset: -100,  // Get last 100 updates
-          limit: 100
-        })
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Error fetching updates from Telegram:', errorData);
-        return new Response(JSON.stringify({ error: 'Failed to fetch updates from Telegram' }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-      
-      const data = await response.json();
-      
-      // Process updates to get analytics
-      const updates = data.result || [];
-      const uniqueUsers = new Set();
-      const messagesByDate: Record<string, number> = {};
-      
-      updates.forEach((update: any) => {
-        if (update.message) {
-          // Count unique users
-          uniqueUsers.add(update.message.from.id);
-          
-          // Group messages by date
-          const date = new Date(update.message.date * 1000).toISOString().split('T')[0];
-          messagesByDate[date] = (messagesByDate[date] || 0) + 1;
-        }
-      });
-      
-      const analytics = {
-        totalUpdates: updates.length,
-        uniqueUsers: Array.from(uniqueUsers).length,
-        messagesByDate
-      };
-      
-      return new Response(JSON.stringify({ analytics }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+    if (endpoint === 'getAnalytics' && req.method === 'GET') {
+      await requireUser(req);
+      const client = createServiceClient();
+      const [{ count: contacts, error: contactsError }, { data: messages, error: messagesError }] = await Promise.all([
+        client.from('telegram_contacts').select('*', { count: 'exact', head: true }),
+        client.from('telegram_messages').select('direction,sent_at'),
+      ]);
+      if (contactsError) throw contactsError;
+      if (messagesError) throw messagesError;
+      const incoming = messages.filter((message) => message.direction === 'incoming').length;
+      const outgoing = messages.length - incoming;
+      const messagesByDate = messages.reduce<Record<string, number>>((result, message) => {
+        const day = message.sent_at.slice(0, 10);
+        result[day] = (result[day] || 0) + 1;
+        return result;
+      }, {});
+      return jsonResponse({ analytics: { totalUpdates: messages.length, uniqueUsers: contacts || 0, incoming, outgoing, messagesByDate } });
     }
-    
-    // Send message endpoint
-    if (path === 'sendMessage' && req.method === 'POST') {
-      if (!TELEGRAM_BOT_TOKEN) {
-        return new Response(JSON.stringify({ error: 'TELEGRAM_BOT_TOKEN environment variable is not set' }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-      
-      // Get parameters from request body
-      const { chatId, text } = await req.json();
-      
-      if (!chatId || !text) {
-        return new Response(JSON.stringify({ error: 'Missing required parameters: chatId and text' }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-      
-      // Send message to Telegram
-      const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text
-        })
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Error sending message to Telegram:', errorData);
-        return new Response(JSON.stringify({ error: 'Failed to send message to Telegram' }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-      
-      const data = await response.json();
-      return new Response(JSON.stringify(data), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+    if (endpoint === 'sendMessage' && req.method === 'POST') {
+      await requireStaff(req);
+      const parsed = SendSchema.safeParse(await req.json());
+      if (!parsed.success) return jsonResponse({ error: parsed.error.flatten().fieldErrors }, 400);
+      const data = await telegramCall('sendMessage', { chat_id: parsed.data.chatId, text: parsed.data.text });
+      const message = data.result;
+      const client = createServiceClient();
+      await client.from('telegram_contacts').upsert({ chat_id: parsed.data.chatId, last_interaction_at: new Date().toISOString() }, { onConflict: 'chat_id' });
+      const { error } = await client.from('telegram_messages').upsert({
+        chat_id: parsed.data.chatId, telegram_message_id: String(message.message_id), direction: 'outgoing', content: parsed.data.text,
+        sent_at: new Date((message.date || Math.floor(Date.now() / 1000)) * 1000).toISOString(),
+      }, { onConflict: 'chat_id,telegram_message_id,direction' });
+      if (error) throw error;
+      return jsonResponse(data);
     }
-
-    // Only respond to POST requests for the webhook itself
-    if (req.method !== 'POST') {
-      return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-        status: 405,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    // Verify bot token is set
-    if (!TELEGRAM_BOT_TOKEN) {
-      console.error('TELEGRAM_BOT_TOKEN environment variable is not set');
-      return new Response(JSON.stringify({ error: 'Configuration error' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    // Parse request body
-    const telegramUpdate: TelegramUpdate = await req.json();
-    console.log('Received update:', JSON.stringify(telegramUpdate));
-    
-    // Add to recent updates for real-time functionality
-    recentUpdates.unshift(telegramUpdate);
-    if (recentUpdates.length > maxUpdates) {
-      recentUpdates.length = maxUpdates; // Keep only the most recent updates
-    }
-
-    // Check if it's a valid message
-    if (!telegramUpdate.message || !telegramUpdate.message.text) {
-      return new Response(JSON.stringify({ status: 'No message text found' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    const { message } = telegramUpdate;
-    const chatId = message.chat.id;
-    const userId = message.from.id;
-    const messageText = message.text;
-    
-    let responseText = '';
-    
-    // Basic command handling
-    if (messageText.startsWith('/start')) {
-      responseText = `Hello ${message.from.first_name}! I'm your AI tutor bot. Type /help to see what I can do.`;
-    } else if (messageText.startsWith('/help')) {
-      responseText = 'Available commands:\n' +
-                     '/start - Start the bot\n' +
-                     '/help - Show this help message\n' +
-                     '/course - Show your course progress\n' +
-                     '/lesson - Get today\'s lesson\n';
-    } else {
-      // For now, simply echo back the message
-      // In a future implementation, this would connect to the AI tutor system
-      responseText = `You said: ${messageText}\n\nIn the future, I'll be able to provide intelligent responses using AI!`;
-    }
-
-    // Send response back to user
-    const telegramResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: responseText,
-      }),
-    });
-
-    if (!telegramResponse.ok) {
-      const errorData = await telegramResponse.json();
-      console.error('Error sending message to Telegram:', errorData);
-      return new Response(JSON.stringify({ error: 'Failed to send message to Telegram' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    return new Response(JSON.stringify({ status: 'Message sent successfully' }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-    
-  } catch (error) {
-    console.error('Error processing webhook:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-  }
+    if (req.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405);
+    if (!WEBHOOK_SECRET || req.headers.get('X-Telegram-Bot-Api-Secret-Token') !== WEBHOOK_SECRET) return jsonResponse({ error: 'Unauthorized' }, 401);
+    const parsed = UpdateSchema.safeParse(await req.json());
+    if (!parsed.success) return jsonResponse({ error: parsed.error.flatten().fieldErrors }, 400);
+    const message = parsed.data.message || parsed.data.edited_message;
+    if (!message?.text) return jsonResponse({ ok: true, ignored: true });
+    const chatId = String(message.chat.id);
+    const client = createServiceClient();
+    const { error: contactError } = await client.from('telegram_contacts').upsert({
+      chat_id: chatId, telegram_user_id: String(message.from.id), username: message.from.username || message.chat.username || null,
+      first_name: message.from.first_name || message.chat.first_name || null, last_name: message.from.last_name || message.chat.last_name || null,
+      last_interaction_at: new Date(message.date * 1000).toISOString(),
+    }, { onConflict: 'chat_id' });
+    if (contactError) throw contactError;
+    const { error: messageError } = await client.from('telegram_messages').upsert({
+      chat_id: chatId, telegram_message_id: String(message.message_id), update_id: String(parsed.data.update_id),
+      direction: 'incoming', content: message.text, sent_at: new Date(message.date * 1000).toISOString(),
+    }, { onConflict: 'chat_id,telegram_message_id,direction' });
+    if (messageError) throw messageError;
+    return jsonResponse({ ok: true });
+  } catch (error) { return errorResponse(error); }
 });
