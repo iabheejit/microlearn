@@ -14,6 +14,11 @@ const BrandLogo = ({ className, imageClassName, compact = false }: BrandLogoProp
       src={logoAsset.url}
       alt=""
       aria-hidden="true"
+      onError={(event) => {
+        if (!event.currentTarget.src.endsWith("/favicon.png")) {
+          event.currentTarget.src = "/favicon.png";
+        }
+      }}
       className={cn("h-9 w-9 shrink-0 object-contain", imageClassName)}
     />
     {!compact && <span className="font-bold text-primary">{APP_NAME}</span>}
