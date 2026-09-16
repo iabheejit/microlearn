@@ -485,7 +485,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      match_course_resources: {
+        Args: {
+          match_count?: number
+          query_embedding: string
+          requested_course_id?: string
+        }
+        Returns: {
+          content: string
+          course_id: string
+          module_id: string
+          resource_id: string
+          resource_type: string
+          similarity: number
+          title: string
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "content_creator" | "learner"
