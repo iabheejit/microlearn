@@ -1,20 +1,24 @@
-# Add protected agent integrations
+# Connect incoming WhatsApp messages
 
 ## Build
-- Add a protected MCP server named **microlearn** using the supported MCP SDK and build plugin.
-- Expose focused tools for listing accessible courses and reading a course with its modules and resources.
-- Forward each caller's signed-in identity to the database so existing access rules remain enforced.
+- Add a secure public receiver in the portal for forwarded WhatsApp callbacks from `api.ekatra.io`.
+- Validate a shared forwarding secret, normalize inbound message and delivery-status payloads, prevent duplicate callbacks, and save messages/contacts to Chat History.
+- Record each callback's delivery ID, provider message ID, processing result, timestamp, and sanitized error details.
 
-## Sign-in flow
-- Add the OAuth approval page used by ChatGPT, Claude, Lovable, and other compatible clients.
-- Preserve the full approval return address through login and signup, then return users to the requesting client.
-- Keep the demo login working while ensuring normal OAuth clients use real user sessions.
+## Admin diagnostics
+- Add a WhatsApp webhook status page available only to administrators and content creators.
+- Show receiver readiness, the portal endpoint to forward to, last successful callback time, recent callback IDs, processing status, and errors.
+- Add refresh and clear status indicators without exposing secrets or raw sensitive headers.
 
-## Validation
-- Generate and validate the MCP manifest.
-- Deploy the MCP function and verify authentication, tool discovery, and course reads.
-- Check the login return flow, app build, and live endpoint behavior.
+## Live verification
+- Deploy and probe the receiver with a signed test callback.
+- Confirm the test inbound row appears in Chat History and that the diagnostics page records it.
+- After `api.ekatra.io` forwards callbacks to the new endpoint, send a fresh real message to the connected Ekatra number and verify both the inbound message and portal reply are stored.
+
+## External requirement
+- The existing `api.ekatra.io` receiver must forward each callback body and delivery ID to the new portal endpoint using the same shared secret. The portal cannot change that external receiver's code or configuration by itself.
 
 ## Technical details
-- Files: MCP tool definitions and shared database client under `src/lib/mcp/`, MCP registration, OAuth approval page, app routes, login return handling, and Vite plugin configuration.
-- Access: OAuth 2.1 with row-level permissions; no administrator key or anonymous data exposure.
+- Add a callback-log table with grants, row-level access rules, uniqueness constraints, and indexes.
+- Add a dedicated Edge Function receiver, database-backed status reads, an admin route, and sidebar navigation.
+- Keep WhatsApp credentials server-side and store no authorization headers or secret values in callback logs.
