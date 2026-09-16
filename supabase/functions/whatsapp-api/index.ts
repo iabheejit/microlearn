@@ -1,6 +1,7 @@
 
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { z } from 'npm:zod@3.23.8';
+import { createServiceClient, requireStaff, requireUser } from '../_shared/auth.ts';
 
 const GATEWAY_URL = 'https://connector-gateway.lovable.dev/whatsapp';
 
@@ -58,13 +59,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Check authentication
-    const authorization = req.headers.get('Authorization');
-    if (!authorization) {
-      console.error("Unauthorized request: Missing Authorization header");
-      return jsonResponse({ error: 'Unauthorized request' }, 401);
-    }
-
     let rawBody: unknown;
     try {
       rawBody = await req.json();
@@ -80,6 +74,8 @@ Deno.serve(async (req) => {
 
     const requestBody = parsed.data;
     const { endpoint } = parsed.data;
+    if (endpoint === 'sendMessage') await requireStaff(req);
+    else await requireUser(req);
     console.log(`Processing endpoint: ${endpoint}`);
 
     // Handle different endpoints with the correct API paths including tenant ID
@@ -132,6 +128,19 @@ Deno.serve(async (req) => {
           },
         });
         if (result.error) return result.error;
+        const providerMessageId = result.data?.messages?.[0]?.id ? String(result.data.messages[0].id) : null;
+        const client = createServiceClient();
+        const { error: contactError } = await client.from('whatsapp_contacts').upsert({ phone_number: recipientDigits }, { onConflict: 'phone_number' });
+        if (contactError) throw contactError;
+        const { error: historyError } = await client.from('whatsapp_messages').insert({
+          phone_number: recipientDigits,
+          direction: 'outgoing',
+          template_name: templateName,
+          content: parameters.length > 0 ? `${templateName}: ${parameters.join(', ')}` : templateName,
+          provider_message_id: providerMessageId,
+          status: 'accepted',
+        });
+        if (historyError) throw historyError;
         return jsonResponse(result.data);
       }
 
@@ -149,7 +158,17 @@ Deno.serve(async (req) => {
           });
         }
         
-        return jsonResponse({ messages: [] });
+        const client = createServiceClient();
+        const normalized = phoneNumber.replace(/\D/g, '');
+        const { data: messages, error } = await client.from('whatsapp_messages').select('*').eq('phone_number', normalized).order('sent_at', { ascending: true });
+        if (error) throw error;
+        return jsonResponse({ messages: messages.map((message) => ({
+          id: message.id,
+          content: message.content,
+          sent: message.direction === 'outgoing',
+          timestamp: message.sent_at,
+          status: message.status,
+        })) });
       }
 
       default:

@@ -49,10 +49,7 @@ const ChatHistory = () => {
   const { data: whatsappChats, isLoading: loadingWhatsapp } = useQuery({
     queryKey: ['whatsapp-chats'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('whatsapp_contacts')
-        .select('id, phone_number, updated_at')
-        .order('updated_at', { ascending: false });
+      const { data, error } = await supabase.from('whatsapp_contacts').select('id, phone_number, updated_at').order('updated_at', { ascending: false });
 
       if (error) throw error;
       return data.map((contact): ChatSummary => ({
