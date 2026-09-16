@@ -7,12 +7,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, MessageCircle, CreditCard } from "lucide-react";
+import { ArrowLeft, MessageCircle, CreditCard, Send, Loader2 } from "lucide-react";
 import WhatsAppPreview from "@/components/dashboard/WhatsAppPreview";
-import { MOCK_COURSES } from "@/lib/constants";
 import { Course } from "@/lib/types";
 import StripeCheckout from "@/components/dashboard/StripeCheckout";
 import { fetchCourse } from "@/lib/api";
+import { useAITutor } from "@/hooks/useAITutor";
+import { Textarea } from "@/components/ui/textarea";
 
 const CoursePreview = () => {
   const { id } = useParams();
@@ -20,6 +21,9 @@ const CoursePreview = () => {
   const [activeTab, setActiveTab] = useState("content");
   const [selectedDay, setSelectedDay] = useState(0);
   const [showPayment, setShowPayment] = useState(false);
+  const [tutorQuestion, setTutorQuestion] = useState("");
+  const [tutorMessages, setTutorMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
+  const { askAITutor, loading: tutorLoading, error: tutorError } = useAITutor();
 
   const isValidId = id !== 'NaN' && id !== undefined && id !== null;
   
@@ -27,8 +31,17 @@ const CoursePreview = () => {
     queryKey: ['course', id],
     queryFn: () => isValidId ? fetchCourse(id as string) : Promise.reject(new Error("Invalid course ID")),
     enabled: isValidId,
-    initialData: isValidId ? MOCK_COURSES.find(c => c.id === id) : undefined
   });
+
+  const handleTutorQuestion = async () => {
+    const question = tutorQuestion.trim();
+    if (!question || !course) return;
+    const context = tutorMessages.slice(-10);
+    setTutorMessages((messages) => [...messages, { role: "user", content: question }]);
+    setTutorQuestion("");
+    const result = await askAITutor(question, course.id, context);
+    if (result?.response) setTutorMessages((messages) => [...messages, { role: "assistant", content: result.response }]);
+  };
 
   if (!isValidId) {
     return (
@@ -146,6 +159,28 @@ const CoursePreview = () => {
                     </Button>
                     <Button variant="outline" onClick={() => navigate(`/courses/editor/${course.id}`)}>
                       Edit Course
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="pt-6">
+                  <h2 className="text-lg font-bold mb-4">Course Tutor</h2>
+                  <div className="space-y-3 max-h-80 overflow-y-auto mb-4" aria-live="polite">
+                    {tutorMessages.length === 0 && <p className="text-sm text-muted-foreground">Ask a question about this course.</p>}
+                    {tutorMessages.map((message, index) => (
+                      <div key={`${message.role}-${index}`} className={message.role === "user" ? "ml-8 p-3 rounded-md bg-primary/10" : "mr-8 p-3 rounded-md bg-muted"}>
+                        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                      </div>
+                    ))}
+                    {tutorLoading && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
+                  </div>
+                  {tutorError && <p className="text-sm text-destructive mb-3">{tutorError}</p>}
+                  <div className="flex gap-2">
+                    <Textarea value={tutorQuestion} onChange={(event) => setTutorQuestion(event.target.value)} placeholder="Ask about the course" className="resize-none" />
+                    <Button size="icon" onClick={handleTutorQuestion} disabled={tutorLoading || !tutorQuestion.trim()} aria-label="Send tutor question">
+                      <Send className="h-4 w-4" />
                     </Button>
                   </div>
                 </CardContent>

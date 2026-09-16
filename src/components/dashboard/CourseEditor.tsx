@@ -27,9 +27,9 @@ const CourseEditor = ({ initialCourse, onSave, isSaving = false }: CourseEditorP
   const [showPreview, setShowPreview] = useState(false);
 
   const emptyCourseDay: CourseDay = {
-    id: 1,
+    id: crypto.randomUUID(),
     title: "Day 1",
-    paragraphs: [{ id: 1, content: "" }],
+    paragraphs: [{ id: crypto.randomUUID(), content: "" }],
   };
   
   const defaultCourse: Course = {
@@ -93,9 +93,9 @@ const CourseEditor = ({ initialCourse, onSave, isSaving = false }: CourseEditorP
     }
     
     const newDay: CourseDay = {
-      id: course.days.length + 1,
+      id: crypto.randomUUID(),
       title: `Day ${course.days.length + 1}`,
-      paragraphs: [{ id: 1, content: "" }],
+      paragraphs: [{ id: crypto.randomUUID(), content: "" }],
     };
     
     const updatedDays = [...course.days, newDay];
@@ -129,7 +129,6 @@ const CourseEditor = ({ initialCourse, onSave, isSaving = false }: CourseEditorP
     // Renumber the days
     updatedDays.forEach((day, idx) => {
       day.title = day.title.replace(/Day \d+/, `Day ${idx + 1}`);
-      day.id = idx + 1;
     });
     
     setCourse({
@@ -172,7 +171,7 @@ const CourseEditor = ({ initialCourse, onSave, isSaving = false }: CourseEditorP
     currentDay.paragraphs = [
       ...currentDay.paragraphs,
       {
-        id: currentDay.paragraphs.length + 1,
+        id: crypto.randomUUID(),
         content: ""
       }
     ];
@@ -188,7 +187,7 @@ const CourseEditor = ({ initialCourse, onSave, isSaving = false }: CourseEditorP
     });
   };
 
-  const handleRemoveParagraph = (paragraphId: number) => {
+  const handleRemoveParagraph = (paragraphId: string) => {
     if (!course.days) return;
     
     const updatedDays = [...course.days];
@@ -205,11 +204,6 @@ const CourseEditor = ({ initialCourse, onSave, isSaving = false }: CourseEditorP
     
     currentDay.paragraphs = currentDay.paragraphs.filter(p => p.id !== paragraphId);
     
-    // Renumber paragraphs
-    currentDay.paragraphs.forEach((p, idx) => {
-      p.id = idx + 1;
-    });
-    
     setCourse({
       ...course,
       days: updatedDays
@@ -221,7 +215,7 @@ const CourseEditor = ({ initialCourse, onSave, isSaving = false }: CourseEditorP
     });
   };
 
-  const handleParagraphChange = (paragraphId: number, content: string) => {
+  const handleParagraphChange = (paragraphId: string, content: string) => {
     if (!course.days) return;
     
     const updatedDays = [...course.days];
@@ -448,11 +442,11 @@ const CourseEditor = ({ initialCourse, onSave, isSaving = false }: CourseEditorP
                       />
                     </div>
 
-                    {course.days[activeDay].paragraphs.map((paragraph) => (
+                    {course.days[activeDay].paragraphs.map((paragraph, paragraphIndex) => (
                       <div key={paragraph.id} className="space-y-2">
                         <div className="flex justify-between items-center">
                           <label className="text-sm font-medium leading-none">
-                            Paragraph ({paragraph.id})
+                            Paragraph {paragraphIndex + 1}
                           </label>
                           <Button 
                             variant="ghost" 
