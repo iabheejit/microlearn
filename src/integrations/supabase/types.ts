@@ -516,6 +516,48 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_webhook_callbacks: {
+        Row: {
+          created_at: string
+          delivery_id: string
+          error_message: string | null
+          event_type: string
+          id: string
+          phone_number: string | null
+          processed_at: string | null
+          provider_message_id: string | null
+          received_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          delivery_id: string
+          error_message?: string | null
+          event_type: string
+          id?: string
+          phone_number?: string | null
+          processed_at?: string | null
+          provider_message_id?: string | null
+          received_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          delivery_id?: string
+          error_message?: string | null
+          event_type?: string
+          id?: string
+          phone_number?: string | null
+          processed_at?: string | null
+          provider_message_id?: string | null
+          received_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

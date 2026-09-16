@@ -15,7 +15,8 @@ import {
   Settings,
   ChevronLeft,
   LogOut,
-  MessageSquare
+  MessageSquare,
+  Webhook
 } from "lucide-react";
 
 const getIcon = (icon: string) => {
@@ -34,6 +35,8 @@ const getIcon = (icon: string) => {
       return <Settings size={20} />;
     case "Telegram":
       return <MessageSquare size={20} />;
+    case "Webhook":
+      return <Webhook size={20} />;
     default:
       return <LayoutDashboard size={20} />;
   }

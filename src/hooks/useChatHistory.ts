@@ -38,7 +38,22 @@ export const useWhatsAppChat = (phoneNumber?: string) => {
   }, [data]);
   
   const sendMessage = async (content: string) => {
-    throw new Error('WhatsApp replies require an approved template. Send from WhatsApp Integration.');
+    if (!phoneNumber) throw new Error('Phone number is required to send a reply');
+    const { data: response, error: sendError } = await supabase.functions.invoke('whatsapp-api', {
+      body: { endpoint: 'sendReply', phoneNumber, message: content },
+    });
+    if (sendError) {
+      const details = 'context' in sendError && sendError.context instanceof Response ? await sendError.context.text() : sendError.message;
+      try {
+        const parsed = JSON.parse(details);
+        throw new Error(parsed.error || details);
+      } catch (parseError) {
+        if (parseError instanceof SyntaxError) throw new Error(details);
+        throw parseError;
+      }
+    }
+    await refetch();
+    return response;
   };
   
   return {

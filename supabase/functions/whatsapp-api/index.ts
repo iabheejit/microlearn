@@ -6,10 +6,11 @@ import { createServiceClient, requireStaff, requireUser } from '../_shared/auth.
 const GATEWAY_URL = 'https://connector-gateway.lovable.dev/whatsapp';
 
 const RequestSchema = z.object({
-  endpoint: z.enum(['getTemplates', 'getContacts', 'sendMessage', 'getAnalytics', 'getMessages']),
+  endpoint: z.enum(['getTemplates', 'getContacts', 'sendMessage', 'sendReply', 'getAnalytics', 'getMessages']),
   phoneNumber: z.string().trim().min(7).max(20).optional(),
   templateName: z.string().trim().min(1).max(512).optional(),
   parameters: z.array(z.string().max(1024)).max(20).optional(),
+  message: z.string().trim().min(1).max(4096).optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
 });
@@ -74,7 +75,7 @@ Deno.serve(async (req) => {
 
     const requestBody = parsed.data;
     const { endpoint } = parsed.data;
-    if (endpoint === 'sendMessage') await requireStaff(req);
+    if (endpoint === 'sendMessage' || endpoint === 'sendReply') await requireStaff(req);
     else await requireUser(req);
     console.log(`Processing endpoint: ${endpoint}`);
 
@@ -139,6 +140,32 @@ Deno.serve(async (req) => {
           content: parameters.length > 0 ? `${templateName}: ${parameters.join(', ')}` : templateName,
           provider_message_id: providerMessageId,
           status: 'accepted',
+        });
+        if (historyError) throw historyError;
+        return jsonResponse(result.data);
+      }
+
+      case 'sendReply': {
+        const { phoneNumber, message } = requestBody;
+        if (!phoneNumber || !message) return jsonResponse({ error: 'Phone number and message are required' }, 400);
+        const recipientDigits = phoneNumber.replace(/\D/g, '');
+        const client = createServiceClient();
+        const { data: latestIncoming, error: incomingError } = await client.from('whatsapp_messages')
+          .select('sent_at').eq('phone_number', recipientDigits).eq('direction', 'incoming').order('sent_at', { ascending: false }).limit(1).maybeSingle();
+        if (incomingError) throw incomingError;
+        if (!latestIncoming || Date.now() - new Date(latestIncoming.sent_at).getTime() > 24 * 60 * 60 * 1000) {
+          return jsonResponse({ error: 'The 24-hour reply window is closed. Send an approved template instead.' }, 409);
+        }
+        const result = await callWhatsApp('/messages', 'POST', {
+          messaging_product: 'whatsapp', to: recipientDigits, type: 'text', text: { body: message },
+        });
+        if (result.error) return result.error;
+        const providerMessageId = result.data?.messages?.[0]?.id ? String(result.data.messages[0].id) : null;
+        const { error: contactError } = await client.from('whatsapp_contacts').upsert({ phone_number: recipientDigits }, { onConflict: 'phone_number' });
+        if (contactError) throw contactError;
+        const { error: historyError } = await client.from('whatsapp_messages').insert({
+          phone_number: recipientDigits, direction: 'outgoing', content: message,
+          provider_message_id: providerMessageId, status: 'accepted',
         });
         if (historyError) throw historyError;
         return jsonResponse(result.data);

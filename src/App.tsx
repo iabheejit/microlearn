@@ -16,6 +16,7 @@ import Telegram from "./pages/Telegram";
 import ChatHistory from "./pages/ChatHistory";
 import Analytics from "./pages/Analytics";
 import Settings from "./pages/Settings";
+import WhatsAppWebhookStatus from "./pages/WhatsAppWebhookStatus";
 import NotFound from "./pages/NotFound";
 import { ROUTES } from "./lib/constants";
 import { AuthProvider, RequireAuth } from "./components/AuthProvider";
@@ -85,6 +86,11 @@ const App = () => (
             <Route path={ROUTES.SETTINGS} element={
               <RequireAuth>
                 <Settings />
+              </RequireAuth>
+            } />
+            <Route path={ROUTES.WHATSAPP_WEBHOOK} element={
+              <RequireAuth>
+                <WhatsAppWebhookStatus />
               </RequireAuth>
             } />
             <Route path="*" element={<NotFound />} />

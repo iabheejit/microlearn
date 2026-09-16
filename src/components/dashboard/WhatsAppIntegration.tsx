@@ -12,6 +12,8 @@ import { WhatsAppTemplate } from "@/lib/types";
 import { useToast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { sendTestMessage } from "@/services/whatsappService";
+import { Link } from "react-router-dom";
+import { ROUTES } from "@/lib/constants";
 
 interface WhatsAppIntegrationProps {
   templates?: WhatsAppTemplate[];
@@ -132,22 +134,23 @@ const WhatsAppIntegration = ({
             </div>
             
             <div className="space-y-2">
-              <Label>Webhook URL</Label>
+              <Label>Incoming messages</Label>
               <div className="flex gap-2">
                 <Input
                   readOnly
-                  value="https://api.ekatra.io/webhooks/whatsapp"
+                  value="microlearn"
                 />
                 <Button variant="outline" size="icon" onClick={() => {
-                  navigator.clipboard.writeText("https://api.ekatra.io/webhooks/whatsapp");
-                  toast({ title: "Webhook URL copied to clipboard" });
+                  navigator.clipboard.writeText("microlearn");
+                  toast({ title: "Connection destination copied" });
                 }}>
                   <Code size={16} />
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Configure this URL in your WATI dashboard to receive messages.
+                Incoming WhatsApp callbacks are routed to this project through the connected account.
               </p>
+              <Button asChild variant="outline" size="sm"><Link to={ROUTES.WHATSAPP_WEBHOOK}>View webhook status</Link></Button>
             </div>
           </CardContent>
         </Card>
