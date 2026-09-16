@@ -5,11 +5,8 @@ import { dbCourseToAppCourse, appCourseToDbFormat, checkAuth } from "./utils";
 
 const embedResource = async (resourceId: string, content: string) => {
   if (!content.trim()) return;
-  const { data, error } = await supabase.functions.invoke('generate-embedding', { body: { text: content } });
+  const { error } = await supabase.functions.invoke('generate-embedding', { body: { text: content, resourceId } });
   if (error) throw error;
-  const embedding = `[${data.embedding.join(',')}]`;
-  const { error: embeddingError } = await supabase.from('resource_embeddings').upsert({ resource_id: resourceId, embedding }, { onConflict: 'resource_id' });
-  if (embeddingError) throw embeddingError;
 };
 
 // Save a course (create or update)
