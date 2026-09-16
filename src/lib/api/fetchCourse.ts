@@ -36,12 +36,12 @@ export const fetchCourse = async (id: number | string): Promise<Course> => {
 
     if (error) throw error;
 
-    // Fetch the days for this course
+    // Fetch the modules for this course
     const { data: days, error: daysError } = await supabase
-      .from('course_days')
+      .from('course_modules')
       .select('*')
       .eq('course_id', course.id)
-      .order('day_number', { ascending: true });
+      .order('order_index', { ascending: true });
 
     if (daysError) throw daysError;
 
@@ -49,10 +49,10 @@ export const fetchCourse = async (id: number | string): Promise<Course> => {
     const daysWithParagraphs = await Promise.all(
       days.map(async (day) => {
         const { data: paragraphs, error: paragraphsError } = await supabase
-          .from('course_paragraphs')
+          .from('course_resources')
           .select('*')
-          .eq('day_id', day.id)
-          .order('paragraph_number', { ascending: true });
+          .eq('module_id', day.id)
+          .order('order_index', { ascending: true });
 
         if (paragraphsError) throw paragraphsError;
 

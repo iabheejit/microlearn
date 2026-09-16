@@ -31,10 +31,9 @@ export const saveCourse = async (course: Course): Promise<Course> => {
       throw error;
     }
 
-    // Process days - we'll delete existing days and recreate them
-    // First, delete all existing days for this course
+    // Replace the course modules and their cascading resources.
     const { error: deleteError } = await supabase
-      .from('course_days')
+      .from('course_modules')
       .delete()
       .eq('course_id', savedCourse.id);
 
@@ -46,12 +45,12 @@ export const saveCourse = async (course: Course): Promise<Course> => {
     // Create new days
     const daysPromises = days.map(async (day, index) => {
       const { data: savedDay, error: dayError } = await supabase
-        .from('course_days')
+        .from('course_modules')
         .insert({
           course_id: savedCourse.id,
-          day_number: index + 1,
+          order_index: index + 1,
           title: day.title,
-          media: day.media
+          description: day.media || null
         })
         .select()
         .single();
@@ -64,11 +63,13 @@ export const saveCourse = async (course: Course): Promise<Course> => {
       // Create paragraphs for this day
       const paragraphsPromises = day.paragraphs.map(async (para, paraIndex) => {
         const { error: paraError } = await supabase
-          .from('course_paragraphs')
+          .from('course_resources')
           .insert({
-            day_id: savedDay.id,
-            paragraph_number: paraIndex + 1,
-            content: para.content
+            module_id: savedDay.id,
+            order_index: paraIndex + 1,
+            title: `Section ${paraIndex + 1}`,
+            resource_type: 'text',
+            content: para.content,
           });
 
         if (paraError) {
@@ -82,7 +83,7 @@ export const saveCourse = async (course: Course): Promise<Course> => {
       return {
         ...savedDay,
         paragraphs: day.paragraphs.map((para, paraIndex) => ({
-          paragraph_number: paraIndex + 1,
+          order_index: paraIndex + 1,
           content: para.content
         }))
       };

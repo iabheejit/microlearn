@@ -1,7 +1,7 @@
 import { Database } from "@/integrations/supabase/types";
 import { User as SupabaseUser } from "@supabase/supabase-js";
 
-export type UserRole = Database["public"]["Enums"]["user_role"];
+export type UserRole = Database["public"]["Enums"]["app_role"];
 
 export interface UserValidation {
   name: string;

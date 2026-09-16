@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Sidebar from "@/components/dashboard/Sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,11 +14,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { Badge } from "@/components/ui/badge";
 
+interface ChatSummary {
+  id: string;
+  platform: "whatsapp" | "telegram";
+  phone_number?: string;
+  chat_id?: string;
+  last_interaction_at: string;
+}
+
 const ChatHistory = () => {
   const { toast } = useToast();
   const [selectedPlatform, setSelectedPlatform] = useState<"all" | "whatsapp" | "telegram">("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedChat, setSelectedChat] = useState<any>(null);
+  const [selectedChat, setSelectedChat] = useState<ChatSummary | null>(null);
   const [chatModalOpen, setChatModalOpen] = useState(false);
   const [newMessage, setNewMessage] = useState("");
 
@@ -42,32 +50,23 @@ const ChatHistory = () => {
     queryKey: ['whatsapp-chats'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('whatsapp_metadata')
-        .select(`
-          *,
-          user_progress: user_progress(*)
-        `)
-        .order('last_interaction_at', { ascending: false });
+        .from('whatsapp_contacts')
+        .select('id, phone_number, updated_at')
+        .order('updated_at', { ascending: false });
 
       if (error) throw error;
-      return data;
+      return data.map((contact): ChatSummary => ({
+        id: contact.id,
+        platform: 'whatsapp',
+        phone_number: contact.phone_number,
+        last_interaction_at: contact.updated_at
+      }));
     }
   });
 
   const { data: telegramChats, isLoading: loadingTelegram } = useQuery({
     queryKey: ['telegram-chats'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('telegram_metadata')
-        .select(`
-          *,
-          user_progress: user_progress(*)
-        `)
-        .order('last_interaction_at', { ascending: false });
-
-      if (error) throw error;
-      return data;
-    }
+    queryFn: async (): Promise<ChatSummary[]> => []
   });
 
   const handleSendMessage = async () => {
@@ -101,7 +100,7 @@ const ChatHistory = () => {
     }
   };
 
-  const handleOpenChat = (chat: any) => {
+  const handleOpenChat = (chat: ChatSummary) => {
     setSelectedChat(chat);
     setChatModalOpen(true);
     
@@ -114,7 +113,7 @@ const ChatHistory = () => {
   };
 
   const filteredChats = () => {
-    let chats = [];
+    let chats: ChatSummary[] = [];
     
     if (selectedPlatform === "all" || selectedPlatform === "whatsapp") {
       chats.push(...(whatsappChats || []));
@@ -127,7 +126,7 @@ const ChatHistory = () => {
     if (searchQuery) {
       chats = chats.filter(chat => 
         chat.phone_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        chat.chat_id?.toLowerCase().includes(searchQuery.toLowerCase())
+        chat.chat_id?.toString().toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
     
@@ -234,7 +233,7 @@ const ChatHistory = () => {
 
             <TabsContent value="telegram" className="space-y-4 mt-4">
               {(telegramChats || [])
-                .filter(chat => !searchQuery || chat.chat_id?.toLowerCase().includes(searchQuery.toLowerCase()))
+                .filter(chat => !searchQuery || chat.chat_id?.toString().toLowerCase().includes(searchQuery.toLowerCase()))
                 .map((chat) => (
                 <Card key={chat.id} className="p-4 hover:bg-accent/50 transition-colors cursor-pointer" onClick={() => handleOpenChat(chat)}>
                   <div className="flex items-center justify-between">
