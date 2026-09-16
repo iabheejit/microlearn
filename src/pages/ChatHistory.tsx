@@ -322,7 +322,7 @@ const ChatHistory = () => {
                         {new Date(message.sent_at).toLocaleTimeString()}
                       </span>
                     </div>
-                  )
+                  ))
               ) : (
                 <p className="text-center text-muted-foreground">No messages to display</p>
               )
