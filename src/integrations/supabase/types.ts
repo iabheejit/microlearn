@@ -447,6 +447,42 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_messages: {
+        Row: {
+          content: string
+          created_at: string
+          direction: string
+          id: string
+          phone_number: string
+          provider_message_id: string | null
+          sent_at: string
+          status: string
+          template_name: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          direction: string
+          id?: string
+          phone_number: string
+          provider_message_id?: string | null
+          sent_at?: string
+          status?: string
+          template_name?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          direction?: string
+          id?: string
+          phone_number?: string
+          provider_message_id?: string | null
+          sent_at?: string
+          status?: string
+          template_name?: string | null
+        }
+        Relationships: []
+      }
       whatsapp_templates: {
         Row: {
           content: string
