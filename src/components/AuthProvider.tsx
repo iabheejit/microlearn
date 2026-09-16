@@ -6,10 +6,14 @@ import { useNavigate } from "react-router-dom";
 import { ROUTES } from "@/lib/constants";
 import { AuthContextProps } from "@/hooks/useAuthContext";
 
+const DEMO_SESSION_KEY = "ekatra-demo-session";
+
 export const AuthContext = createContext<AuthContextProps>({
   session: null,
   user: null,
+  isDemo: false,
   loading: true,
+  signInDemo: () => {},
   signOut: async () => {},
 });
 
@@ -24,6 +28,9 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [isDemo, setIsDemo] = useState(
+    () => window.localStorage.getItem(DEMO_SESSION_KEY) === "active"
+  );
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -51,14 +58,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const signOut = async () => {
+    window.localStorage.removeItem(DEMO_SESSION_KEY);
+    setIsDemo(false);
     await supabase.auth.signOut();
     navigate(ROUTES.LOGIN);
+  };
+
+  const signInDemo = () => {
+    window.localStorage.setItem(DEMO_SESSION_KEY, "active");
+    setIsDemo(true);
   };
 
   const value = {
     session,
     user,
+    isDemo,
     loading,
+    signInDemo,
     signOut,
   };
 
@@ -66,18 +82,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 };
 
 export const RequireAuth = ({ children }: { children: ReactNode }) => {
-  const { user, loading } = useAuth();
+  const { user, isDemo, loading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!loading && !user && !isDemo) {
       navigate(ROUTES.LOGIN);
     }
-  }, [user, loading, navigate]);
+  }, [user, isDemo, loading, navigate]);
 
   if (loading) {
     return <div>Loading...</div>;
   }
 
-  return user ? <>{children}</> : null;
+  return user || isDemo ? <>{children}</> : null;
 };

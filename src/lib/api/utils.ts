@@ -4,25 +4,25 @@ import { supabase } from "@/integrations/supabase/client";
 // Helper to convert database course format to application format
 export const dbCourseToAppCourse = (dbCourse: any, days: any[] = []): Course => {
   const courseDays = days.map(day => ({
-    id: day.day_number,
+    id: day.order_index,
     title: day.title,
     paragraphs: day.paragraphs?.map((para: any) => ({
-      id: para.paragraph_number,
+      id: para.order_index,
       content: para.content
     })) || [],
-    media: day.media
+    media: day.description || undefined
   }));
 
   return {
     id: dbCourse.id, // Keep as string, no conversion needed
     title: dbCourse.title,
-    instructor: dbCourse.instructor || "",
+    instructor: "",
     description: dbCourse.description || "",
-    category: dbCourse.category || "",
-    language: dbCourse.language || "",
-    price: dbCourse.price || 0,
-    enrolled: dbCourse.enrolled_count || 0,
-    completion: dbCourse.completion_rate || 0,
+    category: "",
+    language: "",
+    price: 0,
+    enrolled: 0,
+    completion: 0,
     status: dbCourse.is_published ? "active" : "draft",
     created: new Date(dbCourse.created_at).toISOString().split('T')[0],
     days: courseDays,
@@ -36,14 +36,9 @@ export const appCourseToDbFormat = (course: Course) => {
   const courseData = {
     id: courseId,
     title: course.title || "",
-    instructor: course.instructor || "",
     description: course.description || "",
-    category: course.category || "",
-    language: course.language || "",
-    price: course.price || 0,
-    enrolled_count: course.enrolled || 0,
-    completion_rate: course.completion || 0,
-    is_published: course.status === "active"
+    is_published: course.status === "active",
+    status: course.status === "active" ? "published" as const : course.status
   };
 
   return { courseData, days: course.days || [] };

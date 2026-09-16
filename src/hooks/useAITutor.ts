@@ -15,16 +15,16 @@ export const useAITutor = () => {
       let persona = 'helpful assistant';
       
       if (tutorId) {
-        // Find tutor configuration in analytics table where we store metadata
+        // Find tutor configuration in analytics events.
         const { data: tutorConfig, error: tutorError } = await supabase
           .from('analytics')
-          .select('metadata')
+          .select('event_data')
           .eq('event_type', 'tutor_created')
           .eq('id', tutorId)
           .single();
         
-        if (!tutorError && tutorConfig?.metadata && typeof tutorConfig.metadata === 'object') {
-          persona = (tutorConfig.metadata as { persona?: string }).persona || persona;
+        if (!tutorError && tutorConfig?.event_data && typeof tutorConfig.event_data === 'object' && !Array.isArray(tutorConfig.event_data)) {
+          persona = (tutorConfig.event_data as { persona?: string }).persona || persona;
         }
       }
 

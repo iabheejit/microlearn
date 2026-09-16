@@ -30,19 +30,29 @@ export async function storeResourceWithEmbedding(
   }
 ) {
   try {
-    // First, insert the resource as a content item
+    if (!resource.course_id) {
+      throw new Error('A course is required to store this resource');
+    }
+
+    const { data: module, error: moduleError } = await supabase
+      .from('course_modules')
+      .select('id')
+      .eq('course_id', resource.course_id)
+      .order('order_index', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (moduleError) throw moduleError;
+    if (!module) throw new Error('Create a course module before adding resources');
+
     const { data: contentItem, error: contentError } = await supabase
-      .from('content_items')
+      .from('course_resources')
       .insert({
         title: resource.title,
-        content: { 
-          text: resource.content,
-          description: resource.description,
-          tags: resource.tags
-        },
-        content_type: 'text',
-        module_id: resource.course_id || '00000000-0000-0000-0000-000000000000', // Default module if none provided
-        sequence_order: 1
+        content: resource.content,
+        resource_type: resource.type,
+        module_id: module.id,
+        order_index: 1
       })
       .select()
       .single();
@@ -52,20 +62,15 @@ export async function storeResourceWithEmbedding(
     // Generate embedding for the content using our edge function
     const embedding = await generateEmbedding(resource.content);
 
-    // Store metadata about the embedding in the analytics table
-    const { error: analyticsError } = await supabase
-      .from('analytics')
+    const embeddingValue = Array.isArray(embedding) ? `[${embedding.join(',')}]` : String(embedding);
+    const { error: embeddingError } = await supabase
+      .from('resource_embeddings')
       .insert({
-        content_item_id: contentItem.id,
-        event_type: 'embedding_created',
-        metadata: { 
-          embedding: embedding,
-          title: resource.title, 
-          type: resource.type 
-        }
+        resource_id: contentItem.id,
+        embedding: embeddingValue
       });
 
-    if (analyticsError) throw analyticsError;
+    if (embeddingError) throw embeddingError;
 
     return contentItem;
   } catch (error) {
