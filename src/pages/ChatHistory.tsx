@@ -298,6 +298,11 @@ const ChatHistory = () => {
                     <span className="text-xs text-muted-foreground">
                       {new Date(msg.timestamp).toLocaleTimeString()}
                     </span>
+                    {msg.status && (
+                      <Badge variant="outline" className="ml-2 text-xs">
+                        {msg.status}
+                      </Badge>
+                    )}
                   </div>
                 ))
               ) : (

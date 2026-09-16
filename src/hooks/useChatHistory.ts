@@ -1,9 +1,8 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchWhatsAppMessages } from '@/services/whatsappService';
 import { fetchTelegramUpdates, sendTelegramMessage } from '@/services/telegramService';
-import { sendTestMessage } from '@/services/whatsappService';
+import { supabase } from '@/integrations/supabase/client';
 
 // For WhatsApp chats
 export const useWhatsAppChat = (phoneNumber?: string) => {
@@ -11,7 +10,23 @@ export const useWhatsAppChat = (phoneNumber?: string) => {
   
   const { data, isLoading, refetch, error } = useQuery({
     queryKey: ['whatsapp-messages', phoneNumber],
-    queryFn: () => phoneNumber ? fetchWhatsAppMessages(phoneNumber) : Promise.resolve([]),
+    queryFn: async () => {
+      if (!phoneNumber) return [];
+      const normalized = phoneNumber.replace(/\D/g, '');
+      const { data: rows, error: queryError } = await supabase
+        .from('whatsapp_messages')
+        .select('id,content,direction,sent_at,status')
+        .eq('phone_number', normalized)
+        .order('sent_at', { ascending: true });
+      if (queryError) throw queryError;
+      return rows.map((message) => ({
+        id: message.id,
+        content: message.content,
+        sent: message.direction === 'outgoing',
+        timestamp: message.sent_at,
+        status: message.status,
+      }));
+    },
     enabled: !!phoneNumber,
     refetchInterval: 10000 // Polling every 10 seconds
   });
