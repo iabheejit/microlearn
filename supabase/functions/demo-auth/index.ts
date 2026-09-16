@@ -22,10 +22,10 @@ Deno.serve(async (req) => {
       if (error) throw error;
       user = data.user;
     }
-    const { data: existingRole, error: roleReadError } = await client.from('user_roles').select('id').eq('user_id', user.id).eq('role', 'content_creator').maybeSingle();
+    const { data: existingRole, error: roleReadError } = await client.from('user_roles').select('id').eq('user_id', user.id).maybeSingle();
     if (roleReadError) throw roleReadError;
     if (existingRole) {
-      const { error: roleUpdateError } = await client.from('user_roles').update({ status: 'active' }).eq('id', existingRole.id);
+      const { error: roleUpdateError } = await client.from('user_roles').update({ role: 'content_creator', status: 'active' }).eq('id', existingRole.id);
       if (roleUpdateError) throw roleUpdateError;
     } else {
       const { error: roleInsertError } = await client.from('user_roles').insert({ user_id: user.id, role: 'content_creator', status: 'active' });
