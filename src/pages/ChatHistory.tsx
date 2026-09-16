@@ -303,6 +303,10 @@ const ChatHistory = () => {
                         {msg.status}
                       </Badge>
                     )}
+                    {msg.providerMessageId && (
+                      <p className="mt-1 break-all font-mono text-[10px] text-muted-foreground">ID: {msg.providerMessageId}</p>
+                    )}
+                    {msg.statusError && <p className="mt-1 text-xs text-destructive">{msg.statusError}</p>}
                   </div>
                 ))
               ) : (

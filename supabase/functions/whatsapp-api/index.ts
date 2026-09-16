@@ -6,13 +6,15 @@ import { createServiceClient, requireStaff, requireUser } from '../_shared/auth.
 const GATEWAY_URL = 'https://connector-gateway.lovable.dev/whatsapp';
 
 const RequestSchema = z.object({
-  endpoint: z.enum(['getTemplates', 'getContacts', 'sendMessage', 'sendReply', 'getAnalytics', 'getMessages']),
+  endpoint: z.enum(['getTemplates', 'getContacts', 'sendMessage', 'sendReply', 'getAnalytics', 'getMessages', 'submitTemplateVersion']),
   phoneNumber: z.string().trim().min(7).max(20).optional(),
   templateName: z.string().trim().min(1).max(512).optional(),
   parameters: z.array(z.string().max(1024)).max(20).optional(),
   message: z.string().trim().min(1).max(4096).optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
+  body: z.string().trim().min(20).max(1024).optional(),
+  sampleValues: z.array(z.string().trim().min(1).max(256)).max(10).optional(),
 });
 
 const jsonResponse = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
@@ -75,8 +77,10 @@ Deno.serve(async (req) => {
 
     const requestBody = parsed.data;
     const { endpoint } = parsed.data;
-    if (endpoint === 'sendMessage' || endpoint === 'sendReply') await requireStaff(req);
-    else await requireUser(req);
+    const staff = endpoint === 'sendMessage' || endpoint === 'sendReply' || endpoint === 'submitTemplateVersion'
+      ? await requireStaff(req)
+      : null;
+    if (!staff) await requireUser(req);
     console.log(`Processing endpoint: ${endpoint}`);
 
     // Handle different endpoints with the correct API paths including tenant ID
@@ -101,6 +105,46 @@ Deno.serve(async (req) => {
 
       case 'getContacts': {
         return jsonResponse({ contacts: [] });
+      }
+
+      case 'submitTemplateVersion': {
+        const { body, sampleValues = [] } = requestBody;
+        if (!body) return jsonResponse({ error: 'Template body is required' }, 400);
+        const placeholders = [...body.matchAll(/\{\{(\d+)\}\}/g)].map((match) => Number(match[1]));
+        const expected = placeholders.length ? Math.max(...placeholders) : 0;
+        if (new Set(placeholders).size !== expected || sampleValues.length !== expected) {
+          return jsonResponse({ error: `Provide one sample value for each placeholder from {{1}} to {{${expected}}}.` }, 400);
+        }
+
+        const client = createServiceClient();
+        const { data: latest, error: latestError } = await client.from('whatsapp_template_versions')
+          .select('version').eq('template_key', 'course_welcome').order('version', { ascending: false }).limit(1).maybeSingle();
+        if (latestError) throw latestError;
+        const version = (latest?.version || 0) + 1;
+        const providerName = version === 1 ? 'course_welcome' : `course_welcome_v${version}`;
+        const providerBody = {
+          name: providerName,
+          language: 'en_US',
+          category: 'UTILITY',
+          components: [{ type: 'BODY', text: body, ...(expected ? { example: { body_text: [sampleValues] } } : {}) }],
+        };
+        const result = await callWhatsApp('/message_templates', 'POST', providerBody);
+        if (result.error) return result.error;
+        const providerId = result.data?.id ? String(result.data.id) : null;
+        await client.from('whatsapp_template_versions').update({ is_active: false }).eq('template_key', 'course_welcome');
+        const { data: created, error: createError } = await client.from('whatsapp_template_versions').insert({
+          template_key: 'course_welcome', version, provider_template_name: providerName,
+          provider_template_id: providerId, language: 'en_US', category: 'UTILITY', body,
+          sample_values: sampleValues, review_status: 'PENDING', provider_response: result.data,
+          submitted_by: staff?.user.id, submitted_at: new Date().toISOString(), last_checked_at: new Date().toISOString(), is_active: true,
+        }).select().single();
+        if (createError) throw createError;
+        const { error: eventError } = await client.from('whatsapp_template_events').insert({
+          template_version_id: created.id, event_type: 'submitted', status: 'PENDING', actor_id: staff?.user.id,
+          details: { provider_template_name: providerName, provider_template_id: providerId },
+        });
+        if (eventError) throw eventError;
+        return jsonResponse({ version: created });
       }
 
       case 'sendMessage': {

@@ -451,35 +451,223 @@ export type Database = {
         Row: {
           content: string
           created_at: string
+          delivered_at: string | null
           direction: string
+          failed_at: string | null
           id: string
           phone_number: string
           provider_message_id: string | null
+          read_at: string | null
           sent_at: string
           status: string
+          status_error: string | null
           template_name: string | null
         }
         Insert: {
           content: string
           created_at?: string
+          delivered_at?: string | null
           direction: string
+          failed_at?: string | null
           id?: string
           phone_number: string
           provider_message_id?: string | null
+          read_at?: string | null
           sent_at?: string
           status?: string
+          status_error?: string | null
           template_name?: string | null
         }
         Update: {
           content?: string
           created_at?: string
+          delivered_at?: string | null
           direction?: string
+          failed_at?: string | null
           id?: string
           phone_number?: string
           provider_message_id?: string | null
+          read_at?: string | null
           sent_at?: string
           status?: string
+          status_error?: string | null
           template_name?: string | null
+        }
+        Relationships: []
+      }
+      whatsapp_template_events: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          details: Json
+          event_type: string
+          id: string
+          send_job_id: string | null
+          status: string
+          template_version_id: string | null
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          event_type: string
+          id?: string
+          send_job_id?: string | null
+          status: string
+          template_version_id?: string | null
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          event_type?: string
+          id?: string
+          send_job_id?: string | null
+          status?: string
+          template_version_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_template_events_send_job_id_fkey"
+            columns: ["send_job_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_template_send_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_template_events_template_version_id_fkey"
+            columns: ["template_version_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_template_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_template_send_jobs: {
+        Row: {
+          attempt_count: number
+          claimed_at: string | null
+          created_at: string
+          delivered_at: string | null
+          error_message: string | null
+          failed_at: string | null
+          id: string
+          parameters: Json
+          provider_message_id: string | null
+          provider_response: Json | null
+          read_at: string | null
+          recipient_phone: string
+          sent_at: string | null
+          status: string
+          template_version_id: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          claimed_at?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          error_message?: string | null
+          failed_at?: string | null
+          id?: string
+          parameters?: Json
+          provider_message_id?: string | null
+          provider_response?: Json | null
+          read_at?: string | null
+          recipient_phone: string
+          sent_at?: string | null
+          status?: string
+          template_version_id: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          claimed_at?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          error_message?: string | null
+          failed_at?: string | null
+          id?: string
+          parameters?: Json
+          provider_message_id?: string | null
+          provider_response?: Json | null
+          read_at?: string | null
+          recipient_phone?: string
+          sent_at?: string | null
+          status?: string
+          template_version_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_template_send_jobs_template_version_id_fkey"
+            columns: ["template_version_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_template_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_template_versions: {
+        Row: {
+          body: string
+          category: string
+          created_at: string
+          id: string
+          is_active: boolean
+          language: string
+          last_checked_at: string | null
+          provider_response: Json | null
+          provider_template_id: string | null
+          provider_template_name: string
+          rejection_reason: string | null
+          review_status: string
+          sample_values: Json
+          submitted_at: string | null
+          submitted_by: string | null
+          template_key: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          body: string
+          category?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          language?: string
+          last_checked_at?: string | null
+          provider_response?: Json | null
+          provider_template_id?: string | null
+          provider_template_name: string
+          rejection_reason?: string | null
+          review_status?: string
+          sample_values?: Json
+          submitted_at?: string | null
+          submitted_by?: string | null
+          template_key: string
+          updated_at?: string
+          version: number
+        }
+        Update: {
+          body?: string
+          category?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          language?: string
+          last_checked_at?: string | null
+          provider_response?: Json | null
+          provider_template_id?: string | null
+          provider_template_name?: string
+          rejection_reason?: string | null
+          review_status?: string
+          sample_values?: Json
+          submitted_at?: string | null
+          submitted_by?: string | null
+          template_key?: string
+          updated_at?: string
+          version?: number
         }
         Relationships: []
       }

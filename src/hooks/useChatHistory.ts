@@ -15,7 +15,7 @@ export const useWhatsAppChat = (phoneNumber?: string) => {
       const normalized = phoneNumber.replace(/\D/g, '');
       const { data: rows, error: queryError } = await supabase
         .from('whatsapp_messages')
-        .select('id,content,direction,sent_at,status')
+        .select('id,content,direction,sent_at,status,provider_message_id,delivered_at,read_at,failed_at,status_error')
         .eq('phone_number', normalized)
         .order('sent_at', { ascending: true });
       if (queryError) throw queryError;
@@ -25,6 +25,11 @@ export const useWhatsAppChat = (phoneNumber?: string) => {
         sent: message.direction === 'outgoing',
         timestamp: message.sent_at,
         status: message.status,
+        providerMessageId: message.provider_message_id,
+        deliveredAt: message.delivered_at,
+        readAt: message.read_at,
+        failedAt: message.failed_at,
+        statusError: message.status_error,
       }));
     },
     enabled: !!phoneNumber,
