@@ -6,3 +6,6 @@
 - [x] Connect AI tutor chat and embeddings to Lovable AI and verify both
 
 - [x] Set WhatsApp Incoming messages destination to microlearn in connector settings
+- [x] Deploy signed WhatsApp callback receiver and staff webhook diagnostics page
+- [x] Enable free-form portal replies only within a verified 24-hour incoming-message window
+- [ ] Receive a fresh WhatsApp message after routing to microlearn; verify inbound and reply rows in Chat History
