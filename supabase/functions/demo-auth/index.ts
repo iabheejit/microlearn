@@ -22,8 +22,15 @@ Deno.serve(async (req) => {
       if (error) throw error;
       user = data.user;
     }
-    const { error: roleError } = await client.from('user_roles').upsert({ user_id: user.id, role: 'content_creator', status: 'active' }, { onConflict: 'user_id,role', ignoreDuplicates: true });
-    if (roleError && !roleError.message.includes('no unique')) throw roleError;
+    const { data: existingRole, error: roleReadError } = await client.from('user_roles').select('id').eq('user_id', user.id).eq('role', 'content_creator').maybeSingle();
+    if (roleReadError) throw roleReadError;
+    if (existingRole) {
+      const { error: roleUpdateError } = await client.from('user_roles').update({ status: 'active' }).eq('id', existingRole.id);
+      if (roleUpdateError) throw roleUpdateError;
+    } else {
+      const { error: roleInsertError } = await client.from('user_roles').insert({ user_id: user.id, role: 'content_creator', status: 'active' });
+      if (roleInsertError) throw roleInsertError;
+    }
     const { data: session, error: sessionError } = await client.auth.signInWithPassword({ email: parsed.data.email, password: demoPassword });
     if (sessionError) throw sessionError;
     return jsonResponse({ session: session.session });
