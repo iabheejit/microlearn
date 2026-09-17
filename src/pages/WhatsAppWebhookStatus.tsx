@@ -46,7 +46,7 @@ export default function WhatsAppWebhookStatus() {
       if (error) throw error;
       return { callbacks: callbacksResult.data, versions: versionsResult.data, jobs: jobsResult.data, events: eventsResult.data };
     },
-    refetchInterval: 10000,
+    refetchInterval: 5000,
   });
 
   const checkMutation = useMutation({
@@ -100,8 +100,8 @@ export default function WhatsAppWebhookStatus() {
         <div className="container mx-auto px-4 py-6 md:px-6">
           <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h1 className="text-2xl font-bold">WhatsApp Diagnostics</h1>
-              <p className="text-muted-foreground">Monitor template review, automatic delivery, and incoming callbacks.</p>
+              <h1 className="text-2xl font-bold">Meta Templates & Delivery</h1>
+              <p className="text-muted-foreground">Submit templates, follow Meta review live, and inspect message delivery.</p>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => checkMutation.mutate()} disabled={checkMutation.isPending}>
@@ -118,7 +118,7 @@ export default function WhatsAppWebhookStatus() {
           <section className="mb-6 space-y-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div><h2 className="text-lg font-semibold">Template approval</h2><p className="text-sm text-muted-foreground">The active version is checked automatically every five minutes.</p></div>
-              {activeVersion?.review_status === 'REJECTED' && <Button onClick={openRevision}><FileClock className="mr-2 h-4 w-4" /> Revise and resubmit</Button>}
+               <Button onClick={openRevision}><FileClock className="mr-2 h-4 w-4" /> {activeVersion?.review_status === 'REJECTED' ? 'Revise and resubmit' : 'Submit new version'}</Button>
             </div>
             <div className="grid gap-4 md:grid-cols-4">
               <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Active version</CardTitle></CardHeader><CardContent><div className="text-xl font-semibold">{activeVersion ? `v${activeVersion.version}` : 'Not imported'}</div><p className="mt-1 text-xs text-muted-foreground">{activeVersion?.provider_template_name || 'course_welcome'}</p></CardContent></Card>
@@ -130,7 +130,7 @@ export default function WhatsAppWebhookStatus() {
           </section>
 
           <Card className="mb-6">
-            <CardHeader><CardTitle>Template versions</CardTitle></CardHeader>
+            <CardHeader><CardTitle>Live Meta status feed</CardTitle></CardHeader>
             <CardContent className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Version</TableHead><TableHead>Name</TableHead><TableHead>Status</TableHead><TableHead>Submitted</TableHead><TableHead>Last checked</TableHead></TableRow></TableHeader><TableBody>
               {versions.map((version) => <TableRow key={version.id}><TableCell>v{version.version}{version.is_active ? ' · active' : ''}</TableCell><TableCell className="font-mono text-xs">{version.provider_template_name}</TableCell><TableCell><Badge variant={statusVariant(version.review_status)}>{version.review_status}</Badge></TableCell><TableCell>{formatDate(version.submitted_at)}</TableCell><TableCell>{formatDate(version.last_checked_at)}</TableCell></TableRow>)}
               {!query.isLoading && versions.length === 0 && <TableRow><TableCell colSpan={5} className="h-20 text-center text-muted-foreground">The current Meta template has not been imported yet.</TableCell></TableRow>}
@@ -158,7 +158,7 @@ export default function WhatsAppWebhookStatus() {
         </div>
       </main>
 
-      <Dialog open={editorOpen} onOpenChange={setEditorOpen}><DialogContent><DialogHeader><DialogTitle>Submit the next course_welcome version</DialogTitle><DialogDescription>Meta does not edit submitted templates. This creates a new version and preserves the audit history.</DialogDescription></DialogHeader>
+      <Dialog open={editorOpen} onOpenChange={setEditorOpen}><DialogContent><DialogHeader><DialogTitle>Submit the next course_welcome version</DialogTitle><DialogDescription>Each submission creates a new Meta template version and preserves the complete audit history.</DialogDescription></DialogHeader>
         <div className="space-y-4"><div className="space-y-2"><Label htmlFor="template-body">Message</Label><Textarea id="template-body" value={body} onChange={(event) => setBody(event.target.value)} rows={5} /></div>
           <div className="grid gap-3 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor="sample-1">Sample for {'{{1}}'}</Label><Input id="sample-1" value={samples[0] || ''} onChange={(event) => setSamples([event.target.value, samples[1] || ''])} /></div><div className="space-y-2"><Label htmlFor="sample-2">Sample for {'{{2}}'}</Label><Input id="sample-2" value={samples[1] || ''} onChange={(event) => setSamples([samples[0] || '', event.target.value])} /></div></div>
         </div><DialogFooter><Button variant="outline" onClick={() => setEditorOpen(false)}>Cancel</Button><Button onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}>{submitMutation.isPending ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />} Submit to Meta</Button></DialogFooter>

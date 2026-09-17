@@ -23,7 +23,7 @@ export const DASHBOARD_SECTIONS = [
   { name: "WhatsApp", path: ROUTES.WHATSAPP, icon: "MessageCircle" },
   { name: "Telegram", path: ROUTES.TELEGRAM, icon: "Telegram" },
   { name: "Chat History", path: ROUTES.CHAT_HISTORY, icon: "MessageCircle" },
-  { name: "Webhook Status", path: ROUTES.WHATSAPP_WEBHOOK, icon: "Webhook" },
+  { name: "Meta Templates", path: ROUTES.WHATSAPP_WEBHOOK, icon: "Webhook" },
   { name: "Settings", path: ROUTES.SETTINGS, icon: "Settings" },
 ];
 

@@ -12,3 +12,7 @@
 - [x] Track course_welcome approval every five minutes and automatically send its first approved version to +919766072308
 - [x] Add the approved course_welcome message action to the course flow
 - [ ] Confirm the automatic template message reaches delivered/read status through a live WhatsApp callback
+- [x] Send a fresh approved course_welcome template to +919766072308 and save its provider message ID
+- [x] Use +919766072308 automatically from the course welcome action
+- [x] Add an in-portal Meta template submission, resubmission, approval feed, and audit trail
+- [x] Keep the full WhatsApp reply and follow-up composer available in Chat History
