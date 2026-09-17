@@ -16,3 +16,5 @@
 - [x] Use +919766072308 automatically from the course welcome action
 - [x] Add an in-portal Meta template submission, resubmission, approval feed, and audit trail
 - [x] Keep the full WhatsApp reply and follow-up composer available in Chat History
+- [ ] Retry course_welcome to +919766072308 after Meta approves the Ekatra display name (currently PENDING_REVIEW; Meta error 131037)
+- [ ] Verify a fresh inbound “hi” and portal reply end to end after callbacks resume (microlearn selected and receiver reachable; no callback forwarded yet)
