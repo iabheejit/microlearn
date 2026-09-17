@@ -34,6 +34,9 @@ Deno.serve(async (req) => {
       .select('*').eq('template_key', 'course_welcome').eq('is_active', true).maybeSingle();
     if (versionError) throw versionError;
     if (!version) return json({ ok: true, state: 'not_configured' });
+    if (scheduled && version.last_checked_at && Date.now() - new Date(version.last_checked_at).getTime() < 4 * 60 * 1000) {
+      return json({ ok: true, state: 'recently_checked' });
+    }
 
     const templatesResponse = await gateway('/message_templates?fields=id,name,status,language,category,components,rejected_reason&limit=100');
     const templates = Array.isArray(templatesResponse.data) ? templatesResponse.data as Record<string, unknown>[] : [];
