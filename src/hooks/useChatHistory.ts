@@ -41,6 +41,26 @@ export const useWhatsAppChat = (phoneNumber?: string) => {
       setMessages(data);
     }
   }, [data]);
+
+  useEffect(() => {
+    if (!phoneNumber) return;
+    const normalized = phoneNumber.replace(/\D/g, '');
+    const channel = supabase
+      .channel(`whatsapp-chat-${normalized}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'whatsapp_messages',
+        filter: `phone_number=eq.${normalized}`,
+      }, () => {
+        void refetch();
+      })
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [phoneNumber, refetch]);
   
   const sendMessage = async (content: string) => {
     if (!phoneNumber) throw new Error('Phone number is required to send a reply');

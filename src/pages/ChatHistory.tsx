@@ -91,6 +91,7 @@ const ChatHistory = () => {
       }
       
       setNewMessage("");
+      await Promise.all([refetchWhatsAppMessages(), refetchTelegramMessages()]);
     } catch (error) {
       console.error("Error sending message:", error);
       toast({
@@ -340,7 +341,7 @@ const ChatHistory = () => {
           
           <div className="flex gap-2">
             <Textarea 
-              placeholder="Type your message..."
+              placeholder={selectedChat?.phone_number ? "Ask a follow-up question…" : "Type your message…"}
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               className="resize-none"

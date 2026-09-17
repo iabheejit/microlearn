@@ -204,8 +204,10 @@ const WhatsAppIntegration = ({
                     View and manage your WhatsApp message templates.
                   </CardDescription>
                 </div>
-                <Button disabled>
-                  <Plus className="mr-2 h-4 w-4" /> New Template
+                <Button asChild>
+                  <Link to={ROUTES.WHATSAPP_WEBHOOK}>
+                    <Plus className="mr-2 h-4 w-4" /> New Template
+                  </Link>
                 </Button>
               </div>
             </CardHeader>

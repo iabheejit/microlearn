@@ -14,10 +14,13 @@ import StripeCheckout from "@/components/dashboard/StripeCheckout";
 import { fetchCourse } from "@/lib/api";
 import { useAITutor } from "@/hooks/useAITutor";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { sendTestMessage } from "@/services/whatsappService";
+
+const WELCOME_LEARNER = {
+  name: "Abheejit",
+  phone: "+919766072308",
+};
 
 const CoursePreview = () => {
   const { id } = useParams();
@@ -27,8 +30,6 @@ const CoursePreview = () => {
   const [showPayment, setShowPayment] = useState(false);
   const [tutorQuestion, setTutorQuestion] = useState("");
   const [tutorMessages, setTutorMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
-  const [welcomePhone, setWelcomePhone] = useState("");
-  const [welcomeName, setWelcomeName] = useState("");
   const [welcomeSending, setWelcomeSending] = useState(false);
   const { askAITutor, loading: tutorLoading, error: tutorError } = useAITutor();
   const { toast } = useToast();
@@ -52,17 +53,15 @@ const CoursePreview = () => {
   };
 
   const handleWelcomeMessage = async () => {
-    if (!course || !welcomePhone.trim() || !welcomeName.trim()) return;
+    if (!course) return;
     setWelcomeSending(true);
     try {
-      const response = await sendTestMessage(welcomePhone, "course_welcome", [welcomeName.trim(), course.title]);
+      const response = await sendTestMessage(WELCOME_LEARNER.phone, "course_welcome", [WELCOME_LEARNER.name, course.title]);
       const messageId = response?.messages?.[0]?.id;
       toast({
         title: "Welcome message accepted",
         description: messageId ? `WhatsApp message ID: ${messageId}` : "The message is now visible in Chat History.",
       });
-      setWelcomePhone("");
-      setWelcomeName("");
     } catch (sendError) {
       toast({
         title: "Welcome message not sent",
@@ -346,17 +345,13 @@ const CoursePreview = () => {
                 <Card className="mt-4">
                   <CardContent className="pt-6">
                     <h2 className="mb-1 text-lg font-bold">Welcome a learner</h2>
-                    <p className="mb-4 text-sm text-muted-foreground">Send the approved course_welcome message for this course.</p>
+                    <p className="mb-4 text-sm text-muted-foreground">Send the approved course_welcome message to the configured learner.</p>
                     <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="welcome-name">Learner name</Label>
-                        <Input id="welcome-name" value={welcomeName} onChange={(event) => setWelcomeName(event.target.value)} placeholder="Learner name" />
+                      <div className="rounded-md border p-3">
+                        <p className="font-medium">{WELCOME_LEARNER.name}</p>
+                        <p className="text-sm text-muted-foreground">+91 97660 72308</p>
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="welcome-phone">WhatsApp number</Label>
-                        <Input id="welcome-phone" inputMode="tel" value={welcomePhone} onChange={(event) => setWelcomePhone(event.target.value)} placeholder="+91 97660 72308" />
-                      </div>
-                      <Button className="w-full" onClick={handleWelcomeMessage} disabled={welcomeSending || !welcomeName.trim() || !welcomePhone.trim()}>
+                      <Button className="w-full" onClick={handleWelcomeMessage} disabled={welcomeSending}>
                         {welcomeSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
                         Send welcome
                       </Button>
