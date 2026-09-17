@@ -301,6 +301,7 @@ const CoursePreview = () => {
                   onCancel={() => setShowPayment(false)} 
                 />
               ) : (
+                <div>
                 <Card>
                   <CardContent className="pt-6">
                     <h2 className="text-lg font-bold mb-4">Course Information</h2>
@@ -362,6 +363,7 @@ const CoursePreview = () => {
                     </div>
                   </CardContent>
                 </Card>
+                </div>
               )}
             </div>
           </div>
