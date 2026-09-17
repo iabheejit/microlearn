@@ -9,5 +9,6 @@
 - [x] Deploy signed WhatsApp callback receiver and staff webhook diagnostics page
 - [x] Enable free-form portal replies only within a verified 24-hour incoming-message window
 - [ ] Receive a fresh WhatsApp message after routing to microlearn; verify inbound and reply rows in Chat History
-- [ ] Track course_welcome approval and automatically send its first approved version to +919766072308
+- [x] Track course_welcome approval every five minutes and automatically send its first approved version to +919766072308
+- [x] Add the approved course_welcome message action to the course flow
 - [ ] Confirm the automatic template message reaches delivered/read status through a live WhatsApp callback

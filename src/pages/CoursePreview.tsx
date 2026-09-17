@@ -14,6 +14,10 @@ import StripeCheckout from "@/components/dashboard/StripeCheckout";
 import { fetchCourse } from "@/lib/api";
 import { useAITutor } from "@/hooks/useAITutor";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/ui/use-toast";
+import { sendTestMessage } from "@/services/whatsappService";
 
 const CoursePreview = () => {
   const { id } = useParams();
@@ -23,7 +27,11 @@ const CoursePreview = () => {
   const [showPayment, setShowPayment] = useState(false);
   const [tutorQuestion, setTutorQuestion] = useState("");
   const [tutorMessages, setTutorMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
+  const [welcomePhone, setWelcomePhone] = useState("");
+  const [welcomeName, setWelcomeName] = useState("");
+  const [welcomeSending, setWelcomeSending] = useState(false);
   const { askAITutor, loading: tutorLoading, error: tutorError } = useAITutor();
+  const { toast } = useToast();
 
   const isValidId = id !== 'NaN' && id !== undefined && id !== null;
   
@@ -41,6 +49,29 @@ const CoursePreview = () => {
     setTutorQuestion("");
     const result = await askAITutor(question, course.id, context);
     if (result?.response) setTutorMessages((messages) => [...messages, { role: "assistant", content: result.response }]);
+  };
+
+  const handleWelcomeMessage = async () => {
+    if (!course || !welcomePhone.trim() || !welcomeName.trim()) return;
+    setWelcomeSending(true);
+    try {
+      const response = await sendTestMessage(welcomePhone, "course_welcome", [welcomeName.trim(), course.title]);
+      const messageId = response?.messages?.[0]?.id;
+      toast({
+        title: "Welcome message accepted",
+        description: messageId ? `WhatsApp message ID: ${messageId}` : "The message is now visible in Chat History.",
+      });
+      setWelcomePhone("");
+      setWelcomeName("");
+    } catch (sendError) {
+      toast({
+        title: "Welcome message not sent",
+        description: sendError instanceof Error ? sendError.message : "WhatsApp rejected the message.",
+        variant: "destructive",
+      });
+    } finally {
+      setWelcomeSending(false);
+    }
   };
 
   if (!isValidId) {
@@ -308,6 +339,26 @@ const CoursePreview = () => {
                         <h3 className="text-sm font-medium text-muted-foreground">Duration</h3>
                         <p>{course.days ? course.days.length : 0} days</p>
                       </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="mt-4">
+                  <CardContent className="pt-6">
+                    <h2 className="mb-1 text-lg font-bold">Welcome a learner</h2>
+                    <p className="mb-4 text-sm text-muted-foreground">Send the approved course_welcome message for this course.</p>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="welcome-name">Learner name</Label>
+                        <Input id="welcome-name" value={welcomeName} onChange={(event) => setWelcomeName(event.target.value)} placeholder="Learner name" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="welcome-phone">WhatsApp number</Label>
+                        <Input id="welcome-phone" inputMode="tel" value={welcomePhone} onChange={(event) => setWelcomePhone(event.target.value)} placeholder="+91 97660 72308" />
+                      </div>
+                      <Button className="w-full" onClick={handleWelcomeMessage} disabled={welcomeSending || !welcomeName.trim() || !welcomePhone.trim()}>
+                        {welcomeSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                        Send welcome
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
