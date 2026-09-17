@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Sidebar from '@/components/dashboard/Sidebar';
 import { supabase } from '@/integrations/supabase/client';
@@ -84,6 +84,28 @@ export default function WhatsAppWebhookStatus() {
   const latestJob = jobs[0];
   const lastProcessed = callbacks.find((callback) => callback.status === 'processed');
   const lastError = callbacks.find((callback) => callback.status === 'error');
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('whatsapp-admin-live-feed')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_template_versions' }, () => {
+        void queryClient.invalidateQueries({ queryKey: ['whatsapp-diagnostics'] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_template_events' }, () => {
+        void queryClient.invalidateQueries({ queryKey: ['whatsapp-diagnostics'] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_template_send_jobs' }, () => {
+        void queryClient.invalidateQueries({ queryKey: ['whatsapp-diagnostics'] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_webhook_callbacks' }, () => {
+        void queryClient.invalidateQueries({ queryKey: ['whatsapp-diagnostics'] });
+      })
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const openRevision = () => {
     if (activeVersion) {
