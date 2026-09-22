@@ -76,6 +76,54 @@ export type Database = {
           },
         ]
       }
+      course_certificates: {
+        Row: {
+          course_id: string
+          created_at: string
+          enrollment_id: string
+          id: string
+          issued_at: string
+          learner_name: string
+          phone_number: string
+          verification_code: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          enrollment_id: string
+          id?: string
+          issued_at?: string
+          learner_name: string
+          phone_number: string
+          verification_code: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          enrollment_id?: string
+          id?: string
+          issued_at?: string
+          learner_name?: string
+          phone_number?: string
+          verification_code?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_certificates_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_certificates_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: true
+            referencedRelation: "whatsapp_course_enrollments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_modules: {
         Row: {
           course_id: string
@@ -110,6 +158,47 @@ export type Database = {
             columns: ["course_id"]
             isOneToOne: false
             referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_quiz_questions: {
+        Row: {
+          correct_answer: string
+          created_at: string
+          explanation: string | null
+          id: string
+          options: Json
+          question: string
+          resource_id: string
+          updated_at: string
+        }
+        Insert: {
+          correct_answer: string
+          created_at?: string
+          explanation?: string | null
+          id?: string
+          options?: Json
+          question: string
+          resource_id: string
+          updated_at?: string
+        }
+        Update: {
+          correct_answer?: string
+          created_at?: string
+          explanation?: string | null
+          id?: string
+          options?: Json
+          question?: string
+          resource_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_quiz_questions_resource_id_fkey"
+            columns: ["resource_id"]
+            isOneToOne: true
+            referencedRelation: "course_resources"
             referencedColumns: ["id"]
           },
         ]
@@ -447,6 +536,69 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_course_enrollments: {
+        Row: {
+          awaiting_reply: boolean
+          completed_at: string | null
+          course_id: string
+          created_at: string
+          created_by: string | null
+          current_resource_id: string | null
+          id: string
+          learner_name: string
+          phone_number: string
+          progress_percentage: number
+          started_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          awaiting_reply?: boolean
+          completed_at?: string | null
+          course_id: string
+          created_at?: string
+          created_by?: string | null
+          current_resource_id?: string | null
+          id?: string
+          learner_name: string
+          phone_number: string
+          progress_percentage?: number
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          awaiting_reply?: boolean
+          completed_at?: string | null
+          course_id?: string
+          created_at?: string
+          created_by?: string | null
+          current_resource_id?: string | null
+          id?: string
+          learner_name?: string
+          phone_number?: string
+          progress_percentage?: number
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_course_enrollments_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_course_enrollments_current_resource_id_fkey"
+            columns: ["current_resource_id"]
+            isOneToOne: false
+            referencedRelation: "course_resources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_messages: {
         Row: {
           content: string
@@ -494,6 +646,51 @@ export type Database = {
           template_name?: string | null
         }
         Relationships: []
+      }
+      whatsapp_quiz_attempts: {
+        Row: {
+          attempt_number: number
+          created_at: string
+          enrollment_id: string
+          id: string
+          is_correct: boolean
+          question_id: string
+          submitted_answer: string
+        }
+        Insert: {
+          attempt_number?: number
+          created_at?: string
+          enrollment_id: string
+          id?: string
+          is_correct: boolean
+          question_id: string
+          submitted_answer: string
+        }
+        Update: {
+          attempt_number?: number
+          created_at?: string
+          enrollment_id?: string
+          id?: string
+          is_correct?: boolean
+          question_id?: string
+          submitted_answer?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_quiz_attempts_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_course_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_quiz_attempts_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "course_quiz_questions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       whatsapp_template_events: {
         Row: {
