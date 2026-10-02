@@ -2,6 +2,7 @@ import { verifyWebhookRequest, WebhookError } from 'npm:@lovable.dev/webhooks-js
 import { z } from 'npm:zod@3.23.8';
 import { createServiceClient } from '../_shared/auth.ts';
 import { jsonResponse } from '../_shared/responses.ts';
+import { progressFromReply } from '../_shared/course-progression.ts';
 
 const TextSchema = z.object({ body: z.string().max(65536) }).passthrough();
 const MessageSchema = z.object({
@@ -88,6 +89,13 @@ Deno.serve(async (req) => {
         sent_at: sentAt,
       }, { onConflict: 'provider_message_id' });
       if (messageError) throw messageError;
+      if (message.text?.body) {
+        try {
+          await progressFromReply(normalized, message.text.body);
+        } catch (progressError) {
+          console.error(`Course progression failed for message ${message.id}:`, progressError);
+        }
+      }
     }
 
     for (const status of statuses) {

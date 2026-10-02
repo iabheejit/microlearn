@@ -5,7 +5,7 @@
 - [x] Create a real course with modules/resources and verify demo end to end
 - [x] Connect AI tutor chat and embeddings to Lovable AI and verify both
 
-- [ ] Set the new MicroLearn WABA Incoming messages destination to microlearn in connector settings
+- [x] Set the new MicroLearn WABA Incoming messages destination to microlearn in connector settings
 - [x] Deploy signed WhatsApp callback receiver and staff webhook diagnostics page
 - [x] Enable free-form portal replies only within a verified 24-hour incoming-message window
 - [ ] Receive a fresh WhatsApp message in Chat History and reply (blocked: this portal stack cannot receive WhatsApp connector callbacks)
@@ -16,9 +16,10 @@
 - [x] Use +919766072308 automatically from the course welcome action
 - [x] Add an in-portal Meta template submission, resubmission, approval feed, and audit trail
 - [x] Keep the full WhatsApp reply and follow-up composer available in Chat History
-- [ ] Retry course_welcome to +919766072308 after Meta approves the Ekatra display name (currently PENDING_REVIEW; Meta error 131037)
+- [x] Retry course_welcome to +919766072308 after Meta approves the Ekatra display name
 - [ ] Verify a fresh inbound “hi” and portal reply end to end (blocked: WhatsApp incoming messages require a supported modern app stack)
 - [x] Link and verify MicroLearn WABA sender +1 659-277-2030; deploy its credentials to the portal
 - [x] Submit course_welcome version 2 to the new MicroLearn WABA and activate approval monitoring
 - [ ] Wait for Meta approval of course_welcome version 2, then verify automatic delivery to +919766072308
 - [ ] Send a fresh “hi” to +1 659-277-2030 and verify the inbound message and portal reply in Chat History (blocked by callback support)
+- [x] Connect incoming learner replies to lesson progress, quiz attempts, and certificate completion

@@ -239,6 +239,25 @@ export const sendTestMessage = async (
   }
 };
 
+export const enrollWhatsAppLearner = async (courseId: string, learnerName: string, phoneNumber: string) => {
+  const { data, error } = await supabase.functions.invoke("whatsapp-api", {
+    body: { endpoint: "enrollLearner", courseId, learnerName, phoneNumber },
+  });
+  if (error) {
+    const details = 'context' in error && error.context instanceof Response ? await error.context.text() : error.message;
+    throw new Error(details);
+  }
+  return data;
+};
+
+export const fetchWhatsAppCourseProgress = async (courseId: string, phoneNumber: string) => {
+  const { data, error } = await supabase.functions.invoke("whatsapp-api", {
+    body: { endpoint: "getCourseProgress", courseId, phoneNumber },
+  });
+  if (error) throw error;
+  return data?.enrollments?.[0] || null;
+};
+
 export const fetchWhatsAppMessages = async (phoneNumber: string): Promise<any[]> => {
   try {
     const { data, error } = await supabase.functions.invoke("whatsapp-api", {
