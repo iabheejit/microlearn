@@ -4,6 +4,7 @@ import { z } from 'npm:zod@3.23.8';
 import { createServiceClient, requireStaff, requireUser } from '../_shared/auth.ts';
 import { orderedLessons } from '../_shared/course-progression.ts';
 import { sendWhatsAppText } from '../_shared/whatsapp.ts';
+import { errorResponse } from '../_shared/responses.ts';
 
 const GATEWAY_URL = 'https://connector-gateway.lovable.dev/whatsapp';
 
@@ -231,16 +232,20 @@ Deno.serve(async (req) => {
         const existing = await client.from('whatsapp_course_enrollments').select('id,status').eq('course_id', courseId).eq('phone_number', recipientDigits).maybeSingle();
         if (existing.error) throw existing.error;
         if (existing.data?.status === 'active') return jsonResponse({ error: 'This learner is already active in this course.' }, 409);
+        const { data: activeTemplate, error: templateError } = await client.from('whatsapp_template_versions')
+          .select('provider_template_name,review_status').eq('template_key', 'course_welcome').eq('is_active', true).single();
+        if (templateError) throw templateError;
+        if (activeTemplate.review_status !== 'APPROVED') return jsonResponse({ error: 'The course welcome template is not approved yet.' }, 409);
         const result = await callWhatsApp('/messages', 'POST', {
           messaging_product: 'whatsapp', to: recipientDigits, type: 'template',
-          template: { name: 'course_welcome_v2', language: { code: 'en_US' }, components: [{ type: 'body', parameters: [learnerName, course.title].map((text) => ({ type: 'text', text })) }] },
+          template: { name: activeTemplate.provider_template_name, language: { code: 'en_US' }, components: [{ type: 'body', parameters: [learnerName, course.title].map((text) => ({ type: 'text', text })) }] },
         });
         if (result.error) return result.error;
         const messageId = result.data?.messages?.[0]?.id;
         if (typeof messageId !== 'string') return jsonResponse({ error: 'WhatsApp did not return a message ID' }, 502);
         const { error: historyError } = await client.from('whatsapp_messages').upsert({
-          phone_number: recipientDigits, direction: 'outgoing', template_name: 'course_welcome_v2',
-          content: `course_welcome_v2: ${learnerName}, ${course.title}`, provider_message_id: messageId, status: 'accepted',
+          phone_number: recipientDigits, direction: 'outgoing', template_name: activeTemplate.provider_template_name,
+          content: `${activeTemplate.provider_template_name}: ${learnerName}, ${course.title}`, provider_message_id: messageId, status: 'accepted',
         }, { onConflict: 'provider_message_id', ignoreDuplicates: true });
         if (historyError) throw historyError;
         const { error: contactError } = await client.from('whatsapp_contacts').upsert({ phone_number: recipientDigits }, { onConflict: 'phone_number' });
@@ -298,7 +303,6 @@ Deno.serve(async (req) => {
     }
   } catch (error) {
     console.error('Error processing request:', error);
-    const message = error instanceof Error ? error.message : 'Unexpected WhatsApp error';
-    return jsonResponse({ error: message }, 500);
+    return errorResponse(error);
   }
 });
