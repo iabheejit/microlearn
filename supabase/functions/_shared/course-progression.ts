@@ -31,6 +31,8 @@ export async function progressFromReply(phoneNumber: string, text: string, provi
   // A phone enrolled in two active courses cannot be advanced unambiguously.
   if (!enrollments?.length || enrollments.length > 1) return;
   const enrollment = enrollments[0];
+  const resources = await orderedLessons(enrollment.course_id);
+  if (!resources.length) return;
   const { data: processed, error: processedError } = await client.from('whatsapp_progression_events')
     .insert({ enrollment_id: enrollment.id, provider_message_id: providerMessageId }).select('id').maybeSingle();
   if (processedError) {
@@ -39,8 +41,6 @@ export async function progressFromReply(phoneNumber: string, text: string, provi
   }
   if (!processed) return;
   try {
-  const resources = await orderedLessons(enrollment.course_id);
-  if (!resources.length) return;
   const currentIndex = resources.findIndex((resource) => resource.id === enrollment.current_resource_id);
   if (enrollment.current_resource_id && currentIndex < 0) throw new Error('Current lesson is no longer in this course');
 
