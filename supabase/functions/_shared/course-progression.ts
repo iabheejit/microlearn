@@ -24,7 +24,7 @@ async function lessonText(resource: { id: string; title: string; content: string
     quiz ? `${quiz.question}${choices ? `\n${choices}` : ''}\nReply with your answer.` : 'Reply NEXT when you are ready for the next lesson.'].join('\n\n').slice(0, 4096);
 }
 
-export async function progressFromReply(phoneNumber: string, text: string) {
+export async function progressFromReply(phoneNumber: string, text: string, providerMessageId: string) {
   const { data: enrollments, error: enrollmentError } = await client.from('whatsapp_course_enrollments')
     .select('*').eq('phone_number', phoneNumber).eq('status', 'active').eq('awaiting_reply', true).order('updated_at', { ascending: false }).limit(2);
   if (enrollmentError) throw enrollmentError;
@@ -32,12 +32,13 @@ export async function progressFromReply(phoneNumber: string, text: string) {
   if (!enrollments?.length || enrollments.length > 1) return;
   const enrollment = enrollments[0];
   const { data: processed, error: processedError } = await client.from('whatsapp_progression_events')
-    .insert({ enrollment_id: enrollment.id, provider_message_id: arguments[2] }).select('id').maybeSingle();
+    .insert({ enrollment_id: enrollment.id, provider_message_id: providerMessageId }).select('id').maybeSingle();
   if (processedError) {
     if (processedError.code === '23505') return;
     throw processedError;
   }
   if (!processed) return;
+  try {
   const resources = await orderedLessons(enrollment.course_id);
   if (!resources.length) return;
   const currentIndex = resources.findIndex((resource) => resource.id === enrollment.current_resource_id);
@@ -95,4 +96,8 @@ export async function progressFromReply(phoneNumber: string, text: string) {
     status: 'completed', progress_percentage: 100, awaiting_reply: false, completed_at: new Date().toISOString(),
   }).eq('id', enrollment.id);
   if (completeError) throw completeError;
+  } catch (error) {
+    await client.from('whatsapp_progression_events').delete().eq('id', processed.id);
+    throw error;
+  }
 }
