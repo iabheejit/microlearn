@@ -2,11 +2,16 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { z } from 'npm:zod@3.23.8';
 import { createServiceClient, requireStaff, requireUser } from '../_shared/auth.ts';
+import { orderedLessons } from '../_shared/course-progression.ts';
+import { sendWhatsAppText } from '../_shared/whatsapp.ts';
+import { errorResponse } from '../_shared/responses.ts';
 
 const GATEWAY_URL = 'https://connector-gateway.lovable.dev/whatsapp';
 
 const RequestSchema = z.object({
-  endpoint: z.enum(['getTemplates', 'getContacts', 'sendMessage', 'sendReply', 'getAnalytics', 'getMessages', 'submitTemplateVersion']),
+  endpoint: z.enum(['getTemplates', 'getContacts', 'sendMessage', 'sendReply', 'getAnalytics', 'getMessages', 'submitTemplateVersion', 'enrollLearner', 'getCourseProgress']),
+  courseId: z.string().uuid().optional(),
+  learnerName: z.string().trim().min(1).max(120).optional(),
   phoneNumber: z.string().trim().min(7).max(20).optional(),
   templateName: z.string().trim().min(1).max(512).optional(),
   parameters: z.array(z.string().max(1024)).max(20).optional(),
@@ -77,7 +82,7 @@ Deno.serve(async (req) => {
 
     const requestBody = parsed.data;
     const { endpoint } = parsed.data;
-    const staff = endpoint === 'sendMessage' || endpoint === 'sendReply' || endpoint === 'submitTemplateVersion'
+    const staff = ['sendMessage', 'sendReply', 'submitTemplateVersion', 'enrollLearner'].includes(endpoint)
       ? await requireStaff(req)
       : null;
     if (!staff) await requireUser(req);
@@ -215,6 +220,57 @@ Deno.serve(async (req) => {
         return jsonResponse(result.data);
       }
 
+      case 'enrollLearner': {
+        const { courseId, phoneNumber, learnerName } = requestBody;
+        if (!courseId || !phoneNumber || !learnerName) return jsonResponse({ error: 'Course, learner name, and phone number are required' }, 400);
+        const recipientDigits = phoneNumber.replace(/\D/g, '');
+        const client = createServiceClient();
+        const resources = await orderedLessons(courseId);
+        if (!resources.length) return jsonResponse({ error: 'Add course lessons before enrolling a learner' }, 409);
+        const { data: course, error: courseError } = await client.from('courses').select('title').eq('id', courseId).single();
+        if (courseError) throw courseError;
+        const existing = await client.from('whatsapp_course_enrollments').select('id,status').eq('course_id', courseId).eq('phone_number', recipientDigits).maybeSingle();
+        if (existing.error) throw existing.error;
+        if (existing.data?.status === 'active') return jsonResponse({ error: 'This learner is already active in this course.' }, 409);
+        const { data: approvedTemplates, error: templateError } = await client.from('whatsapp_template_versions')
+          .select('provider_template_name').eq('template_key', 'course_welcome').eq('review_status', 'APPROVED').order('version', { ascending: false }).limit(1);
+        if (templateError) throw templateError;
+        const activeTemplate = approvedTemplates?.[0];
+        if (!activeTemplate) return jsonResponse({ error: 'The course welcome template is not approved yet.' }, 409);
+        const result = await callWhatsApp('/messages', 'POST', {
+          messaging_product: 'whatsapp', to: recipientDigits, type: 'template',
+          template: { name: activeTemplate.provider_template_name, language: { code: 'en_US' }, components: [{ type: 'body', parameters: [learnerName, course.title].map((text) => ({ type: 'text', text })) }] },
+        });
+        if (result.error) return result.error;
+        const messageId = result.data?.messages?.[0]?.id;
+        if (typeof messageId !== 'string') return jsonResponse({ error: 'WhatsApp did not return a message ID' }, 502);
+        const { error: historyError } = await client.from('whatsapp_messages').upsert({
+          phone_number: recipientDigits, direction: 'outgoing', template_name: activeTemplate.provider_template_name,
+          content: `${activeTemplate.provider_template_name}: ${learnerName}, ${course.title}`, provider_message_id: messageId, status: 'accepted',
+        }, { onConflict: 'provider_message_id', ignoreDuplicates: true });
+        if (historyError) throw historyError;
+        const { error: contactError } = await client.from('whatsapp_contacts').upsert({ phone_number: recipientDigits }, { onConflict: 'phone_number' });
+        if (contactError) throw contactError;
+        const { data: enrollment, error: enrollmentError } = await client.from('whatsapp_course_enrollments').upsert({
+          course_id: courseId, phone_number: recipientDigits, learner_name: learnerName,
+          current_resource_id: null, status: 'active', progress_percentage: 0,
+          awaiting_reply: true, completed_at: null, created_by: staff?.user.id,
+        }, { onConflict: 'course_id,phone_number' }).select().single();
+        if (enrollmentError) throw enrollmentError;
+        return jsonResponse({ enrollment, messageId });
+      }
+
+      case 'getCourseProgress': {
+        const { courseId, phoneNumber } = requestBody;
+        if (!courseId) return jsonResponse({ error: 'Course is required' }, 400);
+        const client = createServiceClient();
+        let query = client.from('whatsapp_course_enrollments').select('*,course_certificates(*)').eq('course_id', courseId).order('updated_at', { ascending: false });
+        if (phoneNumber) query = query.eq('phone_number', phoneNumber.replace(/\D/g, ''));
+        const { data, error } = await query;
+        if (error) throw error;
+        return jsonResponse({ enrollments: data || [] });
+      }
+
       case 'getAnalytics': {
         return jsonResponse({ messages: {}, conversations: {} });
       }
@@ -248,7 +304,6 @@ Deno.serve(async (req) => {
     }
   } catch (error) {
     console.error('Error processing request:', error);
-    const message = error instanceof Error ? error.message : 'Unexpected WhatsApp error';
-    return jsonResponse({ error: message }, 500);
+    return errorResponse(error);
   }
 });

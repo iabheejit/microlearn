@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Sidebar from "@/components/dashboard/Sidebar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ import { fetchCourse } from "@/lib/api";
 import { useAITutor } from "@/hooks/useAITutor";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { sendTestMessage } from "@/services/whatsappService";
+import { enrollWhatsAppLearner, fetchWhatsAppCourseProgress } from "@/services/whatsappService";
 
 const WELCOME_LEARNER = {
   name: "Abheejit",
@@ -33,6 +33,7 @@ const CoursePreview = () => {
   const [welcomeSending, setWelcomeSending] = useState(false);
   const { askAITutor, loading: tutorLoading, error: tutorError } = useAITutor();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const isValidId = id !== 'NaN' && id !== undefined && id !== null;
   
@@ -40,6 +41,12 @@ const CoursePreview = () => {
     queryKey: ['course', id],
     queryFn: () => isValidId ? fetchCourse(id as string) : Promise.reject(new Error("Invalid course ID")),
     enabled: isValidId,
+  });
+  const { data: enrollment } = useQuery({
+    queryKey: ['whatsapp-course-progress', id, WELCOME_LEARNER.phone],
+    queryFn: () => fetchWhatsAppCourseProgress(id as string, WELCOME_LEARNER.phone),
+    enabled: isValidId,
+    refetchInterval: 10000,
   });
 
   const handleTutorQuestion = async () => {
@@ -56,11 +63,12 @@ const CoursePreview = () => {
     if (!course) return;
     setWelcomeSending(true);
     try {
-      const response = await sendTestMessage(WELCOME_LEARNER.phone, "course_welcome", [WELCOME_LEARNER.name, course.title]);
-      const messageId = response?.messages?.[0]?.id;
+      const response = await enrollWhatsAppLearner(course.id, WELCOME_LEARNER.name, WELCOME_LEARNER.phone);
+      const messageId = response?.messageId;
+      await queryClient.invalidateQueries({ queryKey: ['whatsapp-course-progress', id, WELCOME_LEARNER.phone] });
       toast({
-        title: "Welcome message accepted",
-        description: messageId ? `WhatsApp message ID: ${messageId}` : "The message is now visible in Chat History.",
+        title: "Learner enrolled",
+        description: messageId ? `Welcome accepted. Reply to start the first lesson. ID: ${messageId}` : "The learner's course is ready.",
       });
     } catch (sendError) {
       toast({
@@ -344,16 +352,30 @@ const CoursePreview = () => {
                 </Card>
                 <Card className="mt-4">
                   <CardContent className="pt-6">
-                    <h2 className="mb-1 text-lg font-bold">Welcome a learner</h2>
-                    <p className="mb-4 text-sm text-muted-foreground">Send the approved course_welcome message to the configured learner.</p>
+                    <h2 className="mb-1 text-lg font-bold">WhatsApp learner</h2>
+                    <p className="mb-4 text-sm text-muted-foreground">Send the approved welcome; the first lesson follows the learner's reply.</p>
                     <div className="space-y-4">
                       <div className="rounded-md border p-3">
                         <p className="font-medium">{WELCOME_LEARNER.name}</p>
                         <p className="text-sm text-muted-foreground">+91 97660 72308</p>
                       </div>
+                      {enrollment && (
+                        <div className="space-y-2 rounded-md border p-3">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="font-medium capitalize">{enrollment.status}</span>
+                            <span>{enrollment.progress_percentage}%</span>
+                          </div>
+                          <div className="h-2 overflow-hidden rounded-full bg-muted">
+                            <div className="h-full bg-primary" style={{ width: `${enrollment.progress_percentage}%` }} />
+                          </div>
+                          {enrollment.course_certificates?.[0]?.verification_code && (
+                            <p className="text-xs text-muted-foreground">Certificate: {enrollment.course_certificates[0].verification_code}</p>
+                          )}
+                        </div>
+                      )}
                       <Button className="w-full" onClick={handleWelcomeMessage} disabled={welcomeSending}>
                         {welcomeSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                        Send welcome
+                        {enrollment ? "Already enrolled" : "Enroll & send welcome"}
                       </Button>
                     </div>
                   </CardContent>
