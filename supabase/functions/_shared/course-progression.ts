@@ -69,7 +69,7 @@ export async function progressFromReply(phoneNumber: string, text: string) {
     await sendWhatsAppText(phoneNumber, await lessonText(next, currentIndex + 1, resources.length));
     const { error } = await client.from('whatsapp_course_enrollments').update({
       current_resource_id: next.id, progress_percentage: Math.round(((currentIndex + 1) / resources.length) * 100),
-    }).eq('id', enrollment.id).eq('current_resource_id', enrollment.current_resource_id);
+    }).eq('id', enrollment.id);
     if (error) throw error;
     return;
   }

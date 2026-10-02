@@ -226,14 +226,31 @@ Deno.serve(async (req) => {
         const client = createServiceClient();
         const resources = await orderedLessons(courseId);
         if (!resources.length) return jsonResponse({ error: 'Add course lessons before enrolling a learner' }, 409);
-        const first = resources[0];
+        const { data: course, error: courseError } = await client.from('courses').select('title').eq('id', courseId).single();
+        if (courseError) throw courseError;
+        const existing = await client.from('whatsapp_course_enrollments').select('id,status').eq('course_id', courseId).eq('phone_number', recipientDigits).maybeSingle();
+        if (existing.error) throw existing.error;
+        if (existing.data?.status === 'active') return jsonResponse({ error: 'This learner is already active in this course.' }, 409);
+        const result = await callWhatsApp('/messages', 'POST', {
+          messaging_product: 'whatsapp', to: recipientDigits, type: 'template',
+          template: { name: 'course_welcome_v2', language: { code: 'en_US' }, components: [{ type: 'body', parameters: [learnerName, course.title].map((text) => ({ type: 'text', text })) }] },
+        });
+        if (result.error) return result.error;
+        const messageId = result.data?.messages?.[0]?.id;
+        if (typeof messageId !== 'string') return jsonResponse({ error: 'WhatsApp did not return a message ID' }, 502);
+        const { error: historyError } = await client.from('whatsapp_messages').upsert({
+          phone_number: recipientDigits, direction: 'outgoing', template_name: 'course_welcome_v2',
+          content: `course_welcome_v2: ${learnerName}, ${course.title}`, provider_message_id: messageId, status: 'accepted',
+        }, { onConflict: 'provider_message_id', ignoreDuplicates: true });
+        if (historyError) throw historyError;
+        const { error: contactError } = await client.from('whatsapp_contacts').upsert({ phone_number: recipientDigits }, { onConflict: 'phone_number' });
+        if (contactError) throw contactError;
         const { data: enrollment, error: enrollmentError } = await client.from('whatsapp_course_enrollments').upsert({
           course_id: courseId, phone_number: recipientDigits, learner_name: learnerName,
-          current_resource_id: first.id, status: 'active', progress_percentage: 0,
+          current_resource_id: null, status: 'active', progress_percentage: 0,
           awaiting_reply: true, completed_at: null, created_by: staff?.user.id,
         }, { onConflict: 'course_id,phone_number' }).select().single();
         if (enrollmentError) throw enrollmentError;
-        const messageId = await sendWhatsAppText(recipientDigits, `Lesson 1/${resources.length}: ${first.title}\n\n${first.content}\n\nReply NEXT when you are ready for the next lesson.`.slice(0, 4096));
         return jsonResponse({ enrollment, messageId });
       }
 

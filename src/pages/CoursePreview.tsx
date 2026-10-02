@@ -68,7 +68,7 @@ const CoursePreview = () => {
       await queryClient.invalidateQueries({ queryKey: ['whatsapp-course-progress', id, WELCOME_LEARNER.phone] });
       toast({
         title: "Learner enrolled",
-        description: messageId ? `First lesson sent. WhatsApp message ID: ${messageId}` : "The learner's course is ready.",
+        description: messageId ? `Welcome accepted. Reply to start the first lesson. ID: ${messageId}` : "The learner's course is ready.",
       });
     } catch (sendError) {
       toast({
@@ -353,7 +353,7 @@ const CoursePreview = () => {
                 <Card className="mt-4">
                   <CardContent className="pt-6">
                     <h2 className="mb-1 text-lg font-bold">WhatsApp learner</h2>
-                    <p className="mb-4 text-sm text-muted-foreground">Enroll this learner and send the first lesson.</p>
+                    <p className="mb-4 text-sm text-muted-foreground">Send the approved welcome; the first lesson follows the learner's reply.</p>
                     <div className="space-y-4">
                       <div className="rounded-md border p-3">
                         <p className="font-medium">{WELCOME_LEARNER.name}</p>
@@ -375,7 +375,7 @@ const CoursePreview = () => {
                       )}
                       <Button className="w-full" onClick={handleWelcomeMessage} disabled={welcomeSending}>
                         {welcomeSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                        {enrollment ? "Restart course" : "Enroll & send lesson"}
+                        {enrollment ? "Already enrolled" : "Enroll & send welcome"}
                       </Button>
                     </div>
                   </CardContent>
