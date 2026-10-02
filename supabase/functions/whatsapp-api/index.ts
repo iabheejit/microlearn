@@ -232,10 +232,11 @@ Deno.serve(async (req) => {
         const existing = await client.from('whatsapp_course_enrollments').select('id,status').eq('course_id', courseId).eq('phone_number', recipientDigits).maybeSingle();
         if (existing.error) throw existing.error;
         if (existing.data?.status === 'active') return jsonResponse({ error: 'This learner is already active in this course.' }, 409);
-        const { data: activeTemplate, error: templateError } = await client.from('whatsapp_template_versions')
-          .select('provider_template_name,review_status').eq('template_key', 'course_welcome').eq('is_active', true).single();
+        const { data: approvedTemplates, error: templateError } = await client.from('whatsapp_template_versions')
+          .select('provider_template_name').eq('template_key', 'course_welcome').eq('review_status', 'APPROVED').order('version', { ascending: false }).limit(1);
         if (templateError) throw templateError;
-        if (activeTemplate.review_status !== 'APPROVED') return jsonResponse({ error: 'The course welcome template is not approved yet.' }, 409);
+        const activeTemplate = approvedTemplates?.[0];
+        if (!activeTemplate) return jsonResponse({ error: 'The course welcome template is not approved yet.' }, 409);
         const result = await callWhatsApp('/messages', 'POST', {
           messaging_product: 'whatsapp', to: recipientDigits, type: 'template',
           template: { name: activeTemplate.provider_template_name, language: { code: 'en_US' }, components: [{ type: 'body', parameters: [learnerName, course.title].map((text) => ({ type: 'text', text })) }] },
