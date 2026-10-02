@@ -647,6 +647,35 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_progression_events: {
+        Row: {
+          created_at: string
+          enrollment_id: string
+          id: string
+          provider_message_id: string
+        }
+        Insert: {
+          created_at?: string
+          enrollment_id: string
+          id?: string
+          provider_message_id: string
+        }
+        Update: {
+          created_at?: string
+          enrollment_id?: string
+          id?: string
+          provider_message_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_progression_events_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_course_enrollments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_quiz_attempts: {
         Row: {
           attempt_number: number
