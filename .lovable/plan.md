@@ -3,11 +3,17 @@
 ## Goal
 Make WhatsApp conversations reliable end to end: receive genuine callbacks, store every provider message ID and status, answer learners with Lovable AI, advance active courses safely, and remove misleading legacy or placeholder behavior.
 
+## 0. Verify the MicroLearn WABA incoming destination independently
+- Set the MicroLearn WABA connection’s **Incoming messages** destination to this `microlearn` project and verify that the setting remains saved on that specific connection.
+- Before migration or feature work, send a fresh learner message to `+1 659-277-2030` and check independently for a receiver request, callback delivery ID, genuine provider message ID, persisted inbound message, and Chat History row.
+- Treat this as a hard prerequisite: if no callback arrives, stop the end-to-end test and diagnose the connection destination or forwarding path without attributing the failure to course, AI, analytics, or media code.
+- Record the exact observed boundary—connection forwarding, receiver verification, persistence, or Chat History—without manufacturing an inbound event or inferring delivery from an outbound send.
+
 ## 1. Migrate inbound handling to the supported stack
 - Migrate the existing app in place to TanStack Start while preserving portal routes, authentication, course data, Chat History, and the current visual system.
 - Replace the unsupported Classic inbound receiver with the supported public WhatsApp callback route.
 - Keep signature verification, callback delivery-ID deduplication, message-ID deduplication, sanitized diagnostics, and server-only connector credentials.
-- Confirm the MicroLearn WhatsApp connection routes Incoming messages to this project after migration.
+- Re-run the standalone incoming-destination test after migration to confirm the supported receiver still gets genuine callbacks.
 
 ## 2. Make callback processing fast and durable
 - Limit the public callback request to verification, normalization, durable persistence, and queue insertion, then return success promptly.
