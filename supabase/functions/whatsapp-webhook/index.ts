@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
       if (messageError) throw messageError;
       if (message.text?.body) {
         try {
-          await progressFromReply(normalized, message.text.body);
+          await progressFromReply(normalized, message.text.body, message.id);
         } catch (progressError) {
           console.error(`Course progression failed for message ${message.id}:`, progressError);
         }

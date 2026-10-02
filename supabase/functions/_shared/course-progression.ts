@@ -31,6 +31,13 @@ export async function progressFromReply(phoneNumber: string, text: string) {
   // A phone enrolled in two active courses cannot be advanced unambiguously.
   if (!enrollments?.length || enrollments.length > 1) return;
   const enrollment = enrollments[0];
+  const { data: processed, error: processedError } = await client.from('whatsapp_progression_events')
+    .insert({ enrollment_id: enrollment.id, provider_message_id: arguments[2] }).select('id').maybeSingle();
+  if (processedError) {
+    if (processedError.code === '23505') return;
+    throw processedError;
+  }
+  if (!processed) return;
   const resources = await orderedLessons(enrollment.course_id);
   if (!resources.length) return;
   const currentIndex = resources.findIndex((resource) => resource.id === enrollment.current_resource_id);

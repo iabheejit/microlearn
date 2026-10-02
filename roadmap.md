@@ -22,4 +22,4 @@
 - [x] Submit course_welcome version 2 to the new MicroLearn WABA and activate approval monitoring
 - [ ] Wait for Meta approval of course_welcome version 2, then verify automatic delivery to +919766072308
 - [ ] Send a fresh “hi” to +1 659-277-2030 and verify the inbound message and portal reply in Chat History (blocked by callback support)
-- [x] Connect incoming learner replies to lesson progress, quiz attempts, and certificate completion
+- [x] Connect incoming learner replies to lesson progress, quiz attempts, and certificate completion (verified with signed callback tests; awaiting a live Meta callback)
