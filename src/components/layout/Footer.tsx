@@ -1,5 +1,5 @@
 
-import { Link } from "react-router-dom";
+import { Link } from "@/lib/router-compat";
 import { APP_NAME } from "@/lib/constants";
 import BrandLogo from "@/components/BrandLogo";
 

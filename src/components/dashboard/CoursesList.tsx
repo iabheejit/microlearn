@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/lib/router-compat";
 import { useMutation, useQueryClient } from "@tanstack/react-query"; 
 import { Course } from "@/lib/types";
 import { Button } from "@/components/ui/button";

@@ -12,7 +12,7 @@ import { WhatsAppTemplate } from "@/lib/types";
 import { useToast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { sendTestMessage } from "@/services/whatsappService";
-import { Link } from "react-router-dom";
+import { Link } from "@/lib/router-compat";
 import { ROUTES } from "@/lib/constants";
 
 interface WhatsAppIntegrationProps {

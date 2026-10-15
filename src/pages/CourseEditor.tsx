@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useLocation, useNavigate } from "react-router-dom";
+import { useParams, useLocation, useNavigate } from "@/lib/router-compat";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Sidebar from "@/components/dashboard/Sidebar";
 import CourseEditorComponent from "@/components/dashboard/CourseEditor";
@@ -15,8 +15,9 @@ const CourseEditorPage = () => {
   const queryClient = useQueryClient();
   
   // Check if we have a course from the location state (for new courses)
-  const courseFromState = location.state?.course;
-  const isNewCourse = location.state?.isNew || false;
+  const navState = location.state as { course?: Course; isNew?: boolean } | null;
+  const courseFromState = navState?.course;
+  const isNewCourse = navState?.isNew || false;
   
   // Fetch course data if editing an existing course
   const { data: existingCourse, isLoading } = useQuery({
