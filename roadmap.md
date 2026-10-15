@@ -25,6 +25,8 @@
 - [x] Connect incoming learner replies to lesson progress, quiz attempts, and certificate completion (deployed; awaiting a live Meta callback)
 
 ## Upgrade (TanStack Start)
+- [x] Correct the callback signing key and test verification without inserting fake incoming messages
+- [ ] Publish the callback signing-key correction and verify a fresh real incoming message (blocked: publish update and fresh learner message required)
 - [x] Upgrade portal to TanStack Start and add the bare signed WhatsApp callback route
 - [ ] Point MicroLearn WABA "Incoming messages" at the upgraded app and send a real learner message (blocked: needs the user, after publishing)
 - [ ] Move course progression, staff actions and templates onto the new route/server functions (handed to the parallel agent)
