@@ -1,71 +1,70 @@
-# Complete WhatsApp messaging and AI conversation flow
+# MicroLearn: real two-way WhatsApp courses with AI replies
 
 ## Goal
-Make WhatsApp conversations reliable end to end: receive genuine callbacks, store every provider message ID and status, answer learners with Lovable AI, advance active courses safely, and remove misleading legacy or placeholder behavior.
+A learner messages +1 659-277-2030, the message appears in Chat History with its real message ID, and the portal answers automatically: either the next lesson or quiz feedback, or an AI tutor reply. Every message and its status comes from WhatsApp itself. Nothing is inserted by hand.
 
-## 0. Verify the MicroLearn WABA incoming destination independently
-- Set the MicroLearn WABA connection’s **Incoming messages** destination to this `microlearn` project and verify that the setting remains saved on that specific connection.
-- Before migration or feature work, send a fresh learner message to `+1 659-277-2030` and check independently for a receiver request, callback delivery ID, genuine provider message ID, persisted inbound message, and Chat History row.
-- Treat this as a hard prerequisite: if no callback arrives, stop the end-to-end test and diagnose the connection destination or forwarding path without attributing the failure to course, AI, analytics, or media code.
-- Record the exact observed boundary—connection forwarding, receiver verification, persistence, or Chat History—without manufacturing an inbound event or inferring delivery from an outbound send.
+## How the work runs
+The work happens in phases, each with a pass/fail check. A phase starts only after the one before it passes. If a check fails, work stops and the plan reports exactly where the message got stuck.
 
-## 1. Migrate inbound handling to the supported stack
-- Migrate the existing app in place to TanStack Start while preserving portal routes, authentication, course data, Chat History, and the current visual system.
-- Replace the unsupported Classic inbound receiver with the supported public WhatsApp callback route.
-- Keep signature verification, callback delivery-ID deduplication, message-ID deduplication, sanitized diagnostics, and server-only connector credentials.
-- Re-run the standalone incoming-destination test after migration to confirm the supported receiver still gets genuine callbacks.
+```text
+Phase 0  Connection check      -> learner "hi" is forwarded at all?
+Phase 1  Upgrade the app       -> same portal, new foundation, "hi" lands in Chat History
+Phase 2  Reliable intake       -> fast receipt, a queue, no double replies
+Phase 3  Course + AI replies   -> lessons, quizzes and AI answers go out automatically
+Phase 4  Clean-up & insights   -> real contacts, real stats, templates, media
+Phase 5  Full live test        -> two-turn conversation proven end to end
+```
 
-## 2. Make callback processing fast and durable
-- Limit the public callback request to verification, normalization, durable persistence, and queue insertion, then return success promptly.
-- Add a database-backed job queue for course progression, AI replies, media retrieval, and retryable provider sends.
-- Claim jobs atomically, enforce bounded retry/backoff for transient failures, and retain terminal failure details for staff diagnostics.
-- Keep one processing event per provider message ID so callback retries cannot advance a learner or send an AI answer twice.
+## Phase 0: Confirm the connection is forwarding (you + me, about 5 minutes)
+- You confirm that **Incoming messages = microlearn** is saved on the **MicroLearn WABA** connection itself. The old Ekatra connection's setting does not carry over.
+- You send a fresh "hi" to +1 659-277-2030. I check for any forwarding attempt, even a rejected one.
+- **Pass:** some forwarding attempt shows up, or the connector requires the upgrade before it will forward. Then Phase 1 starts.
+- **Fail:** the setting is not saved or not available. Then I stop and tell you what to change. No code work happens.
 
-## 3. Add AI replies without breaking course progression
-- Use Lovable AI with `openai/gpt-6-astra` from server-only code and preserve the existing stored WhatsApp conversation per phone number.
-- Build the prompt from the recent persisted conversation plus the learner’s active course and relevant course resources.
-- Route unambiguous active-course answers through the deterministic lesson/quiz progression engine first; use AI for tutoring, clarification, and ordinary conversation rather than overriding quiz grading.
-- Persist the inbound learner message before AI work, then persist the AI reply only after WhatsApp returns a genuine provider message ID.
-- Enforce the verified 24-hour reply window for all free-form AI and staff replies; use an approved template only for a valid business-initiated flow.
-- Record AI run correlation and safe failure details without storing secrets or model reasoning.
+## Phase 1: Upgrade the app foundation (in place)
+- Upgrade to the modern stack (TanStack Start). Pages, sign-in (including the demo login), courses, Chat History, Meta Templates, Telegram and the Ekatra look all stay the same.
+- Move the WhatsApp message receiver onto the supported route. It keeps signature checks and duplicate protection.
+- Course, user and chat data are not touched. You can revert from chat history.
+- **Pass:** the app builds, every main page opens while signed in, the Telegram test still works, and a fresh WhatsApp "hi" is stored with its real message ID and shows in Chat History.
 
-## 4. Replace placeholder contacts and analytics
-- Treat WhatsApp contacts as a portal conversation index derived from genuine inbound/outbound interactions; do not claim Meta exposes a contact directory when it does not.
-- Remove `getContacts`’ empty placeholder and return persisted, deduplicated contacts with last interaction, direction, status, and message totals.
-- Replace empty analytics objects with live operational metrics computed from stored messages and callbacks: sent, accepted, delivered, read, failed, inbound, response time, reply-window state, and course progression outcomes.
-- Clearly label these as portal-observed WhatsApp metrics; do not fabricate Meta billing or account-level analytics unavailable through the connector.
+## Phase 2: Reliable message intake
+- The receiver only checks, saves, queues and confirms. That keeps it inside WhatsApp's 5-second limit.
+- A background queue does the slow work: course progression, AI replies, sending messages and fetching media. It retries with limits and shows failures to staff.
+- Each incoming message ID is processed only once, so a retry can never double-advance a learner or send two replies.
+- **Pass:** sending the same callback twice gives exactly one stored message and one action.
 
-## 5. Consolidate template synchronization
-- Remove all remaining WATI wording from portal logs and errors.
-- Make the versioned template records and their audit events authoritative.
-- Sync provider status into existing versions without deleting and reinserting the local cache.
-- Keep submission, approval, rejection, resubmission, and send history linked to provider template IDs.
+## Phase 3: Automatic course and AI replies
+- Decision order for each incoming text:
+  1. Is the learner enrolled in exactly one active course that is waiting for an answer? Then the existing lesson and quiz engine grades the answer and sends the next lesson, a correction, or the certificate.
+  2. Otherwise, the AI tutor answers. It uses the recent WhatsApp conversation plus the learner's course material.
+- Free-form replies go out only inside the 24-hour window that the learner's message opens. Outside that window, only the approved welcome template is used.
+- The AI never overrides quiz grading. A reply is saved only after WhatsApp returns a real message ID. Each message is tagged as course, AI or staff.
 
-## 6. Support incoming media safely
-- Parse inbound image, audio, video, and document metadata instead of storing generic placeholder text.
-- Fetch media server-side through the connected WhatsApp gateway only when that operation is supported, validate size/type, and store files privately.
-- Save message/media metadata and expose authenticated signed access in Chat History.
-- If the gateway does not expose retrieval for a received media ID, retain the genuine media ID/type and show an explicit unavailable state rather than inventing content.
+## Phase 4: Fill the known gaps
+- **Contacts:** built from real conversations (last message, direction, totals) instead of an empty list.
+- **Analytics:** real counts from stored messages: sent, accepted, delivered, read, failed, incoming, response time and course completions. They are labeled as portal-observed, with no invented Meta figures.
+- **Templates:** the versioned Meta Templates records become the single source of truth. Status updates change those records in place, with no delete-and-reload. All leftover "WATI" wording is removed.
+- **Media:** photos, voice notes, videos and documents are stored privately and viewable by staff. If WhatsApp doesn't let us fetch a file, Chat History shows its type and ID with a clear "not available" label.
+- **Chat History:** shows direction, message ID, status timestamps, source (course, AI or staff), and queue errors with a safe retry button. The "save outbound record by hand" shortcut is removed.
 
-## 7. Strengthen Chat History and diagnostics
-- Keep conversations grouped by persisted contact and show inbound/outbound direction, provider message ID, callback status, delivery/read/failure timestamps, media, AI/manual origin, and processing state.
-- Add visible queue and AI failure states for staff, with a safe manual retry only for retryable jobs.
-- Continue realtime updates with bounded polling as fallback; polling observes stored callbacks and does not manufacture delivery state.
-- Remove any path that manually inserts a fake provider event. Manual sends appear only after the gateway returns a real message ID.
+## Phase 5: Full live test (needs your phone)
+1. Send the approved welcome to +919766072308 and record its real message ID.
+2. You reply. Your message appears in Chat History with its message ID, and an automatic course or AI reply follows with its own message ID.
+3. You reply a second time. The answer shows it remembers the conversation.
+4. "Delivered" and "read" are marked only if WhatsApp sends those updates.
+5. Edge cases: duplicate callback, two active courses on one number, reply after 24 hours, AI out of credits, failed send, unsupported media.
 
-## 8. Live verification
-- Verify the AI Gateway with a real server-side request and a follow-up using stored conversation context.
-- Send an approved welcome template and record its real provider message ID.
-- From a learner phone, send a fresh reply to `+1 659-277-2030`; confirm the genuine inbound message ID, callback delivery ID, contact update, and Chat History row.
-- Confirm the queued course/AI decision runs once, WhatsApp accepts the reply, and the outbound provider message ID appears in Chat History.
-- Complete a second learner turn to prove back-and-forth context, then verify delivered/read only if matching Meta status callbacks arrive.
-- Test duplicate callbacks, ambiguous concurrent enrollments, closed 24-hour windows, AI credit/rate errors, failed sends, and unsupported media.
+## Done means
+Chat History shows a real incoming message ID and a real automatic reply message ID, two turns in a row, with no manual inserts. Your phone physically receiving a message is reported separately from WhatsApp's own delivered/read updates.
+
+## What I need from you
+- Phase 0: confirm the Incoming messages setting and send one "hi".
+- Phase 5: about 10 minutes of replying from your phone.
+- Enough credits. The upgrade (Phase 1) is the largest step.
 
 ## Technical details
-- Add migrations for queue jobs, message origin/AI correlation, contact aggregates or query support, and media metadata; include grants, row-level policies, indexes, and service-role access for every new public table.
-- Keep all WhatsApp provider operations in shared server-side helpers, and keep the existing rule that a phone advances a course only when at most one active enrollment awaits a reply.
-- Use the Responses API through the AI SDK, streamed and consumed server-side, with request-scoped gateway run IDs, `store: false`, required reasoning options, and the documented 400/401/402/403/429/5xx behavior.
-- Preserve string UUIDs throughout and record the TanStack migration and queue boundary as architecture rules.
-
-## Completion standard
-The work is complete only after the portal stores a real inbound callback and message ID, sends a real AI/course reply with a second provider message ID, and displays both in Chat History. Physical receipt may be reported separately; delivery/read are confirmed only by matching Meta callbacks.
+- Phase 1 follows the migrate-to-tanstack skill: preflight build gate, scan, template swap, routes generated from `App.tsx`, port custom theme tokens from `index.css`, port `index.html` metadata to `__root.tsx` `head()`, Supabase client SSR guard. The WhatsApp receiver moves to the connector-supported server route and keeps `verifyWebhookRequest` (LOVABLE_API_KEY), dedup on `x-lovable-delivery`, and the unique `provider_message_id`.
+- New tables (each with GRANTs, RLS, service_role, indexes): `message_jobs` (type, payload, status, attempts, run_after, last_error, unique dedupe key; atomic claim via `FOR UPDATE SKIP LOCKED`), plus new nullable columns on `whatsapp_messages`: `origin` (course/ai/staff/template), `ai_run_id`, `media_type`, `media_id`, `media_path`, `processing_state`. A private storage bucket holds media.
+- The queue worker runs as a server function triggered right after enqueue, with scheduled sweeps for retries. Backoff is bounded (e.g. 5 attempts).
+- AI: Lovable AI Gateway Responses API via AI SDK, `openai/gpt-6-astra`, server-only, `store: false`, request-scoped run IDs, 402/429 surfaced as job failures.
+- Keep the existing rules: provider calls go only through shared helpers; a phone advances a course only with at most one active enrollment awaiting a reply; string UUIDs. Record the queue boundary and the stack change in AGENTS.md.
