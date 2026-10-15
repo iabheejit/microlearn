@@ -9,18 +9,20 @@ export const Route = createFileRoute("/api/public/whatsapp/webhook")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const secret = process.env.LOVABLE_API_KEY;
+        const secret = process.env.WHATSAPP_API_KEY;
         if (!secret) return json({ error: "Callback verification is not configured" }, 500);
 
         let payload: unknown;
         try {
-          ({ payload } = await verifyWebhookRequest({ req: request, secret, maxBodyBytes: 1024 * 1024 }));
+          ({ payload } = await verifyWebhookRequest({ req: request, secret, maxBodyBytes: 4 * 1024 * 1024 }));
         } catch (error) {
           const reason = error instanceof Error ? error.message : "invalid signature";
           return json({ error: `Verification failed: ${reason}` }, 401);
         }
 
-        const deliveryId = request.headers.get("x-lovable-delivery")?.trim() || crypto.randomUUID();
+        const deliveryId = request.headers.get("x-lovable-delivery")?.trim();
+        const event = request.headers.get("x-lovable-event")?.trim();
+        if (!deliveryId || !event) return json({ error: "Missing callback delivery or event header" }, 400);
         try {
           const result = await persistWhatsAppCallback(deliveryId, payload);
           return json({ ok: true, ...result });
