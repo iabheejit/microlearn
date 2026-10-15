@@ -1,0 +1,20 @@
+{
+  "customizations": [
+    { "token": "Ekatra light palette (:root colour variables)", "source": "src/index.css", "reappliedIn": "src/styles.css" },
+    { "token": "Ekatra dark palette (.dark colour variables)", "source": "src/index.css", "reappliedIn": "src/styles.css" },
+    { "token": "--radius 0.5rem", "source": "src/index.css", "reappliedIn": "src/styles.css" },
+    { "token": "glass-panel", "source": "src/index.css", "reappliedIn": "src/styles.css" },
+    { "token": "icon-bounce", "source": "src/index.css", "reappliedIn": "src/styles.css" },
+    { "token": "text-gradient", "source": "src/index.css", "reappliedIn": "src/styles.css" },
+    { "token": "hover-scale", "source": "src/index.css", "reappliedIn": "src/styles.css" },
+    { "token": "hide-scrollbar", "source": "src/index.css", "reappliedIn": "src/styles.css" },
+    { "token": "html smooth scrolling", "source": "src/index.css", "reappliedIn": "src/styles.css" },
+    { "token": "container (centered, 2rem padding, 1400px)", "source": "tailwind.config.ts", "reappliedIn": "src/styles.css" },
+    { "token": "animate-fade-in", "source": "tailwind.config.ts", "reappliedIn": "src/styles.css" },
+    { "token": "animate-fade-out", "source": "tailwind.config.ts", "reappliedIn": "src/styles.css" },
+    { "token": "animate-scale-in", "source": "tailwind.config.ts", "reappliedIn": "src/styles.css" },
+    { "token": "animate-slide-in-right", "source": "tailwind.config.ts", "reappliedIn": "src/styles.css" },
+    { "token": "animate-slide-in-bottom", "source": "tailwind.config.ts", "reappliedIn": "src/styles.css" },
+    { "token": "animate-pulse-subtle", "source": "tailwind.config.ts", "reappliedIn": "src/styles.css" }
+  ]
+}
