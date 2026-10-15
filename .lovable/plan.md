@@ -15,6 +15,45 @@ Phase 4  Clean-up & insights   -> real contacts, real stats, templates, media
 Phase 5  Full live test        -> two-turn conversation proven end to end
 ```
 
+## Splitting the work: what I do alone vs. what runs in parallel
+
+### Only I can do this, one step at a time (the minimum)
+Everything else depends on these steps, and two agents working on them at once would collide.
+1. **Phase 0 connection check.** It needs your phone and your connection setting.
+2. **Phase 1 app upgrade.** It rewrites the app's foundation, which touches almost every page. Nobody else can safely edit pages while it runs.
+3. **Shared groundwork, done right after the upgrade:**
+   - Add the new message fields: origin, AI run, media and processing state.
+   - Add the queue table.
+   - Write a short **contract note** that freezes the data shape both tracks build against.
+
+When step 3 is finished, the work splits into two tracks.
+
+### Parallel tracks (each owns separate files, so the merge stays clean)
+
+```text
+                 +-- Track A (me): engine ----------------------+
+Upgrade + shared |   receiver, queue worker, course + AI replies, |--> Merge + live test (me)
+groundwork (me) -+                                                 |
+                 +-- Track B (second agent): portal screens -------+
+                     contacts, analytics, templates, media viewer,
+                     Chat History labels, WATI wording clean-up
+```
+
+- **Track A (me): the server side.** This covers the message receiver, the queue worker, the decision between course and AI, AI replies, and the 24-hour rule (Phases 2 and 3). It needs real callbacks and secrets, so it stays with me.
+- **Track B (second agent): the portal side.** This covers the contacts list, analytics numbers, template sync clean-up, removing "WATI" wording, the media viewer and Chat History labels (Phase 4). It reads only the frozen data shape. It can be built and checked against existing stored messages without live WhatsApp.
+- **Rules that keep the tracks apart:**
+  - Track B never edits the WhatsApp server functions or the database structure.
+  - Track A never edits portal pages, except one switch to receive a new field if one is needed.
+  - Any change to the data shape goes back through me.
+
+### Merge (only I can do this)
+- Bring Track B's work in, then check the build and every main page while signed in.
+- Run the Phase 5 live test with your phone, from start to finish.
+- Fix anything where the two tracks meet: Chat History showing queue errors and AI or course labels from Track A's data.
+
+### What this saves
+Phases 2–3 and Phase 4 take about the same effort. Running them side by side cuts that middle stretch roughly in half. The upgrade and the live test can't be shortened, because they depend on one shared codebase and on your phone.
+
 ## Phase 0: Confirm the connection is forwarding (you + me, about 5 minutes)
 - You confirm that **Incoming messages = microlearn** is saved on the **MicroLearn WABA** connection itself. The old Ekatra connection's setting does not carry over.
 - You send a fresh "hi" to +1 659-277-2030. I check for any forwarding attempt, even a rejected one.
@@ -68,3 +107,4 @@ Chat History shows a real incoming message ID and a real automatic reply message
 - The queue worker runs as a server function triggered right after enqueue, with scheduled sweeps for retries. Backoff is bounded (e.g. 5 attempts).
 - AI: Lovable AI Gateway Responses API via AI SDK, `openai/gpt-6-astra`, server-only, `store: false`, request-scoped run IDs, 402/429 surfaced as job failures.
 - Keep the existing rules: provider calls go only through shared helpers; a phone advances a course only with at most one active enrollment awaiting a reply; string UUIDs. Record the queue boundary and the stack change in AGENTS.md.
+- Parallel mechanics: Track B runs as a separate draft (isolated backend copy) or a background agent, with file ownership as follows. Track A owns server functions, `_shared/*` and migrations. Track B owns `src/pages/*`, `src/components/*` and `src/services/*` read paths. Track B works from the contract note, `docs/whatsapp-data-contract.md`, which lists the columns, enums and server endpoints with their response shapes. The merge accepts the draft and re-runs the build, the type check and a Playwright check of the main pages.
