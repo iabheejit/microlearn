@@ -1,0 +1,11 @@
+{"functions": [
+  {"name": "admin-user-management", "classification": "internal-only", "signal": "called from src/; move deferred by user (staff actions handled by follow-up work)", "outcome": "left"},
+  {"name": "ai-tutor", "classification": "internal-only", "signal": "called from src/hooks; move deferred by user", "outcome": "left"},
+  {"name": "demo-auth", "classification": "internal-only", "signal": "called from AuthProvider; move deferred by user", "outcome": "left"},
+  {"name": "find-similar-resources", "classification": "internal-only", "signal": "called from src/; move deferred by user", "outcome": "left"},
+  {"name": "generate-embedding", "classification": "internal-only", "signal": "called from src/; move deferred by user", "outcome": "left"},
+  {"name": "telegram-webhook", "classification": "webhook receiver", "signal": "public Telegram callback URL; also invoked for sends", "outcome": "left"},
+  {"name": "whatsapp-api", "classification": "internal-only", "signal": "called from whatsappService; move deferred by user", "outcome": "left"},
+  {"name": "whatsapp-template-monitor", "classification": "cron target", "signal": "scheduled template status monitor", "outcome": "left"},
+  {"name": "whatsapp-webhook", "classification": "webhook receiver", "signal": "verifies Lovable callback signature; replaced by new public route but kept as rollback", "outcome": "left"}
+]}
