@@ -83,7 +83,7 @@ export const updateUserRole = async (userId: string, role: UserRole) => {
 export const updateUserStatus = async (userId: string, isActive: boolean) => {
   const { error } = await supabase.auth.admin.updateUserById(
     userId,
-    { ban_duration: isActive ? null : 'none' }
+    { ban_duration: isActive ? 'none' : '876000h' }
   );
   
   if (error) throw error;
