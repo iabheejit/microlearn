@@ -154,7 +154,6 @@ export const syncWhatsAppContacts = async (): Promise<any[]> => {
   try {
     console.log("Starting WhatsApp contacts sync...");
     
-    // Force fetch from WATI API
     const { data, error } = await supabase.functions.invoke("whatsapp-api", {
       body: { endpoint: "getContacts" }
     });
@@ -169,41 +168,8 @@ export const syncWhatsAppContacts = async (): Promise<any[]> => {
       throw new Error("Invalid response format from WhatsApp API for contacts");
     }
     
-    console.log(`Received ${data.contacts.length} contacts from WATI API`);
-    
-    const contacts = data.contacts || [];
-    
-    // Store the contacts in Supabase
-    if (contacts.length > 0) {
-      // First delete all existing contacts
-      const { error: deleteError } = await supabase
-        .from('whatsapp_contacts')
-        .delete()
-        .gt('id', '0');
-      
-      if (deleteError) {
-        console.error("Error deleting existing contacts:", deleteError);
-      } else {
-        console.log("Successfully deleted existing contacts");
-      }
-      
-      // Then insert the fresh ones
-      const { error: insertError } = await supabase
-        .from('whatsapp_contacts')
-        .insert(
-          contacts.map((contact: any) => ({
-            wati_id: contact.id || null, 
-            phone_number: contact.phoneNumber || contact.phone_number,
-            name: contact.name || null
-          }))
-        );
-      
-      if (insertError) {
-        console.error("Error storing contacts in Supabase:", insertError);
-      } else {
-        console.log(`Successfully stored ${contacts.length} contacts in Supabase`);
-      }
-    }
+    // Contacts are maintained server-side from real WhatsApp interactions; nothing to write here.
+    const contacts = data.contacts;
 
     return contacts;
   } catch (error) {

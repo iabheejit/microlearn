@@ -1,93 +1,96 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createServiceClient, requireStaff } from '../_shared/auth.ts';
+import { callWhatsAppGateway, sendWhatsAppTemplate } from '../_shared/whatsapp.ts';
+import { normalizePhone } from '../_shared/whatsapp-logic.ts';
 
-const GATEWAY_URL = 'https://connector-gateway.lovable.dev/whatsapp';
-const TARGET_PHONE = '919766072308';
-const TARGET_PARAMETERS = ['Abheejit', 'WhatsApp Learning Essentials'];
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-async function gateway(path: string, method = 'GET', body?: unknown) {
-  const lovable = Deno.env.get('LOVABLE_API_KEY');
-  const whatsapp = Deno.env.get('WHATSAPP_API_KEY');
-  if (!lovable || !whatsapp) throw new Error('WhatsApp Business connection is not configured');
-  const response = await fetch(`${GATEWAY_URL}${path}`, { method, headers: {
-    Authorization: `Bearer ${lovable}`, 'X-Connection-Api-Key': whatsapp, 'Content-Type': 'application/json',
-  }, body: body === undefined ? undefined : JSON.stringify(body) });
-  const text = await response.text();
-  let data: Record<string, unknown> = {};
-  try { data = JSON.parse(text); } catch { data = { raw: text }; }
-  if (!response.ok) throw new Error(`WhatsApp request failed (${response.status}): ${text.slice(0, 1000)}`);
-  return data;
-}
+const REVIEW_STATUSES = new Set(['DRAFT', 'PENDING', 'APPROVED', 'REJECTED', 'PAUSED', 'ERROR']);
+
+const timingSafeEqual = (a: string, b: string) => {
+  const left = new TextEncoder().encode(a);
+  const right = new TextEncoder().encode(b);
+  if (left.length !== right.length) return false;
+  let diff = 0;
+  for (let index = 0; index < left.length; index++) diff |= left[index] ^ right[index];
+  return diff === 0;
+};
+
+// Scheduled runs authenticate with a dedicated server-side secret, never a key shipped to browsers.
+const isScheduledRun = (req: Request) => {
+  const secret = Deno.env.get('TEMPLATE_MONITOR_SECRET');
+  const provided = req.headers.get('x-template-monitor-secret');
+  return Boolean(secret && provided && timingSafeEqual(provided, secret));
+};
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
   try {
-    const authorization = req.headers.get('Authorization');
-    const scheduled = req.headers.get('x-template-monitor') === 'scheduled'
-      && authorization === `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`;
+    const scheduled = isScheduledRun(req);
     if (!scheduled) await requireStaff(req);
 
     const client = createServiceClient();
-    const { data: version, error: versionError } = await client.from('whatsapp_template_versions')
-      .select('*').eq('template_key', 'course_welcome').eq('is_active', true).maybeSingle();
-    if (versionError) throw versionError;
+    const { data: versions, error: versionsError } = await client.from('whatsapp_template_versions')
+      .select('*').eq('template_key', 'course_welcome').not('review_status', 'in', '(DRAFT,ERROR)');
+    if (versionsError) throw versionsError;
+    const version = versions?.find((candidate) => candidate.is_active);
     if (!version) return json({ ok: true, state: 'not_configured' });
     if (scheduled && version.last_checked_at && Date.now() - new Date(version.last_checked_at).getTime() < 4 * 60 * 1000) {
       return json({ ok: true, state: 'recently_checked' });
     }
 
-    const templatesResponse = await gateway('/message_templates?fields=id,name,status,language,category,components,rejected_reason&limit=100');
+    // Refresh every submitted version: enrollment uses the latest approved one, which may not be the active one.
+    const templatesResponse = await callWhatsAppGateway('/message_templates?fields=id,name,status,language,category,components,rejected_reason&limit=100');
     const templates = Array.isArray(templatesResponse.data) ? templatesResponse.data as Record<string, unknown>[] : [];
-    const remote = templates.find((item) => item.name === version.provider_template_name);
-    const reviewStatus = String(remote?.status || version.review_status).toUpperCase();
-    const rejectionReason = reviewStatus === 'REJECTED' ? String(remote?.rejected_reason || 'Meta requested changes') : null;
     const checkedAt = new Date().toISOString();
-    const { error: updateVersionError } = await client.from('whatsapp_template_versions').update({
-      review_status: reviewStatus, rejection_reason: rejectionReason, provider_template_id: remote?.id ? String(remote.id) : version.provider_template_id,
-      provider_response: remote || version.provider_response, last_checked_at: checkedAt,
-    }).eq('id', version.id);
-    if (updateVersionError) throw updateVersionError;
-    await client.from('whatsapp_template_events').insert({ template_version_id: version.id, event_type: 'approval_checked', status: reviewStatus, details: { checked_at: checkedAt } });
-    if (reviewStatus !== 'APPROVED') return json({ ok: true, state: reviewStatus });
+    let activeStatus = version.review_status;
+    for (const candidate of versions || []) {
+      const remote = templates.find((item) => item.name === candidate.provider_template_name);
+      const remoteStatus = String(remote?.status || candidate.review_status).toUpperCase();
+      // Only statuses allowed by the review_status check constraint are stored.
+      const reviewStatus = REVIEW_STATUSES.has(remoteStatus) ? remoteStatus : remoteStatus === 'DISABLED' ? 'PAUSED' : candidate.review_status;
+      const rejectionReason = reviewStatus === 'REJECTED' ? String(remote?.rejected_reason || 'Meta requested changes') : null;
+      const { error: updateVersionError } = await client.from('whatsapp_template_versions').update({
+        review_status: reviewStatus, rejection_reason: rejectionReason, provider_template_id: remote?.id ? String(remote.id) : candidate.provider_template_id,
+        provider_response: remote || candidate.provider_response, last_checked_at: checkedAt,
+      }).eq('id', candidate.id);
+      if (updateVersionError) throw updateVersionError;
+      if (reviewStatus !== candidate.review_status || candidate.id === version.id) {
+        await client.from('whatsapp_template_events').insert({ template_version_id: candidate.id, event_type: 'approval_checked', status: reviewStatus, details: { checked_at: checkedAt } });
+      }
+      if (candidate.id === version.id) activeStatus = reviewStatus;
+    }
+    if (activeStatus !== 'APPROVED') return json({ ok: true, state: activeStatus });
 
-    const { data: job, error: jobError } = await client.from('whatsapp_template_send_jobs').upsert({
-      template_version_id: version.id, recipient_phone: TARGET_PHONE, parameters: TARGET_PARAMETERS,
-    }, { onConflict: 'template_version_id,recipient_phone', ignoreDuplicates: true }).select().maybeSingle();
+    // Optional one-time test send of a newly approved version, to a number configured server-side.
+    const testPhone = normalizePhone(Deno.env.get('TEMPLATE_MONITOR_TEST_PHONE') || '');
+    if (!testPhone) return json({ ok: true, state: activeStatus });
+    const parameters = Array.isArray(version.sample_values) ? version.sample_values.map(String) : [];
+
+    const { error: jobError } = await client.from('whatsapp_template_send_jobs').upsert({
+      template_version_id: version.id, recipient_phone: testPhone, parameters,
+    }, { onConflict: 'template_version_id,recipient_phone', ignoreDuplicates: true });
     if (jobError) throw jobError;
-    const { data: queuedJob, error: queuedError } = job
-      ? { data: job, error: null }
-      : await client.from('whatsapp_template_send_jobs').select('*').eq('template_version_id', version.id).eq('recipient_phone', TARGET_PHONE).single();
+    const { data: queuedJob, error: queuedError } = await client.from('whatsapp_template_send_jobs')
+      .select('*').eq('template_version_id', version.id).eq('recipient_phone', testPhone).single();
     if (queuedError) throw queuedError;
-    if (!queuedJob || queuedJob.status !== 'queued') return json({ ok: true, state: queuedJob?.status || 'already_processed' });
+    if (queuedJob.status !== 'queued') return json({ ok: true, state: queuedJob.status });
 
-    const claimedAt = new Date().toISOString();
     const { data: claimed, error: claimError } = await client.from('whatsapp_template_send_jobs').update({
-      status: 'processing', claimed_at: claimedAt, attempt_count: queuedJob.attempt_count + 1,
+      status: 'processing', claimed_at: new Date().toISOString(), attempt_count: queuedJob.attempt_count + 1,
     }).eq('id', queuedJob.id).eq('status', 'queued').select().maybeSingle();
     if (claimError) throw claimError;
     if (!claimed) return json({ ok: true, state: 'claimed_elsewhere' });
 
     try {
-      const components = TARGET_PARAMETERS.length ? [{ type: 'body', parameters: TARGET_PARAMETERS.map((text) => ({ type: 'text', text })) }] : [];
-      const response = await gateway('/messages', 'POST', { messaging_product: 'whatsapp', to: TARGET_PHONE, type: 'template', template: {
-        name: version.provider_template_name, language: { code: version.language }, components,
-      } });
-      const messages = Array.isArray(response.messages) ? response.messages as Record<string, unknown>[] : [];
-      const providerMessageId = messages[0]?.id ? String(messages[0].id) : null;
-      const sentAt = new Date().toISOString();
-      await client.from('whatsapp_contacts').upsert({ phone_number: TARGET_PHONE }, { onConflict: 'phone_number' });
-      const { error: messageError } = await client.from('whatsapp_messages').insert({ phone_number: TARGET_PHONE, direction: 'outgoing',
-        template_name: version.provider_template_name, content: `${version.provider_template_name}: ${TARGET_PARAMETERS.join(', ')}`,
-        provider_message_id: providerMessageId, status: 'accepted', sent_at: sentAt });
-      if (messageError) throw messageError;
-      const { error: sentError } = await client.from('whatsapp_template_send_jobs').update({ status: 'accepted', provider_message_id: providerMessageId,
-        provider_response: response, sent_at: sentAt, error_message: null }).eq('id', claimed.id);
+      const { messageId, response } = await sendWhatsAppTemplate(testPhone, version.provider_template_name, parameters, version.language);
+      const { error: sentError } = await client.from('whatsapp_template_send_jobs').update({ status: 'accepted', provider_message_id: messageId,
+        provider_response: response, sent_at: new Date().toISOString(), error_message: null }).eq('id', claimed.id).eq('status', 'processing');
       if (sentError) throw sentError;
       await client.from('whatsapp_template_events').insert({ template_version_id: version.id, send_job_id: claimed.id,
-        event_type: 'send_accepted', status: 'accepted', details: { provider_message_id: providerMessageId, recipient_phone: TARGET_PHONE } });
-      return json({ ok: true, state: 'accepted', providerMessageId });
+        event_type: 'send_accepted', status: 'accepted', details: { provider_message_id: messageId } });
+      return json({ ok: true, state: 'accepted', providerMessageId: messageId });
     } catch (sendError) {
       const message = sendError instanceof Error ? sendError.message.slice(0, 2000) : 'Template send failed';
       await client.from('whatsapp_template_send_jobs').update({ status: 'failed', failed_at: new Date().toISOString(), error_message: message }).eq('id', claimed.id);
@@ -96,7 +99,7 @@ Deno.serve(async (req) => {
       throw sendError;
     }
   } catch (error) {
-    if (error instanceof Response) return error;
+    if (error instanceof Response) return new Response(error.body, { status: error.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     const message = error instanceof Error ? error.message : 'Template monitor failed';
     console.error(message);
     return json({ error: message }, 500);

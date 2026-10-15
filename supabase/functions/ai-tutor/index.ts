@@ -5,7 +5,7 @@ import { createEmbedding, generateTutorReply } from '../_shared/ai.ts';
 import { errorResponse, jsonResponse, optionsResponse } from '../_shared/responses.ts';
 
 const Schema = z.object({
-  query: z.string().trim().min(1).max(5000), courseId: z.string().uuid().nullable().optional(), persona: z.string().trim().max(500).default('supportive microlearning tutor'),
+  query: z.string().trim().min(1).max(5000), courseId: z.string().uuid().nullable().optional(), persona: z.string().trim().max(80).regex(/^[\p{L}\p{N} ,.'-]+$/u, 'Persona may only contain letters, numbers and basic punctuation').default('supportive microlearning tutor'),
   context: z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string().max(5000) })).max(20).default([]),
 });
 
@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
       ...parsed.data.context.map((item) => ({ role: item.role, content: [{ type: item.role === 'assistant' ? 'output_text' : 'input_text', text: item.content }] })),
       { role: 'user', content: [{ type: 'input_text', text: parsed.data.query }] },
     ];
-    const result = await generateTutorReply(input, `You are a ${parsed.data.persona}. Answer clearly and concisely using the course material below. If the material does not answer the question, say that before offering general guidance. Cite useful sources as [1], [2], and so on.\n\nCOURSE MATERIAL\n${sourceText}`, req);
+    const result = await generateTutorReply(input, `You are a microlearning tutor. Tone: ${parsed.data.persona}. Answer clearly and concisely using the course material below. If the material does not answer the question, say that before offering general guidance. Cite useful sources as [1], [2], and so on.\n\nCOURSE MATERIAL\n${sourceText}`, req);
     const { error: historyError } = await client.from('chat_history').insert({ user_id: user.id, course_id: parsed.data.courseId || null, message: parsed.data.query, response: result.text, sources });
     if (historyError) throw historyError;
     return jsonResponse({ response: result.text, sources }, 200, {

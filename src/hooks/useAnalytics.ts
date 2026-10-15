@@ -79,16 +79,9 @@ export const useAnalytics = () => {
     queryFn: async () => {
       try {
         // Fetch Telegram analytics (this will call our edge function)
-        const response = await fetch(`${window.location.origin}/api/functions/v1/telegram-webhook/getAnalytics`, {
-          method: "GET"
-        });
-        
-        if (!response.ok) {
-          throw new Error("Failed to fetch Telegram analytics");
-        }
-        
-        const data = await response.json();
-        return data.analytics;
+        const { data, error } = await supabase.functions.invoke("telegram-webhook/getAnalytics", { method: "GET" });
+        if (error) throw error;
+        return data?.analytics ?? null;
       } catch (error) {
         console.error("Error fetching Telegram analytics:", error);
         return null;

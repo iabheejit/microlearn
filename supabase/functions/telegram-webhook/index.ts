@@ -1,6 +1,6 @@
 import { z } from 'npm:zod';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
-import { createServiceClient, requireStaff, requireUser } from '../_shared/auth.ts';
+import { createServiceClient, requireStaff } from '../_shared/auth.ts';
 import { errorResponse, jsonResponse, optionsResponse } from '../_shared/responses.ts';
 
 const GATEWAY_URL = 'https://connector-gateway.lovable.dev/telegram';
@@ -42,14 +42,14 @@ Deno.serve(async (req) => {
       ? String(requestBody.endpoint)
       : pathEndpoint;
     if (endpoint === 'getUpdates' && req.method === 'GET') {
-      await requireUser(req);
+      await requireStaff(req);
       const client = createServiceClient();
       const { data, error } = await client.from('telegram_messages').select('*').order('sent_at', { ascending: true }).limit(200);
       if (error) throw error;
       return jsonResponse({ messages: data });
     }
     if (endpoint === 'getAnalytics' && req.method === 'GET') {
-      await requireUser(req);
+      await requireStaff(req);
       const client = createServiceClient();
       const [{ count: contacts, error: contactsError }, { data: messages, error: messagesError }] = await Promise.all([
         client.from('telegram_contacts').select('*', { count: 'exact', head: true }),
