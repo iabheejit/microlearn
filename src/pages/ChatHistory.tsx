@@ -1,5 +1,6 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import Sidebar from "@/components/dashboard/Sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,6 +14,7 @@ import { useWhatsAppChat, useTelegramChat } from "@/hooks/useChatHistory";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { isWhatsAppReplyWindowOpen, WhatsAppReplyWindowClosedError } from "@/lib/whatsapp-reply-window";
 
 interface ChatSummary {
   id: string;
@@ -29,6 +31,13 @@ const ChatHistory = () => {
   const [selectedChat, setSelectedChat] = useState<ChatSummary | null>(null);
   const [chatModalOpen, setChatModalOpen] = useState(false);
   const [newMessage, setNewMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [windowRejected, setWindowRejected] = useState(false);
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // WhatsApp chat hook
   const {
@@ -45,6 +54,8 @@ const ChatHistory = () => {
     sendMessage: sendTelegramMessage,
     refetch: refetchTelegramMessages
   } = useTelegramChat(selectedChat?.chat_id?.toString());
+  const replyWindowOpen = isWhatsAppReplyWindowOpen(whatsappMessages, now) && !windowRejected;
+  const replyBlocked = Boolean(selectedChat?.phone_number) && (loadingWhatsappMessages || !replyWindowOpen);
 
   const { data: whatsappChats, isLoading: loadingWhatsapp } = useQuery({
     queryKey: ['whatsapp-chats'],
@@ -71,8 +82,9 @@ const ChatHistory = () => {
   });
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !selectedChat) return;
+    if (!newMessage.trim() || !selectedChat || sending || replyBlocked) return;
 
+    setSending(true);
     try {
       if (selectedChat.phone_number) {
         // Send WhatsApp message
@@ -93,16 +105,25 @@ const ChatHistory = () => {
       setNewMessage("");
       await Promise.all([refetchWhatsAppMessages(), refetchTelegramMessages()]);
     } catch (error) {
+      if (error instanceof WhatsAppReplyWindowClosedError) {
+        setWindowRejected(true);
+        return;
+      }
       console.error("Error sending message:", error);
       toast({
         title: "Error sending message",
         description: error instanceof Error ? error.message : "There was a problem sending your message",
         variant: "destructive"
       });
+    } finally {
+      setSending(false);
     }
   };
 
   const handleOpenChat = (chat: ChatSummary) => {
+    setNewMessage("");
+    setWindowRejected(false);
+    setNow(Date.now());
     setSelectedChat(chat);
     setChatModalOpen(true);
     
@@ -339,8 +360,18 @@ const ChatHistory = () => {
             )}
           </div>
           
+          {selectedChat?.phone_number && !loadingWhatsappMessages && !replyWindowOpen && (
+            <div className="space-y-2 border-t border-border pt-3" role="status">
+              <p className="text-sm text-muted-foreground">The 24-hour reply window is closed. Send an approved template, or wait for a new learner message.</p>
+              <Button asChild variant="outline">
+                <Link to="/whatsapp">Choose approved template</Link>
+              </Button>
+            </div>
+          )}
           <div className="flex gap-2">
             <Textarea 
+              aria-label="Message"
+              disabled={replyBlocked || sending}
               placeholder={selectedChat?.phone_number ? "Ask a follow-up question…" : "Type your message…"}
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
@@ -352,8 +383,8 @@ const ChatHistory = () => {
                 }
               }}
             />
-            <Button onClick={handleSendMessage} type="submit">
-              <Send className="h-4 w-4" />
+            <Button onClick={handleSendMessage} type="submit" aria-label="Send message" disabled={replyBlocked || sending || !newMessage.trim()}>
+              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
           </div>
         </DialogContent>
