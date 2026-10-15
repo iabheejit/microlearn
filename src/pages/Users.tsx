@@ -69,8 +69,8 @@ const Users = () => {
           ) : (
             <UsersList 
               users={users} 
-              onAddUser={addUser}
-              onUpdateUser={updateUser}
+              onAddUser={(user) => addUser(user as Parameters<typeof addUser>[0])}
+              onUpdateUser={(userId, updates) => updateUser(userId, updates as Parameters<typeof updateUser>[1])}
               onDeleteUser={deleteUser}
               adminRequired={adminRequired}
             />

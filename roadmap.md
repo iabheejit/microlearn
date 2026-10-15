@@ -23,3 +23,8 @@
 - [x] Confirm Meta approval of the active course_welcome template and delivery to +919766072308
 - [ ] Send a fresh “hi” to +1 659-277-2030 and verify the inbound message and portal reply in Chat History (blocked: Meta has not forwarded an incoming callback)
 - [x] Connect incoming learner replies to lesson progress, quiz attempts, and certificate completion (deployed; awaiting a live Meta callback)
+
+## Upgrade (TanStack Start)
+- [x] Upgrade portal to TanStack Start and add the bare signed WhatsApp callback route
+- [ ] Point MicroLearn WABA "Incoming messages" at the upgraded app and send a real learner message (blocked: needs the user, after publishing)
+- [ ] Move course progression, staff actions and templates onto the new route/server functions (handed to the parallel agent)

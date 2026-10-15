@@ -102,7 +102,7 @@ export const syncWhatsAppTemplates = async (): Promise<WhatsAppTemplate[]> => {
       const { error: insertError } = await supabase
         .from('whatsapp_templates')
         .insert(
-          templates.map(t => ({
+          templates.map((t: { id?: string; name: string; content: string; [key: string]: unknown }) => ({
             wati_id: t.id,
             name: t.name, 
             content: t.content,
