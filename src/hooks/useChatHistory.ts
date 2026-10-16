@@ -7,10 +7,10 @@ import { WhatsAppReplyWindowClosedError } from '@/lib/whatsapp-reply-window';
 
 // For WhatsApp chats
 export const useWhatsAppChat = (phoneNumber?: string) => {
-  const [messages, setMessages] = useState<any[]>([]);
+  const normalizedPhone = phoneNumber?.replace(/\D/g, '');
   
   const { data, isLoading, refetch, error } = useQuery({
-    queryKey: ['whatsapp-messages', phoneNumber],
+    queryKey: ['whatsapp-messages', normalizedPhone],
     queryFn: async () => {
       if (!phoneNumber) return [];
       const normalized = phoneNumber.replace(/\D/g, '');
@@ -37,12 +37,6 @@ export const useWhatsAppChat = (phoneNumber?: string) => {
     refetchInterval: 10000 // Polling every 10 seconds
   });
   
-  useEffect(() => {
-    if (data) {
-      setMessages(data);
-    }
-  }, [data]);
-
   useEffect(() => {
     if (!phoneNumber) return;
     const normalized = phoneNumber.replace(/\D/g, '');
@@ -87,7 +81,7 @@ export const useWhatsAppChat = (phoneNumber?: string) => {
   };
   
   return {
-    messages,
+    messages: data ?? [],
     isLoading,
     error,
     sendMessage,
