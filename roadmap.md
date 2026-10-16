@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] Connect real WhatsApp conversations to the learner's portal chat, with verified learner identity and shared message IDs
+- [x] Add course-page Learner Chat for the existing enrolled learner; verify incoming messages and a real course-page reply read back in Chat History with shared provider IDs
 
 - [x] Send a real WhatsApp test to +919766072308 and report the provider response; confirm its portal history record
 - [x] Receive the first message sent by a user to @VEFTestBot and confirm it appears in Chat History
