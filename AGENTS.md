@@ -1,5 +1,6 @@
 # Architecture Rules
 
+- Restrict provider chat records and quiz answer keys to active staff; profiles and roles are readable only by their owner or an active admin, with provider IDs writable only by trusted server code to prevent fabricated reply windows.
 - Keep WhatsApp provider calls in shared server-side helpers so webhook automation and staff actions use the same secured gateway path.
 - Treat a learner phone number as unambiguous only when it has at most one active WhatsApp course enrollment awaiting a reply.
 - The app runs on TanStack Start; WhatsApp callbacks arrive at the public route `/api/public/whatsapp/webhook`, which only verifies the Lovable signature and persists the inbox, messages and statuses — course progression and AI replies are added on top, not inside the signature check.

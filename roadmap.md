@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] Fix six critical security findings; verify learner access is denied and staff chat remains readable without sending learner messages
+
 - [x] Build a shared portal reply engine with secured WhatsApp sends and approved-template sending inside both chats; real welcome and free-form reply delivered with provider IDs
 
 - [x] Add course-page Learner Chat for the existing enrolled learner; verify incoming messages and a real course-page reply read back in Chat History with shared provider IDs
