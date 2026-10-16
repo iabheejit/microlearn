@@ -397,6 +397,50 @@ const CourseEditor = ({ initialCourse, onSave, isSaving = false }: CourseEditorP
           <Card>
             <CardContent className="pt-6 space-y-4">
               <div>
+                <h2 className="text-2xl font-bold">Delivery</h2>
+                <p className="text-sm text-muted-foreground">Choose where learners take this course.</p>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Channel</label>
+                  <Select
+                    value={course.deliveryChannel || "whatsapp"}
+                    onValueChange={(value) => setCourse({ ...course, deliveryChannel: value as NonNullable<Course["deliveryChannel"]> })}
+                  >
+                    <SelectTrigger aria-label="Delivery channel"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                      <SelectItem value="telegram">Telegram</SelectItem>
+                      <SelectItem value="web">Web (learner dashboard)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {course.deliveryChannel === "web" && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Who can join</label>
+                    <Select
+                      value={course.webEnrollmentMode || "invite"}
+                      onValueChange={(value) => setCourse({ ...course, webEnrollmentMode: value as NonNullable<Course["webEnrollmentMode"]> })}
+                    >
+                      <SelectTrigger aria-label="Web enrollment"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="invite">Invited learners only</SelectItem>
+                        <SelectItem value="open">Any signed-in learner</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+              {course.deliveryChannel === "web" && (
+                <p className="text-xs text-muted-foreground">Learners see published web courses at /learn. Invite learners by email from the course page.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {(course.deliveryChannel || "whatsapp") === "whatsapp" && (
+          <Card>
+            <CardContent className="pt-6 space-y-4">
+              <div>
                 <h2 className="text-2xl font-bold">WhatsApp Messages</h2>
                 <p className="text-sm text-muted-foreground">Choose what learners of this course receive on WhatsApp.</p>
               </div>
@@ -439,6 +483,7 @@ const CourseEditor = ({ initialCourse, onSave, isSaving = false }: CourseEditorP
               </div>
             </CardContent>
           </Card>
+          )}
 
           <Card>
             <CardContent className="pt-6">

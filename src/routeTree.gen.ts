@@ -18,6 +18,8 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as TelegramRouteImport } from './routes/telegram'
 import { Route as UsersRouteImport } from './routes/users'
 import { Route as CoursesIndexRouteImport } from './routes/courses.index'
+import { Route as LearnIndexRouteImport } from './routes/learn.index'
+import { Route as LearnCourseIdRouteImport } from './routes/learn.$courseId'
 import { Route as WhatsappIndexRouteImport } from './routes/whatsapp.index'
 import { Route as WhatsappWebhookStatusRouteImport } from './routes/whatsapp.webhook-status'
 import { Route as CoursesEditorIndexRouteImport } from './routes/courses.editor.index'
@@ -70,6 +72,16 @@ const CoursesIndexRoute = CoursesIndexRouteImport.update({
   path: '/courses/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LearnIndexRoute = LearnIndexRouteImport.update({
+  id: '/learn/',
+  path: '/learn/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LearnCourseIdRoute = LearnCourseIdRouteImport.update({
+  id: '/learn/$courseId',
+  path: '/learn/$courseId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WhatsappIndexRoute = WhatsappIndexRouteImport.update({
   id: '/whatsapp/',
   path: '/whatsapp/',
@@ -111,8 +123,10 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/telegram': typeof TelegramRoute
   '/users': typeof UsersRoute
+  '/learn/$courseId': typeof LearnCourseIdRoute
   '/whatsapp/webhook-status': typeof WhatsappWebhookStatusRoute
   '/courses/': typeof CoursesIndexRoute
+  '/learn/': typeof LearnIndexRoute
   '/whatsapp/': typeof WhatsappIndexRoute
   '/courses/editor/$id': typeof CoursesEditorIdRoute
   '/courses/preview/$id': typeof CoursesPreviewIdRoute
@@ -128,8 +142,10 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/telegram': typeof TelegramRoute
   '/users': typeof UsersRoute
+  '/learn/$courseId': typeof LearnCourseIdRoute
   '/whatsapp/webhook-status': typeof WhatsappWebhookStatusRoute
   '/courses': typeof CoursesIndexRoute
+  '/learn': typeof LearnIndexRoute
   '/whatsapp': typeof WhatsappIndexRoute
   '/courses/editor/$id': typeof CoursesEditorIdRoute
   '/courses/preview/$id': typeof CoursesPreviewIdRoute
@@ -146,8 +162,10 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/telegram': typeof TelegramRoute
   '/users': typeof UsersRoute
+  '/learn/$courseId': typeof LearnCourseIdRoute
   '/whatsapp/webhook-status': typeof WhatsappWebhookStatusRoute
   '/courses/': typeof CoursesIndexRoute
+  '/learn/': typeof LearnIndexRoute
   '/whatsapp/': typeof WhatsappIndexRoute
   '/courses/editor/$id': typeof CoursesEditorIdRoute
   '/courses/preview/$id': typeof CoursesPreviewIdRoute
@@ -165,8 +183,10 @@ export interface FileRouteTypes {
     | '/settings'
     | '/telegram'
     | '/users'
+    | '/learn/$courseId'
     | '/whatsapp/webhook-status'
     | '/courses/'
+    | '/learn/'
     | '/whatsapp/'
     | '/courses/editor/$id'
     | '/courses/preview/$id'
@@ -182,8 +202,10 @@ export interface FileRouteTypes {
     | '/settings'
     | '/telegram'
     | '/users'
+    | '/learn/$courseId'
     | '/whatsapp/webhook-status'
     | '/courses'
+    | '/learn'
     | '/whatsapp'
     | '/courses/editor/$id'
     | '/courses/preview/$id'
@@ -199,8 +221,10 @@ export interface FileRouteTypes {
     | '/settings'
     | '/telegram'
     | '/users'
+    | '/learn/$courseId'
     | '/whatsapp/webhook-status'
     | '/courses/'
+    | '/learn/'
     | '/whatsapp/'
     | '/courses/editor/$id'
     | '/courses/preview/$id'
@@ -217,8 +241,10 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   TelegramRoute: typeof TelegramRoute
   UsersRoute: typeof UsersRoute
+  LearnCourseIdRoute: typeof LearnCourseIdRoute
   WhatsappWebhookStatusRoute: typeof WhatsappWebhookStatusRoute
   CoursesIndexRoute: typeof CoursesIndexRoute
+  LearnIndexRoute: typeof LearnIndexRoute
   WhatsappIndexRoute: typeof WhatsappIndexRoute
   CoursesEditorIdRoute: typeof CoursesEditorIdRoute
   CoursesPreviewIdRoute: typeof CoursesPreviewIdRoute
@@ -291,6 +317,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CoursesIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/learn/': {
+      id: '/learn/'
+      path: '/learn'
+      fullPath: '/learn/'
+      preLoaderRoute: typeof LearnIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/learn/$courseId': {
+      id: '/learn/$courseId'
+      path: '/learn/$courseId'
+      fullPath: '/learn/$courseId'
+      preLoaderRoute: typeof LearnCourseIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/whatsapp/': {
       id: '/whatsapp/'
       path: '/whatsapp'
@@ -345,8 +385,10 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   TelegramRoute: TelegramRoute,
   UsersRoute: UsersRoute,
+  LearnCourseIdRoute: LearnCourseIdRoute,
   WhatsappWebhookStatusRoute: WhatsappWebhookStatusRoute,
   CoursesIndexRoute: CoursesIndexRoute,
+  LearnIndexRoute: LearnIndexRoute,
   WhatsappIndexRoute: WhatsappIndexRoute,
   CoursesEditorIdRoute: CoursesEditorIdRoute,
   CoursesPreviewIdRoute: CoursesPreviewIdRoute,

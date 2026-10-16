@@ -4,6 +4,7 @@ import { z } from 'npm:zod@3.23.8';
 import { createServiceClient, requireStaff } from '../_shared/auth.ts';
 import { orderedLessons } from '../_shared/course-progression.ts';
 import { sendWhatsAppText } from '../_shared/whatsapp.ts';
+import { normalizePhone } from '../_shared/whatsapp-logic.ts';
 import { errorResponse } from '../_shared/responses.ts';
 
 const GATEWAY_URL = 'https://connector-gateway.lovable.dev/whatsapp';
@@ -220,16 +221,24 @@ Deno.serve(async (req) => {
       case 'enrollLearner': {
         const { courseId, phoneNumber, learnerName } = requestBody;
         if (!courseId || !phoneNumber || !learnerName) return jsonResponse({ error: 'Course, learner name, and phone number are required' }, 400);
-        const recipientDigits = phoneNumber.replace(/\D/g, '');
+        const recipientDigits = normalizePhone(phoneNumber);
+        if (!recipientDigits) return jsonResponse({ error: 'Enter the phone number with its country code (8 to 15 digits).' }, 400);
         const client = createServiceClient();
         const resources = await orderedLessons(courseId);
         if (!resources.length) return jsonResponse({ error: 'Add course lessons before enrolling a learner' }, 409);
-        const { data: course, error: courseError } = await client.from('courses').select('title,whatsapp_welcome_template_key').eq('id', courseId).single();
+        const { data: course, error: courseError } = await client.from('courses').select('title,whatsapp_welcome_template_key,delivery_channel').eq('id', courseId).single();
         if (courseError) throw courseError;
+        // Each course runs on one channel; web and Telegram courses never send WhatsApp lessons.
+        if ((course.delivery_channel ?? 'whatsapp') !== 'whatsapp') return jsonResponse({ error: 'This course is not delivered on WhatsApp.' }, 409);
         const templateKey = course.whatsapp_welcome_template_key || 'course_welcome';
         const existing = await client.from('whatsapp_course_enrollments').select('id,status').eq('course_id', courseId).eq('phone_number', recipientDigits).maybeSingle();
         if (existing.error) throw existing.error;
         if (existing.data) return jsonResponse({ error: 'This learner is already enrolled in this course.' }, 409);
+        // Replies are matched to a course by phone number, so a learner can only be active in one at a time.
+        const { count: activeElsewhere, error: activeError } = await client.from('whatsapp_course_enrollments')
+          .select('id', { count: 'exact', head: true }).eq('phone_number', recipientDigits).eq('status', 'active');
+        if (activeError) throw activeError;
+        if (activeElsewhere) return jsonResponse({ error: 'This learner is already active in another WhatsApp course. Complete or pause it first.' }, 409);
         const { data: approvedTemplates, error: templateError } = await client.from('whatsapp_template_versions')
           .select('provider_template_name,language').eq('template_key', templateKey).eq('review_status', 'APPROVED').order('version', { ascending: false }).limit(1);
         if (templateError) throw templateError;

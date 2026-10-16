@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { webcrypto } from "node:crypto";
 
 const persist = vi.hoisted(() => vi.fn(async () => ({ status: "processed" })));
-vi.mock("@/lib/whatsapp-webhook.server", () => ({ persistWhatsAppCallback: persist }));
+vi.mock("@/lib/whatsapp-webhook.server", () => ({ persistWhatsAppCallback: persist, PayloadError: class extends Error {} }));
 import { Route } from "@/routes/api/public/whatsapp/webhook";
 
 describe("WhatsApp callback verification", () => {

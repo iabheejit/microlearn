@@ -40,8 +40,7 @@ export const generateTutorReply = async (input: Array<Record<string, unknown>>, 
     method: 'POST', headers: gatewayHeaders(key, req), signal: req.signal,
     body: JSON.stringify({
       model: 'openai/gpt-6-astra', input, instructions, stream: true,
-      reasoning: { effort: 'medium', summary: 'auto' },
-      include: ['reasoning.encrypted_content'], store: false,
+      reasoning: { effort: 'medium' }, store: false,
     }),
   });
   if (!response.ok) throw await gatewayError(response);
@@ -50,7 +49,6 @@ export const generateTutorReply = async (input: Array<Record<string, unknown>>, 
   const decoder = new TextDecoder();
   let buffer = '';
   let text = '';
-  let reasoning = '';
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -64,11 +62,11 @@ export const generateTutorReply = async (input: Array<Record<string, unknown>>, 
       try {
         const event = JSON.parse(payload);
         if (event.type === 'response.output_text.delta') text += event.delta || '';
-        if (event.type === 'response.reasoning_summary_text.delta') reasoning += event.delta || '';
       } catch { /* ignore keepalive/non-JSON events */ }
     }
   }
-  const answer = text.trim() || reasoning.trim();
+  // Model reasoning is never shown to learners or stored, even when the answer text is empty.
+  const answer = text.trim();
   if (!answer) throw new Error('Lovable AI returned no answer');
   return { text: answer, headers: response.headers };
 };

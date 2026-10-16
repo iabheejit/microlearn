@@ -17,6 +17,7 @@ import { useAITutor } from "@/hooks/useAITutor";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { enrollWhatsAppLearner, fetchWhatsAppCourseProgress } from "@/services/whatsappService";
+import WebLearnersPanel from "@/components/dashboard/WebLearnersPanel";
 
 const WELCOME_LEARNER = {
   name: "Abheejit",
@@ -232,6 +233,7 @@ const CoursePreview = () => {
                       <TabsTrigger value="content">Course Content</TabsTrigger>
                       <TabsTrigger value="whatsapp">WhatsApp Preview</TabsTrigger>
                       <TabsTrigger value="learner-chat">Learner Chat</TabsTrigger>
+                      {course.deliveryChannel === "web" && <TabsTrigger value="web-learners">Web Learners</TabsTrigger>}
                     </TabsList>
                     
                     <TabsContent value="content">
@@ -267,6 +269,12 @@ const CoursePreview = () => {
                       </div>
                     </TabsContent>
                     
+                    {course.deliveryChannel === "web" && (
+                      <TabsContent value="web-learners">
+                        <WebLearnersPanel courseId={course.id} published={course.status === "active"} />
+                      </TabsContent>
+                    )}
+
                     <TabsContent value="learner-chat">
                       <WhatsAppLearnerChat phoneNumber={enrollment?.phone_number || WELCOME_LEARNER.phone} learnerName={enrollment?.learner_name || WELCOME_LEARNER.name} />
                     </TabsContent>
