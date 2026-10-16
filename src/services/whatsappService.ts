@@ -93,7 +93,7 @@ export const syncWhatsAppTemplates = async (): Promise<WhatsAppTemplate[]> => {
         .not('id', 'is', null);
       
       if (deleteError) {
-        console.error("Error deleting existing templates:", deleteError);
+        throw new Error(`Could not clear existing templates: ${deleteError.message}`);
       } else {
         console.log("Successfully deleted existing templates");
       }
@@ -182,7 +182,7 @@ export const syncWhatsAppContacts = async (): Promise<any[]> => {
         .not('id', 'is', null);
       
       if (deleteError) {
-        console.error("Error deleting existing contacts:", deleteError);
+        throw new Error(`Could not clear existing contacts: ${deleteError.message}`);
       } else {
         console.log("Successfully deleted existing contacts");
       }
