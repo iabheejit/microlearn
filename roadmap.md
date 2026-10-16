@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] Build a shared portal reply engine with secured WhatsApp sends and approved-template sending inside both chats
+
 - [x] Add course-page Learner Chat for the existing enrolled learner; verify incoming messages and a real course-page reply read back in Chat History with shared provider IDs
 
 - [x] Send a real WhatsApp test to +919766072308 and report the provider response; confirm its portal history record
