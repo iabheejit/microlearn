@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] Integrate and verify the external learner-dashboard handoff — blocked: `claude/funny-hypatia-63hajw` is not available on this project's origin; learner routes and migrations `0003_atomic_whatsapp_progression.sql` / `0004_web_learner_courses.sql` are absent. Obtain the source changes before applying migrations or publishing.
+
 - [x] Fix six critical security findings; basic rescan clear, 10 messaging tests pass, real non-staff reads and legacy endpoints denied; browser message-ID writes revoked
 - [ ] Verify personal staff chat access after shared demo retirement — blocked until the user signs in with a personal staff account; no matching personal account available for managed test login
 
