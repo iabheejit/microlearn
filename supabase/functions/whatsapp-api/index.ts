@@ -228,7 +228,7 @@ Deno.serve(async (req) => {
         if (courseError) throw courseError;
         const existing = await client.from('whatsapp_course_enrollments').select('id,status').eq('course_id', courseId).eq('phone_number', recipientDigits).maybeSingle();
         if (existing.error) throw existing.error;
-        if (existing.data?.status === 'active') return jsonResponse({ error: 'This learner is already active in this course.' }, 409);
+        if (existing.data) return jsonResponse({ error: 'This learner is already enrolled in this course.' }, 409);
         const { data: approvedTemplates, error: templateError } = await client.from('whatsapp_template_versions')
           .select('provider_template_name').eq('template_key', 'course_welcome').eq('review_status', 'APPROVED').order('version', { ascending: false }).limit(1);
         if (templateError) throw templateError;

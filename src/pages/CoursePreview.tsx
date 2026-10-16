@@ -379,7 +379,7 @@ const CoursePreview = () => {
                           )}
                         </div>
                       )}
-                      <Button className="w-full" onClick={handleWelcomeMessage} disabled={welcomeSending}>
+                      <Button className="w-full" onClick={handleWelcomeMessage} disabled={welcomeSending || !!enrollment}>
                         {welcomeSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
                         {enrollment ? "Already enrolled" : "Enroll & send welcome"}
                       </Button>
