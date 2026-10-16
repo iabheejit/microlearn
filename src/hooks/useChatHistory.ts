@@ -4,9 +4,12 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchTelegramUpdates, sendTelegramMessage } from '@/services/telegramService';
 import { supabase } from '@/integrations/supabase/client';
 import { WhatsAppReplyWindowClosedError } from '@/lib/whatsapp-reply-window';
+import { useServerFn } from '@tanstack/react-start';
+import { sendPortalReply } from '@/lib/whatsapp-send.functions';
 
 // For WhatsApp chats
 export const useWhatsAppChat = (phoneNumber?: string) => {
+  const sendReply = useServerFn(sendPortalReply);
   const normalizedPhone = phoneNumber?.replace(/\D/g, '');
   
   const { data, isLoading, refetch, error } = useQuery({
@@ -59,22 +62,11 @@ export const useWhatsAppChat = (phoneNumber?: string) => {
   
   const sendMessage = async (content: string) => {
     if (!phoneNumber) throw new Error('Phone number is required to send a reply');
-    const { data: response, error: sendError } = await supabase.functions.invoke('whatsapp-api', {
-      body: { endpoint: 'sendReply', phoneNumber, message: content },
-    });
-    if (sendError) {
-      if ('context' in sendError && sendError.context instanceof Response && sendError.context.status === 409) {
-        await refetch();
-        throw new WhatsAppReplyWindowClosedError();
-      }
-      const details = 'context' in sendError && sendError.context instanceof Response ? await sendError.context.text() : sendError.message;
-      try {
-        const parsed = JSON.parse(details);
-        throw new Error(parsed.error || details);
-      } catch (parseError) {
-        if (parseError instanceof SyntaxError) throw new Error(details);
-        throw parseError;
-      }
+    const response = await sendReply({ data: { phoneNumber, message: content } });
+    if (!response.ok) {
+      await refetch();
+      if (response.code === 'WINDOW_CLOSED') throw new WhatsAppReplyWindowClosedError();
+      throw new Error(response.error);
     }
     await refetch();
     return response;
