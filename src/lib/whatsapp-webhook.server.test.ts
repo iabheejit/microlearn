@@ -113,3 +113,66 @@ describe("persistWhatsAppCallback", () => {
     ).rejects.toBeInstanceOf(PayloadError);
   });
 });
+
+describe("persistWhatsAppCallback progression hook", () => {
+  it("runs once per stored text message and notes skipped progression", async () => {
+    const { client, rows } = fakeSupabase();
+    const seen: Array<{ id: string; phone: string; body: string }> = [];
+    const hook = async (
+      _client: unknown,
+      message: { id: string; phone: string; body: string },
+    ) => {
+      seen.push(message);
+      return "skipped for test";
+    };
+    await persistWhatsAppCallback(
+      "d-hook",
+      messagePayload("wamid.h", "start"),
+      client,
+      hook,
+    );
+    await persistWhatsAppCallback(
+      "d-hook",
+      messagePayload("wamid.h", "start"),
+      client,
+      hook,
+    );
+    expect(seen).toEqual([
+      { id: "wamid.h", phone: "919766072308", body: "start" },
+    ]);
+    expect(rows("whatsapp_webhook_callbacks")[0]).toMatchObject({
+      status: "processed",
+      error_message: "wamid.h: skipped for test",
+    });
+  });
+
+  it("marks the callback as an error when progression fails, so a retry runs it again", async () => {
+    const { client, rows } = fakeSupabase();
+    let calls = 0;
+    const flaky = async () => {
+      calls += 1;
+      if (calls === 1) throw new Error("gateway timeout");
+    };
+    await expect(
+      persistWhatsAppCallback(
+        "d-retry",
+        messagePayload("wamid.r"),
+        client,
+        flaky,
+      ),
+    ).rejects.toThrow("gateway timeout");
+    expect(rows("whatsapp_webhook_callbacks")[0]).toMatchObject({
+      status: "error",
+    });
+    expect(
+      await persistWhatsAppCallback(
+        "d-retry",
+        messagePayload("wamid.r"),
+        client,
+        flaky,
+      ),
+    ).toEqual({ status: "processed" });
+    expect(calls).toBe(2);
+    expect(rows("whatsapp_messages")).toHaveLength(1);
+  });
+});

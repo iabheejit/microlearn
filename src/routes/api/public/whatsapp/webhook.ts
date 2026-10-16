@@ -3,7 +3,22 @@ import { verifyWebhookRequest } from "@lovable.dev/webhooks-js";
 import {
   PayloadError,
   persistWhatsAppCallback,
+  type InboundTextHandler,
 } from "@/lib/whatsapp-webhook.server";
+import { progressFromReply } from "@/lib/whatsapp-progression.server";
+
+// Outcomes staff should see on the callback row even though the callback succeeded.
+const PROGRESSION_NOTES: Record<string, string> = {
+  ambiguous_enrollment:
+    "Learner has more than one active course awaiting a reply; progression skipped.",
+  no_lessons: "Enrolled course has no lessons; progression skipped.",
+};
+
+// Course progression runs on top of the verified, persisted callback.
+const progressCourse: InboundTextHandler = async (client, message) =>
+  PROGRESSION_NOTES[
+    await progressFromReply(client, message.phone, message.body, message.id)
+  ] ?? null;
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -43,7 +58,12 @@ export const Route = createFileRoute("/api/public/whatsapp/webhook")({
             400,
           );
         try {
-          const result = await persistWhatsAppCallback(deliveryId, payload);
+          const result = await persistWhatsAppCallback(
+            deliveryId,
+            payload,
+            undefined,
+            progressCourse,
+          );
           return json({ ok: true, ...result });
         } catch (error) {
           console.error(`WhatsApp callback ${deliveryId} failed:`, error);
