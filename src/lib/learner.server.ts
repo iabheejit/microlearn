@@ -1,55 +1,21 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { gradeQuizAnswer } from "../../supabase/functions/_shared/whatsapp-logic.ts";
+import {
+  dayInfo,
+  decideStep,
+  type EnrollmentState,
+  type Input,
+} from "./course-engine";
+import { loadCourse, quizFor } from "./course-data.server";
 
-// Web learner engine. Runs only on the server with the service-role client: learners never read
-// answer keys or write progress directly; every step is applied by apply_web_progression.
+// Web learner engine on top of the channel-neutral course engine. Runs only on the server with the
+// service-role client: learners never read answer keys or write progress directly; every step is
+// applied by apply_web_step, which locks the enrollment and rejects stale steps.
 
 // The generated Database types do not include the web learner tables yet.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Client = SupabaseClient<any>;
 
 export class LearnerError extends Error {}
-
-type Lesson = { id: string; title: string; content: string };
-
-export async function orderedLessons(
-  client: Client,
-  courseId: string,
-): Promise<Lesson[]> {
-  const { data: modules, error: moduleError } = await client
-    .from("course_modules")
-    .select("id")
-    .eq("course_id", courseId)
-    .order("order_index");
-  if (moduleError) throw moduleError;
-  if (!modules?.length) return [];
-  const { data: resources, error: resourceError } = await client
-    .from("course_resources")
-    .select("id,module_id,title,content,order_index")
-    .in(
-      "module_id",
-      modules.map((module: { id: string }) => module.id),
-    )
-    .order("order_index");
-  if (resourceError) throw resourceError;
-  return modules.flatMap((module: { id: string }) =>
-    (resources || [])
-      .filter(
-        (resource: { module_id: string }) => resource.module_id === module.id,
-      )
-      .map(
-        (resource: {
-          id: string;
-          title: string | null;
-          content: string | null;
-        }) => ({
-          id: resource.id,
-          title: resource.title || "Lesson",
-          content: resource.content || "",
-        }),
-      ),
-  );
-}
 
 async function webCourse(client: Client, courseId: string) {
   const { data, error } = await client
@@ -71,31 +37,48 @@ async function webCourse(client: Client, courseId: string) {
   };
 }
 
+type WebEnrollmentRow = {
+  id: string;
+  status: EnrollmentState["status"];
+  current_resource_id: string | null;
+  current_step: EnrollmentState["step"];
+  progress_percentage: number;
+  paused_at: string | null;
+  pause_reminder_sent_at: string | null;
+  next_unlock_at: string | null;
+  nudge_sent_at: string | null;
+  completed_at: string | null;
+  state_version: number;
+};
+
 async function enrollmentFor(client: Client, userId: string, courseId: string) {
   const { data, error } = await client
     .from("web_course_enrollments")
-    .select("id,status,current_resource_id,progress_percentage,completed_at")
+    .select("*")
     .eq("course_id", courseId)
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw error;
-  return data as {
-    id: string;
-    status: "active" | "completed" | "paused";
-    current_resource_id: string | null;
-    progress_percentage: number;
-    completed_at: string | null;
-  } | null;
+  return data as WebEnrollmentRow | null;
 }
 
-// A NULL position means the learner is on the first lesson.
-const currentIndexOf = (lessons: Lesson[], currentResourceId: string | null) =>
-  currentResourceId
-    ? Math.max(
-        lessons.findIndex((lesson) => lesson.id === currentResourceId),
-        0,
-      )
-    : 0;
+// On the web, "delivering" an unlocked day means showing it, so a passed unlock time is simply cleared.
+function webState(row: WebEnrollmentRow, now: Date): EnrollmentState {
+  const unlocked =
+    row.next_unlock_at &&
+    now.getTime() >= new Date(row.next_unlock_at).getTime();
+  return {
+    status: row.status,
+    currentResourceId: row.current_resource_id,
+    step: row.current_step ?? "lesson",
+    progress: row.progress_percentage ?? 0,
+    pausedAt: null,
+    pauseReminderSentAt: null,
+    nextUnlockAt: unlocked ? null : row.next_unlock_at,
+    nudgeSentAt: null,
+    completedAt: row.completed_at,
+  };
+}
 
 type CourseCard = {
   id: string;
@@ -179,6 +162,7 @@ export async function courseState(
   client: Client,
   userId: string,
   courseId: string,
+  now = new Date(),
 ) {
   const course = await webCourse(client, courseId);
   if (!course) throw new LearnerError("This course is not available.");
@@ -190,11 +174,24 @@ export async function courseState(
       canJoin: course.web_enrollment_mode === "open",
     };
   }
-  const lessons = await orderedLessons(client, courseId);
+  const context = await loadCourse(client, courseId);
+  const lessons = context.lessons;
+  const state = webState(enrollment, now);
+  const found = lessons.findIndex(
+    (lesson) => lesson.id === state.currentResourceId,
+  );
+  const index = found < 0 ? 0 : found;
   const base = {
     course: { title: course.title, description: course.description },
     progress: enrollment.progress_percentage,
     lessonCount: lessons.length,
+    dayCount: lessons.length ? dayInfo(lessons, 0).dayCount : 0,
+    outline: lessons.map((lesson, position) => ({
+      id: lesson.id,
+      title: lesson.title,
+      day: dayInfo(lessons, position).day,
+      done: enrollment.status === "completed" || position < index,
+    })),
   };
   if (enrollment.status === "completed") {
     const { data: certificate, error } = await client
@@ -206,11 +203,6 @@ export async function courseState(
     return {
       ...base,
       state: "completed" as const,
-      outline: lessons.map((lesson) => ({
-        id: lesson.id,
-        title: lesson.title,
-        done: true,
-      })),
       certificate: certificate
         ? {
             code: certificate.verification_code as string,
@@ -222,103 +214,173 @@ export async function courseState(
   if (enrollment.status === "paused")
     return { ...base, state: "paused" as const };
   if (!lessons.length) return { ...base, state: "empty" as const };
-
-  const index = currentIndexOf(lessons, enrollment.current_resource_id);
+  if (state.nextUnlockAt) {
+    return {
+      ...base,
+      state: "locked" as const,
+      unlock: {
+        day: dayInfo(lessons, index).day,
+        at: state.nextUnlockAt,
+        timezone: context.pacing.timezone,
+      },
+    };
+  }
   const lesson = lessons[index];
-  const { data: quiz, error: quizError } = await client
-    .from("course_quiz_questions")
-    .select("question,options")
-    .eq("resource_id", lesson.id)
-    .maybeSingle();
-  if (quizError) throw quizError;
+  const day = dayInfo(lessons, index);
+  if (state.step === "question" && state.currentResourceId) {
+    const quiz = await quizFor(client, lesson.id);
+    if (quiz) {
+      return {
+        ...base,
+        state: "question" as const,
+        lesson: {
+          id: lesson.id,
+          title: lesson.title,
+          position: index + 1,
+          ...day,
+        },
+        // The answer key is never sent to the browser.
+        quiz: { question: quiz.question, options: quiz.options },
+      };
+    }
+  }
   return {
     ...base,
     state: "learning" as const,
-    outline: lessons.map((item, position) => ({
-      id: item.id,
-      title: item.title,
-      done: position < index,
-    })),
     lesson: {
-      ...lesson,
+      id: lesson.id,
+      title: lesson.title,
+      content: lesson.content,
       position: index + 1,
-      // The answer key is never sent to the browser.
-      quiz: quiz
-        ? {
-            question: quiz.question as string,
-            options: (Array.isArray(quiz.options) ? quiz.options : []).filter(
-              (option: unknown): option is string => typeof option === "string",
-            ),
-          }
-        : null,
+      ...day,
     },
   };
 }
 
 export type StepResult =
+  | { status: "question" }
   | { status: "advanced" }
+  | { status: "day_complete"; unlockAt: string; timezone: string }
   | { status: "completed"; certificateCode: string | null }
   | { status: "incorrect"; explanation: string | null }
+  | {
+      status: "correct";
+      explanation: string | null;
+      next: "advanced" | "day_complete" | "completed";
+    }
   | { status: "stale" };
 
 export async function submitStep(
   client: Client,
   userId: string,
-  input: { courseId: string; resourceId: string; answer?: string },
+  input: {
+    courseId: string;
+    resourceId: string;
+    step: "lesson" | "question";
+    answer?: string;
+  },
+  now = new Date(),
 ): Promise<StepResult> {
   if (!(await webCourse(client, input.courseId)))
     throw new LearnerError("This course is not available.");
   const enrollment = await enrollmentFor(client, userId, input.courseId);
   if (!enrollment || enrollment.status !== "active")
     throw new LearnerError("You are not active in this course.");
-  const lessons = await orderedLessons(client, input.courseId);
-  const index = currentIndexOf(lessons, enrollment.current_resource_id);
-  // The learner submitted a lesson they are no longer on (another tab, double click): reload.
-  if (lessons[index]?.id !== input.resourceId) return { status: "stale" };
+  const context = await loadCourse(client, input.courseId);
+  const state = webState(enrollment, now);
+  if (state.nextUnlockAt) return { status: "stale" };
+  const found = context.lessons.findIndex(
+    (lesson) => lesson.id === state.currentResourceId,
+  );
+  const current = context.lessons[found < 0 ? 0 : found];
+  // The learner acted on a lesson or step they are no longer on (another tab, double click): reload.
+  if (
+    !current ||
+    current.id !== input.resourceId ||
+    (state.currentResourceId ? state.step : "lesson") !== input.step
+  )
+    return { status: "stale" };
+  if (input.step === "question" && !input.answer?.trim())
+    throw new LearnerError("Choose an answer first.");
 
-  const { data: quiz, error: quizError } = await client
-    .from("course_quiz_questions")
-    .select("id,options,correct_answer,explanation")
-    .eq("resource_id", input.resourceId)
-    .maybeSingle();
-  if (quizError) throw quizError;
-  const answer = input.answer?.trim() ?? "";
-  if (quiz && !answer) throw new LearnerError("Choose an answer first.");
-  const correct = quiz
-    ? gradeQuizAnswer(
-        answer,
-        Array.isArray(quiz.options) ? quiz.options : [],
-        quiz.correct_answer,
-      )
-    : true;
+  // A web learner sees lesson 1 before acting, so their first step starts from it rather than restarting.
+  const started: EnrollmentState = state.currentResourceId
+    ? state
+    : { ...state, currentResourceId: current.id, step: "lesson" };
+  const engineInput: Input =
+    input.step === "question"
+      ? { kind: "answer", text: input.answer ?? "" }
+      : { kind: "next" };
+  const decision = decideStep({
+    state: started,
+    lessons: context.lessons,
+    quiz: await quizFor(client, current.id),
+    pacing: context.pacing,
+    input: engineInput,
+    now,
+  });
+  if (
+    decision.outcome === "hint" ||
+    decision.outcome === "inactive" ||
+    decision.outcome === "no_lessons"
+  )
+    return { status: "stale" };
 
-  const next = lessons[index + 1];
-  const complete = correct && !next;
-  const { data, error } = await client.rpc("apply_web_progression", {
+  const { data, error } = await client.rpc("apply_web_step", {
     p_enrollment_id: enrollment.id,
     p_user_id: userId,
-    p_expected_resource_id: enrollment.current_resource_id,
-    p_question_id: quiz?.id ?? null,
-    p_submitted_answer: quiz ? answer.slice(0, 4096) : null,
-    p_is_correct: quiz ? correct : null,
-    p_advance: correct && Boolean(next),
-    p_next_resource_id: correct && next ? next.id : null,
-    p_progress: Math.round(((index + 1) / lessons.length) * 100),
-    p_complete: complete,
+    p_expected_version: enrollment.state_version ?? 0,
+    p_state: {
+      status: decision.state.status,
+      current_resource_id: decision.state.currentResourceId,
+      current_step: decision.state.step,
+      progress_percentage: decision.state.progress,
+      paused_at: null,
+      pause_reminder_sent_at: null,
+      next_unlock_at: decision.state.nextUnlockAt,
+      nudge_sent_at: null,
+      completed_at: decision.state.completedAt,
+    },
+    p_attempt: decision.attempt
+      ? {
+          question_id: decision.attempt.questionId,
+          answer: decision.attempt.answer,
+          correct: decision.attempt.correct,
+        }
+      : null,
   });
   if (error) {
     if (error.code === "40001") return { status: "stale" };
     throw error;
   }
-  if (!correct)
-    return { status: "incorrect", explanation: quiz?.explanation ?? null };
-  if (complete)
+  const certificateCode =
+    (data as { certificate_code?: string | null } | null)?.certificate_code ??
+    null;
+  const feedback = decision.outputs.find(
+    (output) => output.kind === "feedback",
+  );
+  const dayComplete = decision.outputs.find(
+    (output) => output.kind === "day_complete",
+  );
+  if (feedback && !feedback.correct)
+    return { status: "incorrect", explanation: feedback.explanation };
+  const next =
+    decision.outcome === "completed"
+      ? "completed"
+      : decision.outcome === "day_complete"
+        ? "day_complete"
+        : "advanced";
+  if (feedback)
+    return { status: "correct", explanation: feedback.explanation, next };
+  if (decision.outcome === "question") return { status: "question" };
+  if (dayComplete)
     return {
-      status: "completed",
-      certificateCode:
-        (data as { certificate_code?: string | null } | null)
-          ?.certificate_code ?? null,
+      status: "day_complete",
+      unlockAt: dayComplete.unlockAt,
+      timezone: context.pacing.timezone,
     };
+  if (decision.outcome === "completed")
+    return { status: "completed", certificateCode };
   return { status: "advanced" };
 }
 

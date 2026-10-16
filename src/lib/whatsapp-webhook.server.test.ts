@@ -4,6 +4,7 @@ import {
   persistWhatsAppCallback,
 } from "./whatsapp-webhook.server";
 import { fakeSupabase } from "@/test/fake-supabase";
+import type { InboundTextHandler } from "./whatsapp-webhook.server";
 
 const messagePayload = (id: string, body = "hi") => ({
   entry: [
@@ -117,11 +118,8 @@ describe("persistWhatsAppCallback", () => {
 describe("persistWhatsAppCallback progression hook", () => {
   it("runs once per stored text message and notes skipped progression", async () => {
     const { client, rows } = fakeSupabase();
-    const seen: Array<{ id: string; phone: string; body: string }> = [];
-    const hook = async (
-      _client: unknown,
-      message: { id: string; phone: string; body: string },
-    ) => {
+    const seen: Array<Parameters<InboundTextHandler>[1]> = [];
+    const hook: InboundTextHandler = async (_client, message) => {
       seen.push(message);
       return "skipped for test";
     };
@@ -138,12 +136,95 @@ describe("persistWhatsAppCallback progression hook", () => {
       hook,
     );
     expect(seen).toEqual([
-      { id: "wamid.h", phone: "919766072308", body: "start" },
+      {
+        id: "wamid.h",
+        phone: "919766072308",
+        text: "start",
+        replyId: null,
+        replyTitle: null,
+      },
     ]);
     expect(rows("whatsapp_webhook_callbacks")[0]).toMatchObject({
       status: "processed",
       error_message: "wamid.h: skipped for test",
     });
+  });
+
+  it("passes button taps, list picks and template quick-replies to the hook", async () => {
+    const { client, rows } = fakeSupabase();
+    const seen: Array<Parameters<InboundTextHandler>[1]> = [];
+    const hook: InboundTextHandler = async (_client, message) => {
+      seen.push(message);
+    };
+    const tap = (id: string, message: Record<string, unknown>) => ({
+      entry: [
+        {
+          changes: [
+            {
+              value: {
+                messages: [
+                  {
+                    id,
+                    from: "919766072308",
+                    timestamp: "1760000000",
+                    ...message,
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    await persistWhatsAppCallback(
+      "d-b",
+      tap("w.b", {
+        type: "interactive",
+        interactive: {
+          type: "button_reply",
+          button_reply: { id: "course:next", title: "Next" },
+        },
+      }),
+      client,
+      hook,
+    );
+    await persistWhatsAppCallback(
+      "d-l",
+      tap("w.l", {
+        type: "interactive",
+        interactive: {
+          type: "list_reply",
+          list_reply: { id: "quiz:2", title: "Option 2" },
+        },
+      }),
+      client,
+      hook,
+    );
+    await persistWhatsAppCallback(
+      "d-t",
+      tap("w.t", {
+        type: "button",
+        button: { payload: "Start", text: "Start" },
+      }),
+      client,
+      hook,
+    );
+    expect(
+      seen.map(({ replyId, replyTitle, text }) => ({
+        replyId,
+        replyTitle,
+        text,
+      })),
+    ).toEqual([
+      { replyId: "course:next", replyTitle: "Next", text: null },
+      { replyId: "quiz:2", replyTitle: "Option 2", text: null },
+      { replyId: "Start", replyTitle: "Start", text: null },
+    ]);
+    expect(rows("whatsapp_messages").map((row) => row.content)).toEqual([
+      "[Next]",
+      "[Option 2]",
+      "[Start]",
+    ]);
   });
 
   it("marks the callback as an error when progression fails, so a retry runs it again", async () => {

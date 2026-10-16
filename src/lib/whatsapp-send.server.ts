@@ -21,28 +21,40 @@ async function gateway(path: string, body?: unknown) {
   return { windowClosed: false as const, payload };
 }
 
-export async function approvedReplyTemplates() {
+export async function approvedReplyTemplates(options: { allowQuickReplies?: boolean } = {}) {
   const templates = [];
   let after: string | undefined;
   for (let page = 0; page < 10; page++) {
     const result = await gateway(`/message_templates?fields=id,name,status,language,components,parameter_format&limit=100${after ? `&after=${encodeURIComponent(after)}` : ""}`);
-    templates.push(...parseReplyTemplates(result.payload));
+    templates.push(...parseReplyTemplates(result.payload, options));
     after = result.payload.paging?.next ? result.payload.paging.cursors?.after : undefined;
     if (!after) break;
   }
   return templates;
 }
 
-/** Automated reply to a learner who just messaged us (24h window is open by definition). */
-export async function sendAutomatedWhatsAppText(phoneNumber: string, text: string) {
+export class WhatsAppWindowClosedError extends Error {}
+
+/**
+ * Automated course message (text, interactive buttons/list, or template). Free-form payloads need an open
+ * 24-hour window; a closed window raises WhatsAppWindowClosedError so callers can fall back to a template.
+ * The message is recorded in Chat History only after WhatsApp returns a real message ID.
+ */
+export async function sendAutomatedWhatsApp(phoneNumber: string, payload: Record<string, unknown>, content: string) {
   const phone = phoneNumber.replace(/\D/g, "");
-  const result = await gateway("/messages", { messaging_product: "whatsapp", to: phone, type: "text", text: { body: text } });
-  if (result.windowClosed) throw new Error("WhatsApp reply window is closed for this learner.");
+  const result = await gateway("/messages", { messaging_product: "whatsapp", to: phone, ...payload });
+  if (result.windowClosed) throw new WhatsAppWindowClosedError("WhatsApp reply window is closed for this learner.");
   const messageId = result.payload.messages?.[0]?.id;
   if (!messageId) throw new Error("WhatsApp did not return a message ID.");
-  const { error } = await supabaseAdmin.from("whatsapp_messages").upsert({ phone_number: phone, direction: "outgoing", content: text, provider_message_id: messageId, status: "accepted" }, { onConflict: "provider_message_id", ignoreDuplicates: true });
-  if (error) console.error("Automated WhatsApp reply accepted but not saved", messageId, error.code);
+  const templateName = payload.type === "template" ? String((payload.template as { name?: unknown } | undefined)?.name ?? "") || null : null;
+  const { error } = await supabaseAdmin.from("whatsapp_messages").upsert({ phone_number: phone, direction: "outgoing", content, template_name: templateName, provider_message_id: messageId, status: "accepted" }, { onConflict: "provider_message_id", ignoreDuplicates: true });
+  if (error) console.error("Automated WhatsApp message accepted but not saved", messageId, error.code);
   return messageId;
+}
+
+/** Automated reply to a learner who just messaged us (24h window is open by definition). */
+export function sendAutomatedWhatsAppText(phoneNumber: string, text: string) {
+  return sendAutomatedWhatsApp(phoneNumber, { type: "text", text: { body: text } }, text);
 }
 
 export type SendInput = { phoneNumber: string; message?: string; templateName?: string; language?: string; parameters?: string[] };

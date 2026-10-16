@@ -17,7 +17,16 @@ const PROGRESSION_NOTES: Record<string, string> = {
 // Course progression runs on top of the verified, persisted callback.
 const progressCourse: InboundTextHandler = async (client, message) =>
   PROGRESSION_NOTES[
-    await progressFromReply(client, message.phone, message.body, message.id)
+    await progressFromReply(
+      client,
+      message.phone,
+      {
+        text: message.text,
+        replyId: message.replyId,
+        replyTitle: message.replyTitle,
+      },
+      message.id,
+    )
   ] ?? null;
 
 const json = (body: unknown, status = 200) =>

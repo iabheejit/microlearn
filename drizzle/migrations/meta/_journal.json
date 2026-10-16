@@ -43,6 +43,13 @@
       "when": 1792124306947,
       "tag": "0005_atomic_whatsapp_progression",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792166599450,
+      "tag": "0006_course_pacing",
+      "breakpoints": true
     }
   ]
 }

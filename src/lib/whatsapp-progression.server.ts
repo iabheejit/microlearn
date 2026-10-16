@@ -1,116 +1,295 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { gradeQuizAnswer, isContinueReply } from "../../supabase/functions/_shared/whatsapp-logic.ts";
-import { sendAutomatedWhatsAppText } from "./whatsapp-send.server";
+import {
+  decideStep,
+  type Decision,
+  type EnrollmentState,
+  type Input,
+} from "./course-engine";
+import { loadCourse, quizFor, type CourseContext } from "./course-data.server";
+import {
+  interpretReply,
+  renderOutputs,
+  type InboundReply,
+  type OutgoingMessage,
+} from "./whatsapp-course-messages";
+import { sendAutomatedWhatsApp } from "./whatsapp-send.server";
 
-// Port of supabase/functions/_shared/course-progression.ts for the TanStack callback route.
-// Each learner message is decided once (apply_whatsapp_progression) before sending; retries re-send the stored reply.
+// WhatsApp course progression on top of the channel-neutral engine (course-engine.ts).
+// Every step is committed with its outgoing messages (apply_whatsapp_step) before anything is sent;
+// delivery then resumes from delivered_count, so retries never skip or repeat a step.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Client = SupabaseClient<any>;
+export { loadCourse, quizFor, type CourseContext };
+export type Send = (
+  phone: string,
+  payload: Record<string, unknown>,
+  content: string,
+) => Promise<string>;
 
-async function orderedLessons(client: Client, courseId: string) {
-  const { data: modules, error } = await client.from("course_modules").select("id").eq("course_id", courseId).order("order_index");
+export type EnrollmentRow = {
+  id: string;
+  course_id: string;
+  phone_number: string;
+  learner_name: string;
+  status: EnrollmentState["status"];
+  current_resource_id: string | null;
+  current_step: EnrollmentState["step"];
+  progress_percentage: number;
+  paused_at: string | null;
+  pause_reminder_sent_at: string | null;
+  next_unlock_at: string | null;
+  nudge_sent_at: string | null;
+  completed_at: string | null;
+  state_version: number;
+};
+
+export const stateOf = (row: EnrollmentRow): EnrollmentState => ({
+  status: row.status,
+  currentResourceId: row.current_resource_id,
+  step: row.current_step ?? "lesson",
+  progress: row.progress_percentage ?? 0,
+  pausedAt: row.paused_at,
+  pauseReminderSentAt: row.pause_reminder_sent_at,
+  nextUnlockAt: row.next_unlock_at,
+  nudgeSentAt: row.nudge_sent_at,
+  completedAt: row.completed_at,
+});
+
+export const stateColumns = (state: EnrollmentState) => ({
+  status: state.status,
+  current_resource_id: state.currentResourceId,
+  current_step: state.step,
+  progress_percentage: state.progress,
+  paused_at: state.pausedAt,
+  pause_reminder_sent_at: state.pauseReminderSentAt,
+  next_unlock_at: state.nextUnlockAt,
+  nudge_sent_at: state.nudgeSentAt,
+  completed_at: state.completedAt,
+});
+
+/** Sends an event's stored messages in order, resuming after the last one WhatsApp accepted. */
+export async function deliverEvent(
+  client: Client,
+  event: {
+    id: string;
+    response_messages: OutgoingMessage[] | null;
+    delivered_count: number;
+  },
+  phone: string,
+  send: Send,
+) {
+  const messages = event.response_messages ?? [];
+  for (
+    let index = event.delivered_count ?? 0;
+    index < messages.length;
+    index++
+  ) {
+    await send(phone, messages[index].payload, messages[index].content);
+    const { error } = await client
+      .from("whatsapp_progression_events")
+      .update({ delivered_count: index + 1 })
+      .eq("id", event.id);
+    if (error) throw error;
+  }
+  const { error } = await client
+    .from("whatsapp_progression_events")
+    .update({ status: "completed", completed_at: new Date().toISOString() })
+    .eq("id", event.id);
   if (error) throw error;
-  if (!modules?.length) return [];
-  const { data: resources, error: rError } = await client.from("course_resources")
-    .select("id,module_id,title,content,order_index").in("module_id", modules.map((m) => m.id)).order("order_index");
-  if (rError) throw rError;
-  return modules.flatMap((m) => (resources ?? []).filter((r) => r.module_id === m.id)) as { id: string; title: string; content: string }[];
 }
 
-async function lessonText(client: Client, resource: { id: string; title: string; content: string }, position: number, total: number, intro?: string | null) {
-  const { data: quiz, error } = await client.from("course_quiz_questions").select("question,options").eq("resource_id", resource.id).maybeSingle();
+async function certificateText(
+  client: Client,
+  enrollment: EnrollmentRow,
+  course: CourseContext,
+) {
+  const code = crypto
+    .randomUUID()
+    .replaceAll("-", "")
+    .slice(0, 16)
+    .toUpperCase();
+  const { error } = await client.from("course_certificates").upsert(
+    {
+      enrollment_id: enrollment.id,
+      course_id: course.id,
+      learner_name: enrollment.learner_name,
+      phone_number: enrollment.phone_number,
+      verification_code: code,
+    },
+    { onConflict: "enrollment_id", ignoreDuplicates: true },
+  );
   if (error) throw error;
-  const options = Array.isArray(quiz?.options) ? quiz.options : [];
-  const choices = options.map((o: unknown, i: number) => (typeof o === "string" ? `${i + 1}. ${o}` : "")).filter(Boolean).join("\n");
-  return [...(intro?.trim() ? [intro.trim()] : []), `Lesson ${position + 1}/${total}: ${resource.title}`, resource.content,
-    quiz ? `${quiz.question}${choices ? `\n${choices}` : ""}\nReply with your answer.` : "Reply NEXT when you are ready for the next lesson."]
-    .join("\n\n").slice(0, 4096);
+  const { data, error: lookupError } = await client
+    .from("course_certificates")
+    .select("verification_code")
+    .eq("enrollment_id", enrollment.id)
+    .single();
+  if (lookupError) throw lookupError;
+  const verification = data.verification_code as string;
+  const custom = course.completionMessage?.trim();
+  const message = custom
+    ? custom
+        .replaceAll("{{name}}", enrollment.learner_name)
+        .replaceAll("{{course}}", course.title)
+        .replaceAll("{{code}}", verification)
+    : `🎓 Congratulations, ${enrollment.learner_name}! You completed ${course.title}.`;
+  // The certificate code is always included, even when a custom message omits {{code}}.
+  return message.includes(verification)
+    ? message
+    : `${message}\nCertificate verification code: ${verification}`;
 }
 
-async function deliver(client: Client, eventId: string, phone: string, text: string) {
-  await sendAutomatedWhatsAppText(phone, text);
-  const { error } = await client.from("whatsapp_progression_events").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", eventId);
-  if (error) throw error;
+/** Messages for a decision; issues the certificate first when the course is completed. */
+export async function messagesFor(
+  client: Client,
+  decision: Decision,
+  enrollment: EnrollmentRow,
+  course: CourseContext,
+) {
+  const completionText =
+    decision.outcome === "completed"
+      ? await certificateText(client, enrollment, course)
+      : "";
+  return renderOutputs(decision.outputs, {
+    courseTitle: course.title,
+    learnerName: enrollment.learner_name,
+    lessonIntro: course.lessonIntro,
+    timezone: course.pacing.timezone,
+    completionText,
+  });
 }
 
-export async function progressFromReply(client: Client, phone: string, text: string, providerMessageId: string) {
-  const { data: existing, error: existingError } = await client.from("whatsapp_progression_events")
-    .select("id,status,response_text").eq("provider_message_id", providerMessageId).maybeSingle();
+/**
+ * Claims `key` (a provider message ID or a scheduler key), commits the new state with its messages,
+ * then delivers them. Returns false when another worker already claimed the key.
+ */
+export async function applyAndDeliver(
+  client: Client,
+  args: {
+    key: string;
+    enrollment: EnrollmentRow;
+    state: EnrollmentState;
+    attempt: Decision["attempt"];
+    outcome: string;
+    messages: OutgoingMessage[];
+    send: Send;
+  },
+) {
+  const { data: event, error: eventError } = await client
+    .from("whatsapp_progression_events")
+    .insert({
+      enrollment_id: args.enrollment.id,
+      provider_message_id: args.key,
+      status: "pending",
+    })
+    .select("id")
+    .single();
+  if (eventError) {
+    if (eventError.code === "23505") return false;
+    throw eventError;
+  }
+  const { error: applyError } = await client.rpc("apply_whatsapp_step", {
+    p_event_id: event.id,
+    p_enrollment_id: args.enrollment.id,
+    p_expected_version: args.enrollment.state_version ?? 0,
+    p_state: stateColumns(args.state),
+    p_attempt: args.attempt
+      ? {
+          question_id: args.attempt.questionId,
+          answer: args.attempt.answer,
+          correct: args.attempt.correct,
+        }
+      : null,
+    p_outcome: args.outcome,
+    p_messages: args.messages,
+  });
+  if (applyError) {
+    // Nothing was committed: drop the claim so a retry decides again against the current state.
+    await client
+      .from("whatsapp_progression_events")
+      .delete()
+      .eq("id", event.id)
+      .is("response_messages", null);
+    throw applyError;
+  }
+  await deliverEvent(
+    client,
+    { id: event.id, response_messages: args.messages, delivered_count: 0 },
+    args.enrollment.phone_number,
+    args.send,
+  );
+  return true;
+}
+
+export type ReplyOptions = { send?: Send; now?: Date };
+
+export async function progressFromReply(
+  client: Client,
+  phone: string,
+  reply: InboundReply | string,
+  providerMessageId: string,
+  options: ReplyOptions = {},
+) {
+  const send = options.send ?? sendAutomatedWhatsApp;
+  const now = options.now ?? new Date();
+  const { data: existing, error: existingError } = await client
+    .from("whatsapp_progression_events")
+    .select("id,status,response_messages,delivered_count")
+    .eq("provider_message_id", providerMessageId)
+    .maybeSingle();
   if (existingError) throw existingError;
   if (existing?.status === "completed") return "duplicate";
-  if (existing?.response_text) { await deliver(client, existing.id, phone, existing.response_text); return "resent"; }
+  if (existing?.response_messages) {
+    await deliverEvent(client, existing, phone, send);
+    return "resent";
+  }
   if (existing) {
-    const { error } = await client.from("whatsapp_progression_events").delete().eq("id", existing.id).eq("status", "pending").is("response_text", null);
+    const { error } = await client
+      .from("whatsapp_progression_events")
+      .delete()
+      .eq("id", existing.id)
+      .eq("status", "pending")
+      .is("response_messages", null);
     if (error) throw error;
   }
 
-  const { data: enrollments, error: eError } = await client.from("whatsapp_course_enrollments")
-    .select("*").eq("phone_number", phone).eq("status", "active").eq("awaiting_reply", true).order("updated_at", { ascending: false }).limit(2);
-  if (eError) throw eError;
+  const { data: enrollments, error: enrollmentError } = await client
+    .from("whatsapp_course_enrollments")
+    .select("*")
+    .eq("phone_number", phone)
+    .eq("status", "active")
+    .eq("awaiting_reply", true)
+    .order("updated_at", { ascending: false })
+    .limit(2);
+  if (enrollmentError) throw enrollmentError;
   if (!enrollments?.length) return "no_enrollment";
+  // A phone with more than one active enrollment awaiting a reply cannot be advanced unambiguously.
   if (enrollments.length > 1) return "ambiguous_enrollment";
-  const enrollment = enrollments[0];
-  const resources = await orderedLessons(client, enrollment.course_id);
-  if (!resources.length) return "no_lessons";
-  const { data: course, error: cError } = await client.from("courses")
-    .select("title,whatsapp_lesson_intro,whatsapp_completion_message").eq("id", enrollment.course_id).single();
-  if (cError) throw cError;
+  const enrollment = enrollments[0] as EnrollmentRow;
+  const course = await loadCourse(client, enrollment.course_id);
+  if (!course.lessons.length) return "no_lessons";
 
-  const { data: event, error: evError } = await client.from("whatsapp_progression_events")
-    .insert({ enrollment_id: enrollment.id, provider_message_id: providerMessageId, status: "pending" }).select("id").single();
-  if (evError) { if (evError.code === "23505") return "duplicate"; throw evError; }
-
-  let outcome: string;
-  let responseText: string;
-  try {
-    const currentIndex = resources.findIndex((r) => r.id === enrollment.current_resource_id);
-    if (enrollment.current_resource_id && currentIndex < 0) throw new Error("Current lesson is no longer in this course");
-    let quizAttempt: { id: string; correct: boolean; explanation: string | null } | null = null;
-    let advance = true;
-    if (currentIndex >= 0) {
-      const { data: quiz, error: qError } = await client.from("course_quiz_questions")
-        .select("id,correct_answer,explanation,options").eq("resource_id", resources[currentIndex].id).maybeSingle();
-      if (qError) throw qError;
-      if (quiz) {
-        const correct = gradeQuizAnswer(text, Array.isArray(quiz.options) ? quiz.options : [], quiz.correct_answer);
-        quizAttempt = { id: quiz.id, correct, explanation: quiz.explanation };
-        advance = correct;
-      } else advance = isContinueReply(text);
-    }
-    const next = resources[currentIndex + 1];
-    let complete = false;
-    if (!advance) {
-      outcome = quizAttempt ? "wrong_answer" : "awaiting_next";
-      responseText = quizAttempt ? `Not quite. ${quizAttempt.explanation || "Please try again."}\nReply with your answer to continue.` : "Reply NEXT when you are ready for the next lesson.";
-    } else if (next) {
-      outcome = "advanced";
-      const lesson = await lessonText(client, next, currentIndex + 1, resources.length, course.whatsapp_lesson_intro);
-      responseText = quizAttempt ? `Correct! ${quizAttempt.explanation ?? ""}`.trim() + "\n\n" + lesson : lesson;
-    } else {
-      outcome = "completed";
-      complete = true;
-      const code = crypto.randomUUID().replaceAll("-", "").slice(0, 16).toUpperCase();
-      const { error: certError } = await client.from("course_certificates").upsert({ enrollment_id: enrollment.id, course_id: enrollment.course_id, learner_name: enrollment.learner_name, phone_number: phone, verification_code: code }, { onConflict: "enrollment_id", ignoreDuplicates: true });
-      if (certError) throw certError;
-      const { data: cert, error: lError } = await client.from("course_certificates").select("verification_code").eq("enrollment_id", enrollment.id).single();
-      if (lError) throw lError;
-      const v = cert.verification_code as string;
-      const custom = (course.whatsapp_completion_message as string | null)?.trim();
-      const msg = custom ? custom.replaceAll("{{name}}", enrollment.learner_name).replaceAll("{{course}}", course.title).replaceAll("{{code}}", v) : `Congratulations, ${enrollment.learner_name}! You completed ${course.title}.`;
-      responseText = msg.includes(v) ? msg : `${msg}\nCertificate verification code: ${v}`;
-    }
-    const { error: applyError } = await client.rpc("apply_whatsapp_progression", {
-      p_event_id: event.id, p_enrollment_id: enrollment.id, p_expected_resource_id: enrollment.current_resource_id,
-      p_next_resource_id: advance && next ? next.id : null, p_progress: Math.round(((currentIndex + 1) / resources.length) * 100),
-      p_advance: advance && Boolean(next), p_complete: complete, p_question_id: quizAttempt?.id ?? null,
-      p_submitted_answer: quizAttempt ? text.trim().slice(0, 4096) : null, p_is_correct: quizAttempt?.correct ?? null,
-      p_outcome: outcome, p_response_text: responseText,
-    });
-    if (applyError) throw applyError;
-  } catch (error) {
-    await client.from("whatsapp_progression_events").delete().eq("id", event.id).is("response_text", null);
-    throw error;
-  }
-  await deliver(client, event.id, phone, responseText);
-  return outcome;
+  const input: Input = interpretReply(
+    typeof reply === "string" ? { text: reply } : reply,
+  );
+  const decision = decideStep({
+    state: stateOf(enrollment),
+    lessons: course.lessons,
+    quiz: await quizFor(client, enrollment.current_resource_id),
+    pacing: course.pacing,
+    input,
+    now,
+  });
+  if (!decision.outputs.length) return decision.outcome;
+  const messages = await messagesFor(client, decision, enrollment, course);
+  const claimed = await applyAndDeliver(client, {
+    key: providerMessageId,
+    enrollment,
+    state: decision.state,
+    attempt: decision.attempt,
+    outcome: decision.outcome,
+    messages,
+    send,
+  });
+  return claimed ? decision.outcome : "duplicate";
 }

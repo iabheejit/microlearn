@@ -18,6 +18,29 @@ const MessageSchema = z
       .object({ body: z.string().max(65536) })
       .passthrough()
       .optional(),
+    // Taps on reply buttons and list rows sent by the course.
+    interactive: z
+      .object({
+        type: z.string().optional(),
+        button_reply: z
+          .object({ id: z.string().max(256), title: z.string().max(256) })
+          .passthrough()
+          .optional(),
+        list_reply: z
+          .object({ id: z.string().max(256), title: z.string().max(256) })
+          .passthrough()
+          .optional(),
+      })
+      .passthrough()
+      .optional(),
+    // Taps on a template's quick-reply button.
+    button: z
+      .object({
+        payload: z.string().max(256).optional(),
+        text: z.string().max(256).optional(),
+      })
+      .passthrough()
+      .optional(),
   })
   .passthrough();
 
@@ -81,8 +104,30 @@ const isoFromSeconds = (value?: string) => {
     ? new Date(seconds * 1000).toISOString()
     : new Date().toISOString();
 };
-const contentFor = (message: Message) =>
-  message.text?.body ?? `[${message.type || "unsupported"} message]`;
+/** What the learner sent: typed text, or the id and label of the button or list row they tapped. */
+export function replyOf(message: Message) {
+  const tapped =
+    message.interactive?.button_reply ?? message.interactive?.list_reply;
+  if (tapped)
+    return { text: null, replyId: tapped.id, replyTitle: tapped.title };
+  if (message.button) {
+    return {
+      text: null,
+      replyId: message.button.payload || message.button.text || null,
+      replyTitle: message.button.text ?? null,
+    };
+  }
+  return { text: message.text?.body ?? null, replyId: null, replyTitle: null };
+}
+const contentFor = (message: Message) => {
+  const reply = replyOf(message);
+  return (
+    reply.text ??
+    (reply.replyTitle
+      ? `[${reply.replyTitle}]`
+      : `[${message.type || "unsupported"} message]`)
+  );
+};
 const statusError = (status: Status) =>
   status.errors
     ?.map((error) =>
@@ -108,10 +153,16 @@ export function serviceClient() {
 
 export type CallbackResult = { status: "processed" | "ignored" | "duplicate" };
 
-/** Runs for each stored inbound text message; a returned string is noted on the callback row. */
+/** Runs for each stored inbound text or tapped reply; a returned string is noted on the callback row. */
 export type InboundTextHandler = (
   client: SupabaseClient,
-  message: { id: string; phone: string; body: string },
+  message: {
+    id: string;
+    phone: string;
+    text: string | null;
+    replyId: string | null;
+    replyTitle: string | null;
+  },
 ) => Promise<string | null | void>;
 
 async function applyStatus(client: SupabaseClient, status: Status) {
@@ -255,11 +306,12 @@ export async function persistWhatsAppCallback(
       if (messageError) throw messageError;
       // Failures propagate: the callback is marked 'error' and the provider retries it.
       // The handler must be idempotent per provider message ID (progression is).
-      if (onInboundText && message.text?.body) {
+      const reply = replyOf(message);
+      if (onInboundText && (reply.text || reply.replyId)) {
         const note = await onInboundText(client, {
           id: message.id,
           phone: normalized,
-          body: message.text.body,
+          ...reply,
         });
         if (note) notes.push(`${message.id}: ${note}`);
       }

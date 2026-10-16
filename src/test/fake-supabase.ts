@@ -13,6 +13,8 @@ export function fakeSupabase(
   options: {
     rpc?: Record<string, RpcHandler>;
     users?: Record<string, string>;
+    /** Columns that must be unique per table, e.g. { events: ["provider_message_id"] }. */
+    unique?: Record<string, string[]>;
   } = {},
 ) {
   const tables: Record<string, Row[]> = {};
@@ -20,7 +22,7 @@ export function fakeSupabase(
   let nextId = 1;
 
   const from = (table: string) => {
-    let op: "select" | "insert" | "upsert" | "update" = "select";
+    let op: "select" | "insert" | "upsert" | "update" | "delete" = "select";
     let values: Row = {};
     let upsertOptions: { onConflict?: string; ignoreDuplicates?: boolean } = {};
     const filters: Array<(row: Row) => boolean> = [];
@@ -31,8 +33,9 @@ export function fakeSupabase(
       const matching = () =>
         rows(table).filter((row) => filters.every((filter) => filter(row)));
       if (op === "insert") {
-        rows(table).push({ id: String(nextId++), ...values });
-        return { data: null, error: null };
+        const inserted = { id: String(nextId++), ...values };
+        rows(table).push(inserted);
+        return { data: mode === "many" ? null : inserted, error: null };
       }
       if (op === "upsert") {
         const keys = (upsertOptions.onConflict || "id").split(",");
@@ -48,6 +51,11 @@ export function fakeSupabase(
       }
       if (op === "update") {
         matching().forEach((row) => Object.assign(row, values));
+        return { data: null, error: null };
+      }
+      if (op === "delete") {
+        const doomed = new Set(matching());
+        tables[table] = rows(table).filter((row) => !doomed.has(row));
         return { data: null, error: null };
       }
       const found = matching();
@@ -70,7 +78,20 @@ export function fakeSupabase(
 
     const builder = {
       select: () => builder,
-      insert: (row: Row) => ((op = "insert"), (values = row), builder),
+      insert: (row: Row) => {
+        op = "insert";
+        values = row;
+        // Emulate unique keys the server code relies on for claims.
+        const unique = options.unique?.[table] ?? [];
+        if (
+          unique.some((key) =>
+            rows(table).some((existing) => existing[key] === row[key]),
+          )
+        ) {
+          return conflictBuilder;
+        }
+        return builder;
+      },
       upsert: (row: Row, opts = {}) => (
         (op = "upsert"),
         (values = row),
@@ -78,6 +99,25 @@ export function fakeSupabase(
         builder
       ),
       update: (row: Row) => ((op = "update"), (values = row), builder),
+      delete: () => ((op = "delete"), builder),
+      lt: (column: string, value: string) => (
+        filters.push((row) => String(row[column]) < value),
+        builder
+      ),
+      lte: (column: string, value: string) => (
+        filters.push(
+          (row) => row[column] != null && String(row[column]) <= value,
+        ),
+        builder
+      ),
+      is: (column: string, value: null) => (
+        filters.push((row) => (row[column] ?? null) === value),
+        builder
+      ),
+      not: (column: string, _operator: "is", value: null) => (
+        filters.push((row) => (row[column] ?? null) !== value),
+        builder
+      ),
       eq: (column: string, value: unknown) => (
         filters.push((row) => row[column] === value),
         builder
@@ -97,6 +137,15 @@ export function fakeSupabase(
         resolve: (value: unknown) => unknown,
         reject?: (reason: unknown) => unknown,
       ) => Promise.resolve().then(run).then(resolve, reject),
+    };
+    const conflictBuilder = {
+      select: () => conflictBuilder,
+      single: () => conflictBuilder,
+      then: (resolve: (value: unknown) => unknown) =>
+        Promise.resolve({
+          data: null,
+          error: { code: "23505", message: "duplicate key" },
+        }).then(resolve),
     };
     return builder;
   };
