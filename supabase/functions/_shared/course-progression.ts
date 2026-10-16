@@ -14,13 +14,13 @@ export async function orderedLessons(courseId: string) {
   return modules.flatMap((module) => (resources || []).filter((resource) => resource.module_id === module.id));
 }
 
-async function lessonText(resource: { id: string; title: string; content: string }, position: number, total: number) {
+async function lessonText(resource: { id: string; title: string; content: string }, position: number, total: number, intro?: string | null) {
   const { data: quiz, error } = await client.from('course_quiz_questions')
     .select('question,options').eq('resource_id', resource.id).maybeSingle();
   if (error) throw error;
   const options = Array.isArray(quiz?.options) ? quiz.options : [];
   const choices = options.map((option, index) => typeof option === 'string' ? `${index + 1}. ${option}` : '').filter(Boolean).join('\n');
-  return [`Lesson ${position + 1}/${total}: ${resource.title}`, resource.content,
+  return [...(intro?.trim() ? [intro.trim()] : []), `Lesson ${position + 1}/${total}: ${resource.title}`, resource.content,
     quiz ? `${quiz.question}${choices ? `\n${choices}` : ''}\nReply with your answer.` : 'Reply NEXT when you are ready for the next lesson.'].join('\n\n').slice(0, 4096);
 }
 
@@ -32,6 +32,9 @@ export async function progressFromReply(phoneNumber: string, text: string, provi
   if (!enrollments?.length || enrollments.length > 1) return;
   const enrollment = enrollments[0];
   const resources = await orderedLessons(enrollment.course_id);
+  const { data: courseSettings, error: courseError } = await client.from('courses')
+    .select('title,whatsapp_lesson_intro,whatsapp_completion_message').eq('id', enrollment.course_id).single();
+  if (courseError) throw courseError;
   if (!resources.length) return;
   const { data: processed, error: processedError } = await client.from('whatsapp_progression_events')
     .insert({ enrollment_id: enrollment.id, provider_message_id: providerMessageId }).select('id').maybeSingle();
@@ -74,7 +77,7 @@ export async function progressFromReply(phoneNumber: string, text: string, provi
 
   const next = resources[currentIndex + 1];
   if (next) {
-    await sendWhatsAppText(phoneNumber, await lessonText(next, currentIndex + 1, resources.length));
+    await sendWhatsAppText(phoneNumber, await lessonText(next, currentIndex + 1, resources.length, courseSettings.whatsapp_lesson_intro));
     const { error } = await client.from('whatsapp_course_enrollments').update({
       current_resource_id: next.id, progress_percentage: Math.round(((currentIndex + 1) / resources.length) * 100),
     }).eq('id', enrollment.id);
@@ -91,7 +94,12 @@ export async function progressFromReply(phoneNumber: string, text: string, provi
   const { data: existing, error: lookupError } = certificate ? { data: certificate, error: null } : await client.from('course_certificates')
     .select('verification_code').eq('enrollment_id', enrollment.id).single();
   if (lookupError) throw lookupError;
-  await sendWhatsAppText(phoneNumber, `Congratulations, ${enrollment.learner_name}! You completed the course. Certificate verification code: ${existing?.verification_code}`);
+  const verification = existing?.verification_code ?? '';
+  const custom = courseSettings.whatsapp_completion_message?.trim();
+  const completion = custom
+    ? custom.replaceAll('{{name}}', enrollment.learner_name).replaceAll('{{course}}', courseSettings.title).replaceAll('{{code}}', verification)
+    : `Congratulations, ${enrollment.learner_name}! You completed ${courseSettings.title}.`;
+  await sendWhatsAppText(phoneNumber, completion.includes(verification) ? completion : `${completion}\nCertificate verification code: ${verification}`);
   const { error: completeError } = await client.from('whatsapp_course_enrollments').update({
     status: 'completed', progress_percentage: 100, awaiting_reply: false, completed_at: new Date().toISOString(),
   }).eq('id', enrollment.id);

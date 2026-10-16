@@ -10,3 +10,4 @@
 - Chat History checks the incoming-message reply window before enabling WhatsApp free-form sends and treats server window rejections as an actionable template state, not an application crash; the server remains authoritative.
 - Verify WhatsApp callbacks using the linked WhatsApp connection key, never the platform gateway key; require delivery/event headers so retries preserve identity.
 - Course-page learner chat reuses useWhatsAppChat and the enrollment's phone so it shares persisted provider IDs, delivery updates and secured sending with Chat History; do not create a second message store or merge WhatsApp messages into AI tutor history.
+- Each course stores its own WhatsApp welcome template key, lesson intro and completion message; enrollment resolves the latest APPROVED version of that course's key (with its language) so courses never silently share one template.

@@ -10,6 +10,7 @@ import { Plus, ArrowLeft, ArrowRight, Upload, Text, Calendar, Save, Trash2 } fro
 import { useToast } from "@/components/ui/use-toast";
 import { Course, CourseDay, CourseParagraph } from "@/lib/types";
 import WhatsAppPreview from "./WhatsAppPreview";
+import { supabase } from "@/integrations/supabase/client";
 
 const CATEGORIES = ["Programming", "Language", "Business", "Science", "Arts", "Mathematics"];
 const LANGUAGES = ["English", "Spanish", "French", "Hindi", "Mandarin", "Arabic"];
@@ -48,6 +49,19 @@ const CourseEditor = ({ initialCourse, onSave, isSaving = false }: CourseEditorP
   };
 
   const [course, setCourse] = useState<Course>(initialCourse || defaultCourse);
+  const [welcomeTemplates, setWelcomeTemplates] = useState<Array<{ key: string; language: string }>>([]);
+
+  useEffect(() => {
+    supabase.from("whatsapp_template_versions")
+      .select("template_key,language")
+      .eq("review_status", "APPROVED")
+      .order("version", { ascending: false })
+      .then(({ data }) => {
+        const seen = new Map<string, string>();
+        (data || []).forEach((row) => { if (!seen.has(row.template_key)) seen.set(row.template_key, row.language); });
+        setWelcomeTemplates(Array.from(seen, ([key, language]) => ({ key, language })));
+      });
+  }, []);
 
   // Ensure days array is initialized
   useEffect(() => {
@@ -376,6 +390,52 @@ const CourseEditor = ({ initialCourse, onSave, isSaving = false }: CourseEditorP
                     onChange={handlePriceChange}
                   />
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6 space-y-4">
+              <div>
+                <h2 className="text-2xl font-bold">WhatsApp Messages</h2>
+                <p className="text-sm text-muted-foreground">Choose what learners of this course receive on WhatsApp.</p>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Welcome template (sent when a learner is enrolled)</label>
+                <Select
+                  value={course.whatsappWelcomeTemplateKey || "course_welcome"}
+                  onValueChange={(value) => setCourse({ ...course, whatsappWelcomeTemplateKey: value })}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select approved template" /></SelectTrigger>
+                  <SelectContent>
+                    {Array.from(new Set(["course_welcome", ...welcomeTemplates.map((t) => t.key), course.whatsappWelcomeTemplateKey || "course_welcome"])).map((key) => {
+                      const match = welcomeTemplates.find((t) => t.key === key);
+                      return (
+                        <SelectItem key={key} value={key}>
+                          {key}{match ? ` (${match.language})` : " (not approved yet)"}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Only Meta-approved templates can be sent. The learner's name and course title fill the template's two fields.</p>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Lesson intro (added above every lesson)</label>
+                <Textarea
+                  placeholder="e.g. Here's your next bite-sized lesson 📘"
+                  value={course.whatsappLessonIntro || ""}
+                  onChange={(e) => setCourse({ ...course, whatsappLessonIntro: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Completion message</label>
+                <Textarea
+                  placeholder="Congratulations {{name}}! You finished {{course}}. Certificate code: {{code}}"
+                  value={course.whatsappCompletionMessage || ""}
+                  onChange={(e) => setCourse({ ...course, whatsappCompletionMessage: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">Use {"{{name}}"}, {"{{course}}"} and {"{{code}}"}. The certificate code is always included.</p>
               </div>
             </CardContent>
           </Card>
