@@ -31,6 +31,13 @@ export const dbCourseToAppCourse = (dbCourse: any, days: any[] = []): Course => 
     whatsappCompletionMessage: dbCourse.whatsapp_completion_message || "",
     deliveryChannel: dbCourse.delivery_channel || "whatsapp",
     webEnrollmentMode: dbCourse.web_enrollment_mode || "invite",
+    pacingMode: dbCourse.pacing_mode || "immediate",
+    pacingGapDays: dbCourse.pacing_gap_days ?? 1,
+    pacingUnlockTime: dbCourse.pacing_unlock_time || "09:00",
+    pacingTimezone: dbCourse.pacing_timezone || "UTC",
+    pauseReminderHours: dbCourse.pause_reminder_hours ?? 24,
+    whatsappNudgeTemplateName: dbCourse.whatsapp_nudge_template_name || "",
+    whatsappNudgeTemplateLanguage: dbCourse.whatsapp_nudge_template_language || "",
   };
 };
 
@@ -51,6 +58,13 @@ export const appCourseToDbFormat = (course: Course) => {
     whatsapp_completion_message: course.whatsappCompletionMessage?.trim() || null,
     delivery_channel: course.deliveryChannel || "whatsapp",
     web_enrollment_mode: course.webEnrollmentMode || "invite",
+    pacing_mode: course.pacingMode || "immediate",
+    pacing_gap_days: Math.min(Math.max(Math.round(course.pacingGapDays ?? 1), 1), 30),
+    pacing_unlock_time: /^([01]\d|2[0-3]):[0-5]\d$/.test(course.pacingUnlockTime ?? "") ? course.pacingUnlockTime : "09:00",
+    pacing_timezone: course.pacingTimezone || "UTC",
+    pause_reminder_hours: Math.min(Math.max(Math.round(course.pauseReminderHours ?? 24), 0), 168),
+    whatsapp_nudge_template_name: course.whatsappNudgeTemplateName || null,
+    whatsapp_nudge_template_language: course.whatsappNudgeTemplateName ? course.whatsappNudgeTemplateLanguage || null : null,
     is_published: course.status === "active",
     status: course.status === "active" ? "published" as const : course.status
   };

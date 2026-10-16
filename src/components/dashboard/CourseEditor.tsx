@@ -10,6 +10,7 @@ import { Plus, ArrowLeft, ArrowRight, Upload, Text, Calendar, Save, Trash2 } fro
 import { useToast } from "@/components/ui/use-toast";
 import { Course, CourseDay, CourseParagraph } from "@/lib/types";
 import WhatsAppPreview from "./WhatsAppPreview";
+import CoursePacingSettings from "./CoursePacingSettings";
 import { supabase } from "@/integrations/supabase/client";
 
 const CATEGORIES = ["Programming", "Language", "Business", "Science", "Arts", "Mathematics"];
@@ -436,6 +437,10 @@ const CourseEditor = ({ initialCourse, onSave, isSaving = false }: CourseEditorP
               )}
             </CardContent>
           </Card>
+
+          {(course.deliveryChannel || "whatsapp") !== "telegram" && (
+            <CoursePacingSettings course={course} onChange={(patch) => setCourse({ ...course, ...patch })} />
+          )}
 
           {(course.deliveryChannel || "whatsapp") === "whatsapp" && (
           <Card>

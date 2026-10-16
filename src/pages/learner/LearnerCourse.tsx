@@ -3,9 +3,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowLeft,
+  ArrowRight,
   Award,
   CheckCircle2,
   Circle,
+  Clock,
   Loader2,
   Send,
 } from "lucide-react";
@@ -17,6 +19,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { useAITutor } from "@/hooks/useAITutor";
+import { formatUnlockTime } from "@/lib/course-engine";
 import {
   getWebCourseState,
   joinWebCourse,
@@ -33,7 +36,10 @@ export default function LearnerCourse({ courseId }: { courseId: string }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [answer, setAnswer] = useState("");
-  const [feedback, setFeedback] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{
+    correct: boolean;
+    text: string;
+  } | null>(null);
   const queryKey = ["learner-course", courseId];
   const { data, isLoading, error } = useQuery({
     queryKey,
@@ -45,26 +51,44 @@ export default function LearnerCourse({ courseId }: { courseId: string }) {
     await queryClient.invalidateQueries({ queryKey: ["learner-home"] });
   };
   const step = useMutation({
-    mutationFn: (input: { resourceId: string; answer?: string }) =>
-      submit({ data: { courseId, ...input } }),
+    mutationFn: (input: {
+      resourceId: string;
+      step: "lesson" | "question";
+      answer?: string;
+    }) => submit({ data: { courseId, ...input } }),
     onSuccess: async (result) => {
       if (result.status === "incorrect") {
-        setFeedback(`Not quite. ${result.explanation || "Please try again."}`);
+        setFeedback({
+          correct: false,
+          text: `Not quite. ${result.explanation || "Please try again."}`,
+        });
         return;
       }
-      setFeedback(null);
       setAnswer("");
+      // Correct-answer feedback stays visible above the next lesson until the learner moves on.
+      setFeedback(
+        result.status === "correct"
+          ? {
+              correct: true,
+              text: `Correct! ${result.explanation ?? ""}`.trim(),
+            }
+          : null,
+      );
       if (result.status === "stale")
         toast({
           title: "Updated",
           description:
             "This course moved on in another window, so we reloaded it.",
         });
-      if (result.status === "completed")
+      if (
+        result.status === "completed" ||
+        (result.status === "correct" && result.next === "completed")
+      ) {
         toast({
           title: "Course complete!",
           description: "Your certificate is ready.",
         });
+      }
       await refresh();
     },
     onError: (e) =>
@@ -85,6 +109,7 @@ export default function LearnerCourse({ courseId }: { courseId: string }) {
       }),
   });
 
+  const hasOutline = data && "outline" in data;
   return (
     <LearnerLayout>
       <Link
@@ -145,7 +170,7 @@ export default function LearnerCourse({ courseId }: { courseId: string }) {
             </p>
           )}
 
-          {(data.state === "learning" || data.state === "completed") && (
+          {hasOutline && data.state !== "paused" && data.state !== "empty" && (
             <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_16rem]">
               <div className="space-y-6">
                 <div>
@@ -158,7 +183,17 @@ export default function LearnerCourse({ courseId }: { courseId: string }) {
                   </p>
                 </div>
 
-                {data.state === "completed" ? (
+                {feedback?.correct && data.state !== "question" && (
+                  <p
+                    role="status"
+                    className="flex items-center gap-2 text-sm text-primary"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    {feedback.text}
+                  </p>
+                )}
+
+                {data.state === "completed" && (
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
@@ -181,11 +216,32 @@ export default function LearnerCourse({ courseId }: { courseId: string }) {
                       )}
                     </CardContent>
                   </Card>
-                ) : (
+                )}
+
+                {data.state === "locked" && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Clock className="h-5 w-5 text-primary" />
+                        Day {data.unlock.day} is on its way
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p>
+                        Great work today. Day {data.unlock.day} unlocks{" "}
+                        {formatUnlockTime(data.unlock.at, data.unlock.timezone)}
+                        .
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {data.state === "learning" && (
                   <Card>
                     <CardHeader>
                       <p className="text-sm text-muted-foreground">
-                        Lesson {data.lesson.position} of {data.lessonCount}
+                        Day {data.lesson.day} of {data.lesson.dayCount} · Lesson{" "}
+                        {data.lesson.position} of {data.lessonCount}
                       </p>
                       <CardTitle>{data.lesson.title}</CardTitle>
                     </CardHeader>
@@ -194,77 +250,89 @@ export default function LearnerCourse({ courseId }: { courseId: string }) {
                       <div className="whitespace-pre-wrap leading-relaxed">
                         {data.lesson.content}
                       </div>
-                      {data.lesson.quiz ? (
-                        <form
-                          className="space-y-4 border-t border-border pt-4"
-                          onSubmit={(event) => {
-                            event.preventDefault();
-                            step.mutate({ resourceId: data.lesson.id, answer });
-                          }}
-                        >
-                          <p className="font-medium">
-                            {data.lesson.quiz.question}
-                          </p>
-                          {data.lesson.quiz.options.length ? (
-                            <RadioGroup
-                              value={answer}
-                              onValueChange={(value) => {
-                                setAnswer(value);
-                                setFeedback(null);
-                              }}
-                            >
-                              {data.lesson.quiz.options.map((option, index) => (
-                                <div
-                                  key={index}
-                                  className="flex items-center gap-2"
-                                >
-                                  <RadioGroupItem
-                                    id={`option-${index}`}
-                                    value={String(index + 1)}
-                                  />
-                                  <Label htmlFor={`option-${index}`}>
-                                    {option}
-                                  </Label>
-                                </div>
-                              ))}
-                            </RadioGroup>
-                          ) : (
-                            <Textarea
-                              aria-label="Your answer"
-                              value={answer}
-                              onChange={(event) => {
-                                setAnswer(event.target.value);
-                                setFeedback(null);
-                              }}
-                            />
-                          )}
-                          {feedback && (
-                            <p
-                              role="status"
-                              className="text-sm text-destructive"
-                            >
-                              {feedback}
-                            </p>
-                          )}
-                          <Button
-                            type="submit"
-                            disabled={!answer.trim() || step.isPending}
+                      <Button
+                        onClick={() => {
+                          setFeedback(null);
+                          step.mutate({
+                            resourceId: data.lesson.id,
+                            step: "lesson",
+                          });
+                        }}
+                        disabled={step.isPending}
+                      >
+                        Next
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {data.state === "question" && (
+                  <Card>
+                    <CardHeader>
+                      <p className="text-sm text-muted-foreground">
+                        Day {data.lesson.day} · Lesson {data.lesson.position}:{" "}
+                        {data.lesson.title}
+                      </p>
+                      <CardTitle>{data.quiz.question}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <form
+                        className="space-y-4"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          step.mutate({
+                            resourceId: data.lesson.id,
+                            step: "question",
+                            answer,
+                          });
+                        }}
+                      >
+                        {data.quiz.options.length ? (
+                          <RadioGroup
+                            value={answer}
+                            onValueChange={(value) => {
+                              setAnswer(value);
+                              setFeedback(null);
+                            }}
                           >
-                            Check answer
-                          </Button>
-                        </form>
-                      ) : (
+                            {data.quiz.options.map((option, index) => (
+                              <div
+                                key={index}
+                                className="flex items-center gap-2"
+                              >
+                                <RadioGroupItem
+                                  id={`option-${index}`}
+                                  value={String(index + 1)}
+                                />
+                                <Label htmlFor={`option-${index}`}>
+                                  {option}
+                                </Label>
+                              </div>
+                            ))}
+                          </RadioGroup>
+                        ) : (
+                          <Textarea
+                            aria-label="Your answer"
+                            value={answer}
+                            onChange={(event) => {
+                              setAnswer(event.target.value);
+                              setFeedback(null);
+                            }}
+                          />
+                        )}
+                        {feedback && !feedback.correct && (
+                          <p role="status" className="text-sm text-destructive">
+                            {feedback.text}
+                          </p>
+                        )}
                         <Button
-                          onClick={() =>
-                            step.mutate({ resourceId: data.lesson.id })
-                          }
-                          disabled={step.isPending}
+                          type="submit"
+                          disabled={!answer.trim() || step.isPending}
                         >
-                          {data.lesson.position === data.lessonCount
-                            ? "Finish course"
-                            : "Next lesson"}
+                          Check answer
                         </Button>
-                      )}
+                      </form>
                     </CardContent>
                   </Card>
                 )}
@@ -274,17 +342,25 @@ export default function LearnerCourse({ courseId }: { courseId: string }) {
               <nav aria-label="Course outline">
                 <h2 className="mb-2 text-sm font-semibold">Lessons</h2>
                 <ol className="space-y-2 text-sm">
-                  {data.outline.map((item) => (
-                    <li key={item.id} className="flex items-start gap-2">
-                      {item.done ? (
-                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                      ) : (
-                        <Circle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                  {data.outline.map((item, index) => (
+                    <li key={item.id}>
+                      {(index === 0 ||
+                        data.outline[index - 1].day !== item.day) && (
+                        <p className="mb-1 mt-3 text-xs font-semibold uppercase text-muted-foreground">
+                          Day {item.day}
+                        </p>
                       )}
-                      <span
-                        className={item.done ? "text-muted-foreground" : ""}
-                      >
-                        {item.title}
+                      <span className="flex items-start gap-2">
+                        {item.done ? (
+                          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                        ) : (
+                          <Circle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                        )}
+                        <span
+                          className={item.done ? "text-muted-foreground" : ""}
+                        >
+                          {item.title}
+                        </span>
                       </span>
                     </li>
                   ))}

@@ -28,6 +28,17 @@ export interface Course {
   deliveryChannel?: "whatsapp" | "telegram" | "web";
   /** Web courses only: invite-only, or open for learners to join themselves. */
   webEnrollmentMode?: "invite" | "open";
+  /** How course days (modules) unlock after the previous day is finished. */
+  pacingMode?: "immediate" | "fixed_time" | "after_completion";
+  pacingGapDays?: number;
+  /** Local "HH:MM" for fixed_time pacing. */
+  pacingUnlockTime?: string;
+  pacingTimezone?: string;
+  /** Hours before a paused learner is reminded; 0 = never. */
+  pauseReminderHours?: number;
+  /** Approved WhatsApp template that reopens the conversation for day unlocks and reminders. */
+  whatsappNudgeTemplateName?: string;
+  whatsappNudgeTemplateLanguage?: string;
 }
 
 export interface CourseDay {

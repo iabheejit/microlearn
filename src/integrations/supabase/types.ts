@@ -265,6 +265,13 @@ export type Database = {
           title: string
           updated_at: string
           web_enrollment_mode: string
+          pacing_mode: string
+          pacing_gap_days: number
+          pacing_unlock_time: string
+          pacing_timezone: string
+          pause_reminder_hours: number
+          whatsapp_nudge_template_name: string | null
+          whatsapp_nudge_template_language: string | null
           whatsapp_completion_message: string | null
           whatsapp_lesson_intro: string | null
           whatsapp_welcome_template_key: string
@@ -286,6 +293,13 @@ export type Database = {
           title: string
           updated_at?: string
           web_enrollment_mode?: string
+          pacing_mode?: string
+          pacing_gap_days?: number
+          pacing_unlock_time?: string
+          pacing_timezone?: string
+          pause_reminder_hours?: number
+          whatsapp_nudge_template_name?: string | null
+          whatsapp_nudge_template_language?: string | null
           whatsapp_completion_message?: string | null
           whatsapp_lesson_intro?: string | null
           whatsapp_welcome_template_key?: string
@@ -307,6 +321,13 @@ export type Database = {
           title?: string
           updated_at?: string
           web_enrollment_mode?: string
+          pacing_mode?: string
+          pacing_gap_days?: number
+          pacing_unlock_time?: string
+          pacing_timezone?: string
+          pause_reminder_hours?: number
+          whatsapp_nudge_template_name?: string | null
+          whatsapp_nudge_template_language?: string | null
           whatsapp_completion_message?: string | null
           whatsapp_lesson_intro?: string | null
           whatsapp_welcome_template_key?: string

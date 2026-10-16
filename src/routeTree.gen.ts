@@ -22,6 +22,7 @@ import { Route as LearnIndexRouteImport } from './routes/learn.index'
 import { Route as LearnCourseIdRouteImport } from './routes/learn.$courseId'
 import { Route as WhatsappIndexRouteImport } from './routes/whatsapp.index'
 import { Route as WhatsappWebhookStatusRouteImport } from './routes/whatsapp.webhook-status'
+import { Route as ApiPublicCourseSchedulerRouteImport } from './routes/api/public/course-scheduler'
 import { Route as CoursesEditorIndexRouteImport } from './routes/courses.editor.index'
 import { Route as CoursesEditorIdRouteImport } from './routes/courses.editor.$id'
 import { Route as CoursesPreviewIdRouteImport } from './routes/courses.preview.$id'
@@ -92,6 +93,12 @@ const WhatsappWebhookStatusRoute = WhatsappWebhookStatusRouteImport.update({
   path: '/whatsapp/webhook-status',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicCourseSchedulerRoute =
+  ApiPublicCourseSchedulerRouteImport.update({
+    id: '/api/public/course-scheduler',
+    path: '/api/public/course-scheduler',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const CoursesEditorIndexRoute = CoursesEditorIndexRouteImport.update({
   id: '/courses/editor/',
   path: '/courses/editor/',
@@ -128,6 +135,7 @@ export interface FileRoutesByFullPath {
   '/courses/': typeof CoursesIndexRoute
   '/learn/': typeof LearnIndexRoute
   '/whatsapp/': typeof WhatsappIndexRoute
+  '/api/public/course-scheduler': typeof ApiPublicCourseSchedulerRoute
   '/courses/editor/$id': typeof CoursesEditorIdRoute
   '/courses/preview/$id': typeof CoursesPreviewIdRoute
   '/courses/editor/': typeof CoursesEditorIndexRoute
@@ -147,6 +155,7 @@ export interface FileRoutesByTo {
   '/courses': typeof CoursesIndexRoute
   '/learn': typeof LearnIndexRoute
   '/whatsapp': typeof WhatsappIndexRoute
+  '/api/public/course-scheduler': typeof ApiPublicCourseSchedulerRoute
   '/courses/editor/$id': typeof CoursesEditorIdRoute
   '/courses/preview/$id': typeof CoursesPreviewIdRoute
   '/courses/editor': typeof CoursesEditorIndexRoute
@@ -167,6 +176,7 @@ export interface FileRoutesById {
   '/courses/': typeof CoursesIndexRoute
   '/learn/': typeof LearnIndexRoute
   '/whatsapp/': typeof WhatsappIndexRoute
+  '/api/public/course-scheduler': typeof ApiPublicCourseSchedulerRoute
   '/courses/editor/$id': typeof CoursesEditorIdRoute
   '/courses/preview/$id': typeof CoursesPreviewIdRoute
   '/courses/editor/': typeof CoursesEditorIndexRoute
@@ -188,6 +198,7 @@ export interface FileRouteTypes {
     | '/courses/'
     | '/learn/'
     | '/whatsapp/'
+    | '/api/public/course-scheduler'
     | '/courses/editor/$id'
     | '/courses/preview/$id'
     | '/courses/editor/'
@@ -207,6 +218,7 @@ export interface FileRouteTypes {
     | '/courses'
     | '/learn'
     | '/whatsapp'
+    | '/api/public/course-scheduler'
     | '/courses/editor/$id'
     | '/courses/preview/$id'
     | '/courses/editor'
@@ -226,6 +238,7 @@ export interface FileRouteTypes {
     | '/courses/'
     | '/learn/'
     | '/whatsapp/'
+    | '/api/public/course-scheduler'
     | '/courses/editor/$id'
     | '/courses/preview/$id'
     | '/courses/editor/'
@@ -246,6 +259,7 @@ export interface RootRouteChildren {
   CoursesIndexRoute: typeof CoursesIndexRoute
   LearnIndexRoute: typeof LearnIndexRoute
   WhatsappIndexRoute: typeof WhatsappIndexRoute
+  ApiPublicCourseSchedulerRoute: typeof ApiPublicCourseSchedulerRoute
   CoursesEditorIdRoute: typeof CoursesEditorIdRoute
   CoursesPreviewIdRoute: typeof CoursesPreviewIdRoute
   CoursesEditorIndexRoute: typeof CoursesEditorIndexRoute
@@ -345,6 +359,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WhatsappWebhookStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/course-scheduler': {
+      id: '/api/public/course-scheduler'
+      path: '/api/public/course-scheduler'
+      fullPath: '/api/public/course-scheduler'
+      preLoaderRoute: typeof ApiPublicCourseSchedulerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/courses/editor/': {
       id: '/courses/editor/'
       path: '/courses/editor'
@@ -390,6 +411,7 @@ const rootRouteChildren: RootRouteChildren = {
   CoursesIndexRoute: CoursesIndexRoute,
   LearnIndexRoute: LearnIndexRoute,
   WhatsappIndexRoute: WhatsappIndexRoute,
+  ApiPublicCourseSchedulerRoute: ApiPublicCourseSchedulerRoute,
   CoursesEditorIdRoute: CoursesEditorIdRoute,
   CoursesPreviewIdRoute: CoursesPreviewIdRoute,
   CoursesEditorIndexRoute: CoursesEditorIndexRoute,

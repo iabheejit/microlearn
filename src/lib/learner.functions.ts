@@ -10,6 +10,7 @@ const CourseInput = z.object({ courseId: z.string().uuid() });
 const StepInput = z.object({
   courseId: z.string().uuid(),
   resourceId: z.string().uuid(),
+  step: z.enum(["lesson", "question"]),
   answer: z.string().max(4096).optional(),
 });
 const InviteInput = z.object({
