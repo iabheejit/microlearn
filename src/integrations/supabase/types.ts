@@ -266,6 +266,8 @@ export type Database = {
           whatsapp_completion_message: string | null
           whatsapp_lesson_intro: string | null
           whatsapp_welcome_template_key: string
+          delivery_channel: string
+          web_enrollment_mode: string
         }
         Insert: {
           category?: string | null
@@ -285,6 +287,8 @@ export type Database = {
           whatsapp_completion_message?: string | null
           whatsapp_lesson_intro?: string | null
           whatsapp_welcome_template_key?: string
+          delivery_channel?: string
+          web_enrollment_mode?: string
         }
         Update: {
           category?: string | null
@@ -304,6 +308,8 @@ export type Database = {
           whatsapp_completion_message?: string | null
           whatsapp_lesson_intro?: string | null
           whatsapp_welcome_template_key?: string
+          delivery_channel?: string
+          web_enrollment_mode?: string
         }
         Relationships: []
       }

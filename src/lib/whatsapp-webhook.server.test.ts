@@ -1,85 +1,9 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 import {
   PayloadError,
   persistWhatsAppCallback,
 } from "./whatsapp-webhook.server";
-
-type Row = Record<string, unknown>;
-
-// Minimal in-memory stand-in for the query-builder calls the callback handler makes.
-function fakeClient() {
-  const tables: Record<string, Row[]> = {};
-  const rows = (table: string) => (tables[table] ||= []);
-  let nextId = 1;
-
-  const from = (table: string) => {
-    let op: "select" | "insert" | "upsert" | "update" = "select";
-    let values: Row = {};
-    let options: { onConflict?: string; ignoreDuplicates?: boolean } = {};
-    const filters: Array<(row: Row) => boolean> = [];
-    let mode: "many" | "single" | "maybeSingle" = "many";
-
-    const run = () => {
-      const matching = () =>
-        rows(table).filter((row) => filters.every((filter) => filter(row)));
-      if (op === "insert") {
-        rows(table).push({ id: String(nextId++), ...values });
-        return { data: null, error: null };
-      }
-      if (op === "upsert") {
-        const keys = (options.onConflict || "id").split(",");
-        const existing = rows(table).find((row) =>
-          keys.every((key) => row[key] === values[key]),
-        );
-        if (existing) {
-          if (!options.ignoreDuplicates) Object.assign(existing, values);
-        } else {
-          rows(table).push({ id: String(nextId++), ...values });
-        }
-        return { data: null, error: null };
-      }
-      if (op === "update") {
-        matching().forEach((row) => Object.assign(row, values));
-        return { data: null, error: null };
-      }
-      const found = matching();
-      if (mode === "many") return { data: found, error: null };
-      if (mode === "single" && found.length !== 1)
-        return { data: null, error: { message: "expected one row" } };
-      return { data: found[0] ?? null, error: null };
-    };
-
-    const builder = {
-      select: () => builder,
-      insert: (row: Row) => ((op = "insert"), (values = row), builder),
-      upsert: (row: Row, opts = {}) => (
-        (op = "upsert"),
-        (values = row),
-        (options = opts),
-        builder
-      ),
-      update: (row: Row) => ((op = "update"), (values = row), builder),
-      eq: (column: string, value: unknown) => (
-        filters.push((row) => row[column] === value),
-        builder
-      ),
-      in: (column: string, list: unknown[]) => (
-        filters.push((row) => list.includes(row[column])),
-        builder
-      ),
-      single: () => ((mode = "single"), builder),
-      maybeSingle: () => ((mode = "maybeSingle"), builder),
-      then: (
-        resolve: (value: unknown) => unknown,
-        reject?: (reason: unknown) => unknown,
-      ) => Promise.resolve().then(run).then(resolve, reject),
-    };
-    return builder;
-  };
-
-  return { client: { from } as unknown as SupabaseClient, rows };
-}
+import { fakeSupabase } from "@/test/fake-supabase";
 
 const messagePayload = (id: string, body = "hi") => ({
   entry: [
@@ -118,7 +42,7 @@ const statusPayload = (id: string, status: string, timestamp: string) => ({
 
 describe("persistWhatsAppCallback", () => {
   it("stores one message and reports a duplicate when the same callback arrives twice", async () => {
-    const { client, rows } = fakeClient();
+    const { client, rows } = fakeSupabase();
     expect(
       await persistWhatsAppCallback(
         "delivery-1",
@@ -144,7 +68,7 @@ describe("persistWhatsAppCallback", () => {
   });
 
   it("never moves a delivery status backwards", async () => {
-    const { client, rows } = fakeClient();
+    const { client, rows } = fakeSupabase();
     rows("whatsapp_messages").push({
       id: "m1",
       provider_message_id: "wamid.out",
@@ -167,7 +91,7 @@ describe("persistWhatsAppCallback", () => {
   });
 
   it("rejects unparseable payloads and invalid senders as PayloadError", async () => {
-    const { client } = fakeClient();
+    const { client } = fakeSupabase();
     await expect(
       persistWhatsAppCallback("d-bad", { entry: "nope" }, client),
     ).rejects.toBeInstanceOf(PayloadError);

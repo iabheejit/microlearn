@@ -226,8 +226,10 @@ Deno.serve(async (req) => {
         const client = createServiceClient();
         const resources = await orderedLessons(courseId);
         if (!resources.length) return jsonResponse({ error: 'Add course lessons before enrolling a learner' }, 409);
-        const { data: course, error: courseError } = await client.from('courses').select('title,whatsapp_welcome_template_key').eq('id', courseId).single();
+        const { data: course, error: courseError } = await client.from('courses').select('title,whatsapp_welcome_template_key,delivery_channel').eq('id', courseId).single();
         if (courseError) throw courseError;
+        // Each course runs on one channel; web and Telegram courses never send WhatsApp lessons.
+        if ((course.delivery_channel ?? 'whatsapp') !== 'whatsapp') return jsonResponse({ error: 'This course is not delivered on WhatsApp.' }, 409);
         const templateKey = course.whatsapp_welcome_template_key || 'course_welcome';
         const existing = await client.from('whatsapp_course_enrollments').select('id,status').eq('course_id', courseId).eq('phone_number', recipientDigits).maybeSingle();
         if (existing.error) throw existing.error;

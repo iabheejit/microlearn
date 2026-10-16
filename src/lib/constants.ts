@@ -13,6 +13,7 @@ export const ROUTES = {
   CHAT_HISTORY: "/chat-history",
   WHATSAPP_WEBHOOK: "/whatsapp/webhook-status",
   SETTINGS: "/settings",
+  LEARN: "/learn",
 };
 
 export const DASHBOARD_SECTIONS = [

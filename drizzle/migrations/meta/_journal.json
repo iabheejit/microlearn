@@ -22,6 +22,20 @@
       "when": 1792120754805,
       "tag": "0002_course_whatsapp_messages",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792121485186,
+      "tag": "0003_atomic_whatsapp_progression",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792121485187,
+      "tag": "0004_web_learner_courses",
+      "breakpoints": true
     }
   ]
 }

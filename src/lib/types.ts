@@ -24,6 +24,10 @@ export interface Course {
   whatsappWelcomeTemplateKey?: string;
   whatsappLessonIntro?: string;
   whatsappCompletionMessage?: string;
+  /** Each course is delivered on exactly one channel. */
+  deliveryChannel?: "whatsapp" | "telegram" | "web";
+  /** Web courses only: invite-only, or open for learners to join themselves. */
+  webEnrollmentMode?: "invite" | "open";
 }
 
 export interface CourseDay {

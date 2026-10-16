@@ -11,6 +11,7 @@ export const AuthContext = createContext<AuthContextProps>({
   user: null,
   isDemo: false,
   loading: true,
+  isStaff: false,
   signInDemo: async () => {},
   signOut: async () => {},
 });
@@ -27,7 +28,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isDemo, setIsDemo] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [sessionLoading, setSessionLoading] = useState(true);
+  const [role, setRole] = useState<{ userId: string; isStaff: boolean } | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -37,7 +39,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setSession(session);
         setUser(session?.user ?? null);
         setIsDemo(session?.user?.email === "demo@example.com");
-        setLoading(false);
+        setSessionLoading(false);
       }
     );
 
@@ -46,7 +48,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSession(session);
       setUser(session?.user ?? null);
       setIsDemo(session?.user?.email === "demo@example.com");
-      setLoading(false);
+      setSessionLoading(false);
     });
 
     // Cleanup subscription
@@ -54,6 +56,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       subscription.unsubscribe();
     };
   }, []);
+
+  // Users can read their own role row; only active admins and content creators are staff.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    supabase.from("user_roles").select("role,status").eq("user_id", user.id).maybeSingle().then(({ data }) => {
+      if (cancelled) return;
+      setRole({ userId: user.id, isStaff: data?.status === "active" && ["admin", "content_creator"].includes(data.role) });
+    });
+    return () => { cancelled = true; };
+  }, [user]);
+
+  const loading = sessionLoading || Boolean(user && role?.userId !== user.id);
+  const isStaff = Boolean(user && role?.userId === user.id && role.isStaff);
 
   const signOut = async () => {
     setIsDemo(false);
@@ -70,6 +86,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     user,
     isDemo,
     loading,
+    isStaff,
     signInDemo,
     signOut,
   };
@@ -77,19 +94,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-export const RequireAuth = ({ children }: { children: ReactNode }) => {
-  const { user, loading } = useAuth();
+// Staff pages are the default audience; learners are sent to their own area.
+// This only shapes navigation: data access is still enforced by RLS and server functions.
+export const RequireAuth = ({ children, audience = "staff" }: { children: ReactNode; audience?: "staff" | "learner" }) => {
+  const { user, loading, isStaff } = useAuth();
   const navigate = useNavigate();
+  const allowed = Boolean(user) && (audience === "learner" || isStaff);
 
   useEffect(() => {
-    if (!loading && !user) {
-      navigate(ROUTES.LOGIN);
-    }
-  }, [user, loading, navigate]);
+    if (loading) return;
+    if (!user) navigate(ROUTES.LOGIN);
+    else if (!allowed) navigate(ROUTES.LEARN);
+  }, [user, loading, allowed, navigate]);
 
   if (loading) {
     return <div>Loading...</div>;
   }
 
-  return user ? <>{children}</> : null;
+  return allowed ? <>{children}</> : null;
 };

@@ -29,6 +29,8 @@ export const dbCourseToAppCourse = (dbCourse: any, days: any[] = []): Course => 
     whatsappWelcomeTemplateKey: dbCourse.whatsapp_welcome_template_key || "course_welcome",
     whatsappLessonIntro: dbCourse.whatsapp_lesson_intro || "",
     whatsappCompletionMessage: dbCourse.whatsapp_completion_message || "",
+    deliveryChannel: dbCourse.delivery_channel || "whatsapp",
+    webEnrollmentMode: dbCourse.web_enrollment_mode || "invite",
   };
 };
 
@@ -47,6 +49,8 @@ export const appCourseToDbFormat = (course: Course) => {
     whatsapp_welcome_template_key: course.whatsappWelcomeTemplateKey?.trim() || "course_welcome",
     whatsapp_lesson_intro: course.whatsappLessonIntro?.trim() || null,
     whatsapp_completion_message: course.whatsappCompletionMessage?.trim() || null,
+    delivery_channel: course.deliveryChannel || "whatsapp",
+    web_enrollment_mode: course.webEnrollmentMode || "invite",
     is_published: course.status === "active",
     status: course.status === "active" ? "published" as const : course.status
   };

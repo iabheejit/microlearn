@@ -7,6 +7,8 @@ export interface AuthContextProps {
   user: User | null;
   isDemo: boolean;
   loading: boolean;
+  /** Active admin or content creator. Learners use the /learn area instead of the staff portal. */
+  isStaff: boolean;
   signInDemo: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -16,6 +18,7 @@ export const AuthContext = createContext<AuthContextProps>({
   user: null,
   isDemo: false,
   loading: true,
+  isStaff: false,
   signInDemo: async () => {},
   signOut: async () => {},
 });
