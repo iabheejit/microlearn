@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { verifyWebhookRequest } from "@lovable.dev/webhooks-js";
 import {
-  deliveryIdFor,
   PayloadError,
   persistWhatsAppCallback,
 } from "@/lib/whatsapp-webhook.server";
@@ -16,7 +15,7 @@ export const Route = createFileRoute("/api/public/whatsapp/webhook")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const secret = process.env.LOVABLE_API_KEY;
+        const secret = process.env.WHATSAPP_API_KEY;
         if (!secret)
           return json(
             { error: "Callback verification is not configured" },
@@ -28,7 +27,7 @@ export const Route = createFileRoute("/api/public/whatsapp/webhook")({
           ({ payload } = await verifyWebhookRequest({
             req: request,
             secret,
-            maxBodyBytes: 1024 * 1024,
+            maxBodyBytes: 4 * 1024 * 1024,
           }));
         } catch (error) {
           const reason =
@@ -36,10 +35,13 @@ export const Route = createFileRoute("/api/public/whatsapp/webhook")({
           return json({ error: `Verification failed: ${reason}` }, 401);
         }
 
-        const deliveryId = await deliveryIdFor(
-          request.headers.get("x-lovable-delivery"),
-          payload,
-        );
+        const deliveryId = request.headers.get("x-lovable-delivery")?.trim();
+        const event = request.headers.get("x-lovable-event")?.trim();
+        if (!deliveryId || !event)
+          return json(
+            { error: "Missing callback delivery or event header" },
+            400,
+          );
         try {
           const result = await persistWhatsAppCallback(deliveryId, payload);
           return json({ ok: true, ...result });

@@ -48,25 +48,21 @@ const PROGRESSION_NOTES: Partial<Record<ProgressionOutcome, string>> = {
   no_lessons: 'Enrolled course has no lessons; progression skipped.',
 };
 
-// Without a delivery header, derive a stable ID from the payload so retries still deduplicate.
-const payloadDeliveryId = async (payload: unknown) => {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(payload)));
-  return `payload-${[...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('')}`;
-};
-
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405);
-  let deliveryId = req.headers.get('x-lovable-delivery')?.trim() || null;
+  const deliveryId = req.headers.get('x-lovable-delivery')?.trim() || null;
+  const event = req.headers.get('x-lovable-event')?.trim() || null;
   const client = createServiceClient();
   let callbackId: string | null = null;
   let verified = false;
 
   try {
-    const secret = Deno.env.get('LOVABLE_API_KEY');
+    // Callbacks are signed with the linked WhatsApp connection key, not the platform gateway key.
+    const secret = Deno.env.get('WHATSAPP_API_KEY');
     if (!secret) throw new Error('Callback verification is not configured');
-    const { payload } = await verifyWebhookRequest({ req, secret, maxBodyBytes: 1024 * 1024 });
+    const { payload } = await verifyWebhookRequest({ req, secret, maxBodyBytes: 4 * 1024 * 1024 });
     verified = true;
-    deliveryId ||= await payloadDeliveryId(payload);
+    if (!deliveryId || !event) throw new PayloadError('Missing callback delivery or event header');
     const parsed = PayloadSchema.safeParse(payload);
     if (!parsed.success) throw new PayloadError('Unsupported WhatsApp callback payload');
 

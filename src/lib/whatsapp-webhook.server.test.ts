@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 import {
-  deliveryIdFor,
   PayloadError,
   persistWhatsAppCallback,
 } from "./whatsapp-webhook.server";
@@ -188,16 +187,5 @@ describe("persistWhatsAppCallback", () => {
     await expect(
       persistWhatsAppCallback("d-sender", badSender, client),
     ).rejects.toBeInstanceOf(PayloadError);
-  });
-});
-
-describe("deliveryIdFor", () => {
-  it("prefers the delivery header and otherwise derives a stable ID from the payload", async () => {
-    expect(await deliveryIdFor(" abc ", {})).toBe("abc");
-    const first = await deliveryIdFor(null, messagePayload("wamid.1"));
-    expect(first).toMatch(/^payload-[0-9a-f]{64}$/);
-    expect(await deliveryIdFor(undefined, messagePayload("wamid.1"))).toBe(
-      first,
-    );
   });
 });

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchTelegramUpdates, sendTelegramMessage } from '@/services/telegramService';
 import { supabase } from '@/integrations/supabase/client';
+import { WhatsAppReplyWindowClosedError } from '@/lib/whatsapp-reply-window';
 
 // For WhatsApp chats
 export const useWhatsAppChat = (phoneNumber?: string) => {
@@ -68,6 +69,10 @@ export const useWhatsAppChat = (phoneNumber?: string) => {
       body: { endpoint: 'sendReply', phoneNumber, message: content },
     });
     if (sendError) {
+      if ('context' in sendError && sendError.context instanceof Response && sendError.context.status === 409) {
+        await refetch();
+        throw new WhatsAppReplyWindowClosedError();
+      }
       const details = 'context' in sendError && sendError.context instanceof Response ? await sendError.context.text() : sendError.message;
       try {
         const parsed = JSON.parse(details);

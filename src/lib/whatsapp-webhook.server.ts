@@ -96,20 +96,6 @@ const timestampFields = (status: string, occurredAt: string) => ({
   ...(status === "failed" ? { failed_at: occurredAt } : {}),
 });
 
-/** Without a delivery header, derive a stable ID from the payload so provider retries still deduplicate. */
-export async function deliveryIdFor(
-  header: string | null | undefined,
-  payload: unknown,
-) {
-  const trimmed = header?.trim();
-  if (trimmed) return trimmed;
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(JSON.stringify(payload)),
-  );
-  return `payload-${[...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
-}
-
 export function serviceClient() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
