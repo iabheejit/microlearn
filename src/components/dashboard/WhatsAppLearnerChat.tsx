@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import WhatsAppTemplateReply from "./WhatsAppTemplateReply";
 import { Loader2, RefreshCw, Send } from "lucide-react";
 import { useWhatsAppChat } from "@/hooks/useChatHistory";
 import { Button } from "@/components/ui/button";
@@ -77,8 +77,8 @@ export default function WhatsAppLearnerChat({ phoneNumber, learnerName }: { phon
       </div>
       {!isLoading && !windowOpen && <div role="status" className="space-y-2">
         <p className="text-sm text-muted-foreground">The 24-hour reply window is closed. Send an approved template, or wait for a new learner message.</p>
-        <Button asChild variant="outline"><Link to="/whatsapp">Choose approved template</Link></Button>
       </div>}
+      <WhatsAppTemplateReply key={phoneNumber} phoneNumber={phoneNumber} onSent={refetch} />
       {sendError && <p role="alert" className="text-sm text-destructive">{sendError}</p>}
       <div className="flex items-end gap-2">
         <Textarea aria-label="Reply to learner" placeholder="Reply to learner…" value={draft} onChange={(event) => setDraft(event.target.value)} disabled={isLoading || !windowOpen || sending} maxLength={4096} className="min-w-0 resize-none" onKeyDown={(event) => {
