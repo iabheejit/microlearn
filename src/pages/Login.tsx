@@ -8,7 +8,6 @@ import { ROUTES } from "@/lib/constants";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { PasswordReset } from "@/components/auth/PasswordReset";
-import { useAuth } from "@/components/AuthProvider";
 import BrandLogo from "@/components/BrandLogo";
 
 const Login = () => {
@@ -19,11 +18,6 @@ const Login = () => {
   const [showReset, setShowReset] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { signInDemo } = useAuth();
-
-  // Demo credentials for testing without DB
-  const DEMO_EMAIL = "demo@example.com";
-  const DEMO_PASSWORD = "demo123";
 
   const handleAuthentication = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,19 +29,6 @@ const Login = () => {
     
     setIsLoading(true);
 
-    // Demo credentials use a real account so all protected portal features work.
-    if (email === DEMO_EMAIL && password === DEMO_PASSWORD) {
-      try {
-        await signInDemo();
-        toast.success("Demo login successful");
-        navigate(ROUTES.DASHBOARD);
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Demo login failed");
-      } finally {
-        setIsLoading(false);
-      }
-      return;
-    }
     
     try {
       let result;
@@ -142,11 +123,6 @@ const Login = () => {
                ? "Register to start creating and managing courses" 
                : "Enter your credentials to access your account"}
             </CardDescription>
-            <div className="mt-3 p-3 bg-muted rounded-md text-sm">
-              <p className="font-medium text-foreground">Demo Credentials:</p>
-              <p className="text-muted-foreground">Email: demo@example.com</p>
-              <p className="text-muted-foreground">Password: demo123</p>
-            </div>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleAuthentication} className="space-y-4">

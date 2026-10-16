@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import WhatsAppTemplateReply from "@/components/dashboard/WhatsAppTemplateReply";
 import { useQuery } from "@tanstack/react-query";
 import Sidebar from "@/components/dashboard/Sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -363,11 +363,9 @@ const ChatHistory = () => {
           {selectedChat?.phone_number && !loadingWhatsappMessages && !replyWindowOpen && (
             <div className="space-y-2 border-t border-border pt-3" role="status">
               <p className="text-sm text-muted-foreground">The 24-hour reply window is closed. Send an approved template, or wait for a new learner message.</p>
-              <Button asChild variant="outline">
-                <Link to="/whatsapp">Choose approved template</Link>
-              </Button>
             </div>
           )}
+          {selectedChat?.phone_number && <WhatsAppTemplateReply key={selectedChat.phone_number} phoneNumber={selectedChat.phone_number} onSent={refetchWhatsAppMessages} />}
           <div className="flex gap-2">
             <Textarea 
               aria-label="Message"

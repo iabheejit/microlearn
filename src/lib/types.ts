@@ -21,6 +21,9 @@ export interface Course {
   status: "active" | "draft" | "archived";
   created: string;
   days?: CourseDay[];
+  whatsappWelcomeTemplateKey?: string;
+  whatsappLessonIntro?: string;
+  whatsappCompletionMessage?: string;
 }
 
 export interface CourseDay {

@@ -1,0 +1,66 @@
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { parseReplyTemplates, renderReplyTemplate } from "./whatsapp-template";
+import { isWhatsAppReplyWindowOpen } from "./whatsapp-reply-window";
+
+async function gateway(path: string, body?: unknown) {
+  const gatewayKey = process.env.LOVABLE_API_KEY;
+  const connectionKey = process.env.WHATSAPP_API_KEY;
+  if (!gatewayKey || !connectionKey) throw new Error("The WhatsApp connection is not configured.");
+  const response = await fetch(`https://connector-gateway.lovable.dev/whatsapp${path}`, {
+    method: body === undefined ? "GET" : "POST",
+    headers: { Authorization: `Bearer ${gatewayKey}`, "X-Connection-Api-Key": connectionKey, "Content-Type": "application/json" },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    signal: AbortSignal.timeout(30000),
+  });
+  const payload = await response.json() as { data?: unknown[]; messages?: { id?: string }[]; error?: { code?: number; message?: string }; paging?: { cursors?: { after?: string }; next?: string } };
+  if (!response.ok || payload.error) {
+    if (payload.error?.code === 131047) return { windowClosed: true as const, payload };
+    console.error("WhatsApp gateway rejected request", response.status, payload.error?.code);
+    throw new Error("WhatsApp rejected the request. Check the approved template and recipient before trying again.");
+  }
+  return { windowClosed: false as const, payload };
+}
+
+export async function approvedReplyTemplates() {
+  const templates = [];
+  let after: string | undefined;
+  for (let page = 0; page < 10; page++) {
+    const result = await gateway(`/message_templates?fields=id,name,status,language,components,parameter_format&limit=100${after ? `&after=${encodeURIComponent(after)}` : ""}`);
+    templates.push(...parseReplyTemplates(result.payload));
+    after = result.payload.paging?.next ? result.payload.paging.cursors?.after : undefined;
+    if (!after) break;
+  }
+  return templates;
+}
+
+export type SendInput = { phoneNumber: string; message?: string; templateName?: string; language?: string; parameters?: string[] };
+export type SendResult = { ok: true; messageId: string; status: "accepted"; historySaved: boolean } | { ok: false; code: "WINDOW_CLOSED" | "SEND_FAILED"; error: string };
+
+export async function sendPortalWhatsApp(input: SendInput): Promise<SendResult> {
+  const phone = input.phoneNumber.replace(/\D/g, "");
+  let content = input.message ?? "";
+  let body: Record<string, unknown>;
+  if (input.templateName) {
+    // Query the linked WABA, not the legacy cache: Meta is authoritative for approval and language.
+    const template = (await approvedReplyTemplates()).find((t) => t.name === input.templateName && t.language === input.language);
+    if (!template) throw new Error("This template is no longer approved on the MicroLearn WhatsApp connection. Refresh the template list.");
+    const parameters = input.parameters ?? [];
+    if (parameters.length !== template.variables.length || parameters.some((p) => !p.trim())) throw new Error("Fill in every template value before sending.");
+    content = renderReplyTemplate(template, parameters);
+    body = { type: "template", template: { name: template.name, language: { code: template.language }, components: parameters.length ? [{ type: "body", parameters: parameters.map((text) => ({ type: "text", text })) }] : [] } };
+  } else {
+    const { data, error } = await supabaseAdmin.from("whatsapp_messages").select("sent_at,provider_message_id").eq("phone_number", phone).eq("direction", "incoming").not("provider_message_id", "is", null).order("sent_at", { ascending: false }).limit(1);
+    if (error) throw error;
+    if (!isWhatsAppReplyWindowOpen((data ?? []).map((m) => ({ sent: false, timestamp: m.sent_at, providerMessageId: m.provider_message_id })))) return { ok: false, code: "WINDOW_CLOSED", error: "The 24-hour reply window is closed. Choose an approved template." };
+    body = { type: "text", text: { body: content } };
+  }
+  const result = await gateway("/messages", { messaging_product: "whatsapp", to: phone, ...body });
+  if (result.windowClosed) return { ok: false, code: "WINDOW_CLOSED", error: "WhatsApp closed the reply window. Choose an approved template." };
+  const messageId = result.payload.messages?.[0]?.id;
+  if (!messageId) throw new Error("WhatsApp did not return a message ID. Check Chat History before retrying.");
+  const { error: historyError } = await supabaseAdmin.from("whatsapp_messages").upsert({ phone_number: phone, direction: "outgoing", content, template_name: input.templateName ?? null, provider_message_id: messageId, status: "accepted" }, { onConflict: "provider_message_id", ignoreDuplicates: true });
+  const { error: contactError } = await supabaseAdmin.from("whatsapp_contacts").upsert({ phone_number: phone, updated_at: new Date().toISOString() }, { onConflict: "phone_number" });
+  if (historyError || contactError) console.error("WhatsApp accepted message but persistence failed", messageId, historyError?.code, contactError?.code);
+  // A persistence failure must not encourage a duplicate send after Meta has already accepted it.
+  return { ok: true, messageId, status: "accepted", historySaved: !historyError };
+}

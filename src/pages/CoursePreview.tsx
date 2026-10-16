@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, MessageCircle, CreditCard, Send, Loader2 } from "lucide-react";
 import WhatsAppPreview from "@/components/dashboard/WhatsAppPreview";
+import WhatsAppLearnerChat from "@/components/dashboard/WhatsAppLearnerChat";
 import { Course } from "@/lib/types";
 import StripeCheckout from "@/components/dashboard/StripeCheckout";
 import { fetchCourse } from "@/lib/api";
@@ -227,9 +228,10 @@ const CoursePreview = () => {
               <Card>
                 <CardContent className="pt-6">
                   <Tabs value={activeTab} onValueChange={setActiveTab}>
-                    <TabsList className="mb-6">
+                    <TabsList className="mb-6 flex h-auto flex-wrap justify-start">
                       <TabsTrigger value="content">Course Content</TabsTrigger>
                       <TabsTrigger value="whatsapp">WhatsApp Preview</TabsTrigger>
+                      <TabsTrigger value="learner-chat">Learner Chat</TabsTrigger>
                     </TabsList>
                     
                     <TabsContent value="content">
@@ -265,6 +267,10 @@ const CoursePreview = () => {
                       </div>
                     </TabsContent>
                     
+                    <TabsContent value="learner-chat">
+                      <WhatsAppLearnerChat phoneNumber={enrollment?.phone_number || WELCOME_LEARNER.phone} learnerName={enrollment?.learner_name || WELCOME_LEARNER.name} />
+                    </TabsContent>
+
                     <TabsContent value="whatsapp">
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="font-medium">WhatsApp Preview</h3>
@@ -373,7 +379,7 @@ const CoursePreview = () => {
                           )}
                         </div>
                       )}
-                      <Button className="w-full" onClick={handleWelcomeMessage} disabled={welcomeSending}>
+                      <Button className="w-full" onClick={handleWelcomeMessage} disabled={welcomeSending || !!enrollment}>
                         {welcomeSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
                         {enrollment ? "Already enrolled" : "Enroll & send welcome"}
                       </Button>

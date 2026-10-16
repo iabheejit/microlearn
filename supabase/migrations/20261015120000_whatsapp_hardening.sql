@@ -26,19 +26,6 @@ ALTER TABLE public.whatsapp_progression_events ALTER COLUMN status SET DEFAULT '
 ALTER TABLE public.whatsapp_quiz_attempts
   ADD COLUMN IF NOT EXISTS progression_event_id uuid UNIQUE REFERENCES public.whatsapp_progression_events(id) ON DELETE CASCADE;
 
--- Learner message history is staff-only (self-signup users get the learner role).
-DROP POLICY IF EXISTS "Authenticated users can view WhatsApp history" ON public.whatsapp_messages;
-CREATE POLICY "Staff can view WhatsApp history" ON public.whatsapp_messages FOR SELECT TO authenticated
-USING (private.has_role(auth.uid(), 'admin') OR private.has_role(auth.uid(), 'content_creator'));
-
-DROP POLICY IF EXISTS "Authenticated users can view Telegram contacts" ON public.telegram_contacts;
-CREATE POLICY "Staff can view Telegram contacts" ON public.telegram_contacts FOR SELECT TO authenticated
-USING (private.has_role(auth.uid(), 'admin') OR private.has_role(auth.uid(), 'content_creator'));
-
-DROP POLICY IF EXISTS "Authenticated users can view Telegram messages" ON public.telegram_messages;
-CREATE POLICY "Staff can view Telegram messages" ON public.telegram_messages FOR SELECT TO authenticated
-USING (private.has_role(auth.uid(), 'admin') OR private.has_role(auth.uid(), 'content_creator'));
-
 -- Applies one progression decision atomically. The enrollment row lock serialises concurrent
 -- replies from the same learner; a stale expected lesson raises so the caller can retry.
 CREATE OR REPLACE FUNCTION public.apply_whatsapp_progression(
