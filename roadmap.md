@@ -41,4 +41,4 @@
 - [x] Move Chat History and course-page reply/template sends onto shared authenticated server functions
 - [ ] Move course progression, enrollment and template management onto server functions (separate work assigned to the parallel agent)
 
-- [ ] Make a@ekatra.one an active admin once the account exists (waiting on user sign-up)
+- [x] Make a@ekatra.one an active admin
