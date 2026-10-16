@@ -60,9 +60,10 @@ const Login = () => {
       navigate(ROUTES.DASHBOARD);
     } catch (error) {
       console.error("Authentication error:", error);
+      const reason = error instanceof Error && error.message ? ` ${error.message}` : "";
       toast.error(isSignUp 
-        ? "Failed to create account. Please try again." 
-        : "Login failed. Please check your credentials.");
+        ? `Failed to create account.${reason}` 
+        : `Login failed.${reason}`);
     } finally {
       setIsLoading(false);
     }
