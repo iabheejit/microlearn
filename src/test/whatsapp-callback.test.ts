@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { webcrypto } from "node:crypto";
 
 const persist = vi.hoisted(() => vi.fn(async () => ({ status: "processed" })));
+vi.mock("@/lib/whatsapp-progression.server", () => ({ progressFromReply: vi.fn() }));
 vi.mock("@/lib/whatsapp-webhook.server", () => ({ persistWhatsAppCallback: persist, PayloadError: class extends Error {} }));
 import { Route } from "@/routes/api/public/whatsapp/webhook";
 
@@ -27,7 +28,7 @@ describe("WhatsApp callback verification", () => {
 
   it("accepts the connection-key signature and calls persistence", async () => {
     expect((await call("test-connection-key")).status).toBe(200);
-    expect(persist).toHaveBeenCalledWith("test-delivery", { entry: [] });
+    expect(persist).toHaveBeenCalledWith("test-delivery", { entry: [] }, undefined, expect.any(Function));
   });
   it("rejects a platform-key signature without writing data", async () => {
     expect((await call("test-platform-key")).status).toBe(401);

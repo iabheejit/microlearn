@@ -6,7 +6,7 @@ import {
 } from "../../supabase/functions/_shared/whatsapp-logic.ts";
 
 // WhatsApp callback persistence: inbox record, inbound messages, delivery statuses.
-// Course progression and AI replies are intentionally NOT handled here yet.
+// Course progression runs through the optional onInboundText hook, after messages are stored.
 
 const MessageSchema = z
   .object({
@@ -108,6 +108,12 @@ export function serviceClient() {
 
 export type CallbackResult = { status: "processed" | "ignored" | "duplicate" };
 
+/** Runs for each stored inbound text message; a returned string is noted on the callback row. */
+export type InboundTextHandler = (
+  client: SupabaseClient,
+  message: { id: string; phone: string; body: string },
+) => Promise<string | null | void>;
+
 async function applyStatus(client: SupabaseClient, status: Status) {
   const occurredAt = isoFromSeconds(status.timestamp);
   const errorMessage = statusError(status);
@@ -173,6 +179,7 @@ export async function persistWhatsAppCallback(
   deliveryId: string,
   payload: unknown,
   client: SupabaseClient = serviceClient(),
+  onInboundText?: InboundTextHandler,
 ): Promise<CallbackResult> {
   const parsed = PayloadSchema.safeParse(payload);
   if (!parsed.success)
@@ -216,6 +223,7 @@ export async function persistWhatsAppCallback(
   if (callback.status === "processed" || callback.status === "ignored")
     return { status: "duplicate" };
 
+  const notes: string[] = [];
   try {
     for (const message of messages) {
       const normalized = normalizePhone(message.from);
@@ -245,13 +253,26 @@ export async function persistWhatsAppCallback(
           { onConflict: "provider_message_id" },
         );
       if (messageError) throw messageError;
+      // Failures propagate: the callback is marked 'error' and the provider retries it.
+      // The handler must be idempotent per provider message ID (progression is).
+      if (onInboundText && message.text?.body) {
+        const note = await onInboundText(client, {
+          id: message.id,
+          phone: normalized,
+          body: message.text.body,
+        });
+        if (note) notes.push(`${message.id}: ${note}`);
+      }
     }
 
     for (const status of statuses) await applyStatus(client, status);
 
-    const errors = statuses
-      .map(statusError)
-      .filter((value): value is string => Boolean(value));
+    const errors = [
+      ...statuses
+        .map(statusError)
+        .filter((value): value is string => Boolean(value)),
+      ...notes,
+    ];
     const finalStatus = eventType === "ignored" ? "ignored" : "processed";
     const { error: completeError } = await client
       .from("whatsapp_webhook_callbacks")
