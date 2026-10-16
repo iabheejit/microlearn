@@ -33,6 +33,18 @@ export async function approvedReplyTemplates() {
   return templates;
 }
 
+/** Automated reply to a learner who just messaged us (24h window is open by definition). */
+export async function sendAutomatedWhatsAppText(phoneNumber: string, text: string) {
+  const phone = phoneNumber.replace(/\D/g, "");
+  const result = await gateway("/messages", { messaging_product: "whatsapp", to: phone, type: "text", text: { body: text } });
+  if (result.windowClosed) throw new Error("WhatsApp reply window is closed for this learner.");
+  const messageId = result.payload.messages?.[0]?.id;
+  if (!messageId) throw new Error("WhatsApp did not return a message ID.");
+  const { error } = await supabaseAdmin.from("whatsapp_messages").upsert({ phone_number: phone, direction: "outgoing", content: text, provider_message_id: messageId, status: "accepted" }, { onConflict: "provider_message_id", ignoreDuplicates: true });
+  if (error) console.error("Automated WhatsApp reply accepted but not saved", messageId, error.code);
+  return messageId;
+}
+
 export type SendInput = { phoneNumber: string; message?: string; templateName?: string; language?: string; parameters?: string[] };
 export type SendResult = { ok: true; messageId: string; status: "accepted"; historySaved: boolean } | { ok: false; code: "WINDOW_CLOSED" | "SEND_FAILED"; error: string };
 
