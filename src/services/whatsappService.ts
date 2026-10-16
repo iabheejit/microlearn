@@ -90,10 +90,10 @@ export const syncWhatsAppTemplates = async (): Promise<WhatsAppTemplate[]> => {
       const { error: deleteError } = await supabase
         .from('whatsapp_templates')
         .delete()
-        .gt('id', '0');
+        .not('id', 'is', null);
       
       if (deleteError) {
-        console.error("Error deleting existing templates:", deleteError);
+        throw new Error(`Could not clear existing templates: ${deleteError.message}`);
       } else {
         console.log("Successfully deleted existing templates");
       }
@@ -179,10 +179,10 @@ export const syncWhatsAppContacts = async (): Promise<any[]> => {
       const { error: deleteError } = await supabase
         .from('whatsapp_contacts')
         .delete()
-        .gt('id', '0');
+        .not('id', 'is', null);
       
       if (deleteError) {
-        console.error("Error deleting existing contacts:", deleteError);
+        throw new Error(`Could not clear existing contacts: ${deleteError.message}`);
       } else {
         console.log("Successfully deleted existing contacts");
       }
