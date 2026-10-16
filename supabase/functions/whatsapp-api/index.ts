@@ -1,7 +1,7 @@
 
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { z } from 'npm:zod@3.23.8';
-import { createServiceClient, requireStaff, requireUser } from '../_shared/auth.ts';
+import { createServiceClient, requireStaff } from '../_shared/auth.ts';
 import { orderedLessons } from '../_shared/course-progression.ts';
 import { sendWhatsAppText } from '../_shared/whatsapp.ts';
 import { errorResponse } from '../_shared/responses.ts';
@@ -82,10 +82,7 @@ Deno.serve(async (req) => {
 
     const requestBody = parsed.data;
     const { endpoint } = parsed.data;
-    const staff = ['sendMessage', 'sendReply', 'submitTemplateVersion', 'enrollLearner'].includes(endpoint)
-      ? await requireStaff(req)
-      : null;
-    if (!staff) await requireUser(req);
+    const staff = await requireStaff(req);
     console.log(`Processing endpoint: ${endpoint}`);
 
     // Handle different endpoints with the correct API paths including tenant ID

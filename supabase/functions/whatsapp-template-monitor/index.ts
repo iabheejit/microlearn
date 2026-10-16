@@ -24,10 +24,10 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
   try {
-    const authorization = req.headers.get('Authorization');
-    const scheduled = req.headers.get('x-template-monitor') === 'scheduled'
-      && authorization === `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`;
-    if (!scheduled) await requireStaff(req);
+    // Public API keys are not credentials for privileged scheduled actions.
+    // Scheduled automation stays disabled until a private scheduler is configured.
+    await requireStaff(req);
+    const scheduled = false;
 
     const client = createServiceClient();
     const { data: version, error: versionError } = await client.from('whatsapp_template_versions')

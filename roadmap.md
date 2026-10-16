@@ -1,5 +1,8 @@
 # Roadmap
 
+- [x] Fix six critical security findings; basic rescan clear, 10 messaging tests pass, real non-staff reads and legacy endpoints denied; browser message-ID writes revoked
+- [ ] Verify personal staff chat access after shared demo retirement — blocked until the user signs in with a personal staff account; no matching personal account available for managed test login
+
 - [x] Build a shared portal reply engine with secured WhatsApp sends and approved-template sending inside both chats; real welcome and free-form reply delivered with provider IDs
 
 - [x] Add course-page Learner Chat for the existing enrolled learner; verify incoming messages and a real course-page reply read back in Chat History with shared provider IDs
