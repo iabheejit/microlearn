@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] Build a shared portal reply engine with secured WhatsApp sends and approved-template sending inside both chats
+- [x] Build a shared portal reply engine with secured WhatsApp sends and approved-template sending inside both chats; real welcome and free-form reply delivered with provider IDs
 
 - [x] Add course-page Learner Chat for the existing enrolled learner; verify incoming messages and a real course-page reply read back in Chat History with shared provider IDs
 
@@ -33,4 +33,5 @@
 - [x] Publish the callback signing-key correction and verify a fresh real incoming message and delivered portal reply
 - [x] Upgrade portal to TanStack Start and add the bare signed WhatsApp callback route
 - [x] Verify MicroLearn WABA routes incoming messages to the upgraded app through a real signed inbound callback and outbound delivery callbacks
-- [ ] Move course progression, staff actions and templates onto the new route/server functions (handed to the parallel agent)
+- [x] Move Chat History and course-page reply/template sends onto shared authenticated server functions
+- [ ] Move course progression, enrollment and template management onto server functions (separate work assigned to the parallel agent)
