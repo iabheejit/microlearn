@@ -263,6 +263,9 @@ export type Database = {
           thumbnail_url: string | null
           title: string
           updated_at: string
+          whatsapp_completion_message: string | null
+          whatsapp_lesson_intro: string | null
+          whatsapp_welcome_template_key: string
         }
         Insert: {
           category?: string | null
@@ -279,6 +282,9 @@ export type Database = {
           thumbnail_url?: string | null
           title: string
           updated_at?: string
+          whatsapp_completion_message?: string | null
+          whatsapp_lesson_intro?: string | null
+          whatsapp_welcome_template_key?: string
         }
         Update: {
           category?: string | null
@@ -295,6 +301,9 @@ export type Database = {
           thumbnail_url?: string | null
           title?: string
           updated_at?: string
+          whatsapp_completion_message?: string | null
+          whatsapp_lesson_intro?: string | null
+          whatsapp_welcome_template_key?: string
         }
         Relationships: []
       }
@@ -551,6 +560,8 @@ export type Database = {
           started_at: string
           status: string
           updated_at: string
+          welcome_message_id: string | null
+          welcome_template_name: string | null
         }
         Insert: {
           awaiting_reply?: boolean
@@ -566,6 +577,8 @@ export type Database = {
           started_at?: string
           status?: string
           updated_at?: string
+          welcome_message_id?: string | null
+          welcome_template_name?: string | null
         }
         Update: {
           awaiting_reply?: boolean
@@ -581,6 +594,8 @@ export type Database = {
           started_at?: string
           status?: string
           updated_at?: string
+          welcome_message_id?: string | null
+          welcome_template_name?: string | null
         }
         Relationships: [
           {

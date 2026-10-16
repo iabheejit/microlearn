@@ -15,6 +15,13 @@
       "when": 1792120055667,
       "tag": "0001_restrict_private_portal_data",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792120754805,
+      "tag": "0002_course_whatsapp_messages",
+      "breakpoints": true
     }
   ]
 }
