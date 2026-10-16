@@ -252,6 +252,7 @@ export type Database = {
           category: string | null
           created_at: string
           created_by: string
+          delivery_channel: string
           description: string | null
           id: string
           instructor: string | null
@@ -263,16 +264,16 @@ export type Database = {
           thumbnail_url: string | null
           title: string
           updated_at: string
+          web_enrollment_mode: string
           whatsapp_completion_message: string | null
           whatsapp_lesson_intro: string | null
           whatsapp_welcome_template_key: string
-          delivery_channel: string
-          web_enrollment_mode: string
         }
         Insert: {
           category?: string | null
           created_at?: string
           created_by: string
+          delivery_channel?: string
           description?: string | null
           id?: string
           instructor?: string | null
@@ -284,16 +285,16 @@ export type Database = {
           thumbnail_url?: string | null
           title: string
           updated_at?: string
+          web_enrollment_mode?: string
           whatsapp_completion_message?: string | null
           whatsapp_lesson_intro?: string | null
           whatsapp_welcome_template_key?: string
-          delivery_channel?: string
-          web_enrollment_mode?: string
         }
         Update: {
           category?: string | null
           created_at?: string
           created_by?: string
+          delivery_channel?: string
           description?: string | null
           id?: string
           instructor?: string | null
@@ -305,11 +306,10 @@ export type Database = {
           thumbnail_url?: string | null
           title?: string
           updated_at?: string
+          web_enrollment_mode?: string
           whatsapp_completion_message?: string | null
           whatsapp_lesson_intro?: string | null
           whatsapp_welcome_template_key?: string
-          delivery_channel?: string
-          web_enrollment_mode?: string
         }
         Relationships: []
       }
@@ -524,6 +524,153 @@ export type Database = {
         }
         Relationships: []
       }
+      web_course_certificates: {
+        Row: {
+          course_id: string
+          enrollment_id: string
+          id: string
+          issued_at: string
+          user_id: string
+          verification_code: string
+        }
+        Insert: {
+          course_id: string
+          enrollment_id: string
+          id?: string
+          issued_at?: string
+          user_id: string
+          verification_code: string
+        }
+        Update: {
+          course_id?: string
+          enrollment_id?: string
+          id?: string
+          issued_at?: string
+          user_id?: string
+          verification_code?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "web_course_certificates_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "web_course_certificates_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: true
+            referencedRelation: "web_course_enrollments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      web_course_enrollments: {
+        Row: {
+          completed_at: string | null
+          course_id: string
+          created_at: string
+          current_resource_id: string | null
+          enrolled_by: string | null
+          enrolled_via: string
+          id: string
+          progress_percentage: number
+          started_at: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          course_id: string
+          created_at?: string
+          current_resource_id?: string | null
+          enrolled_by?: string | null
+          enrolled_via: string
+          id?: string
+          progress_percentage?: number
+          started_at?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          course_id?: string
+          created_at?: string
+          current_resource_id?: string | null
+          enrolled_by?: string | null
+          enrolled_via?: string
+          id?: string
+          progress_percentage?: number
+          started_at?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "web_course_enrollments_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "web_course_enrollments_current_resource_id_fkey"
+            columns: ["current_resource_id"]
+            isOneToOne: false
+            referencedRelation: "course_resources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      web_quiz_attempts: {
+        Row: {
+          attempt_number: number
+          created_at: string
+          enrollment_id: string
+          id: string
+          is_correct: boolean
+          question_id: string
+          submitted_answer: string
+        }
+        Insert: {
+          attempt_number: number
+          created_at?: string
+          enrollment_id: string
+          id?: string
+          is_correct: boolean
+          question_id: string
+          submitted_answer: string
+        }
+        Update: {
+          attempt_number?: number
+          created_at?: string
+          enrollment_id?: string
+          id?: string
+          is_correct?: boolean
+          question_id?: string
+          submitted_answer?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "web_quiz_attempts_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "web_course_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "web_quiz_attempts_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "course_quiz_questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_contacts: {
         Row: {
           created_at: string
@@ -670,22 +817,34 @@ export type Database = {
       }
       whatsapp_progression_events: {
         Row: {
+          completed_at: string | null
           created_at: string
           enrollment_id: string
           id: string
+          outcome: string | null
           provider_message_id: string
+          response_text: string | null
+          status: string
         }
         Insert: {
+          completed_at?: string | null
           created_at?: string
           enrollment_id: string
           id?: string
+          outcome?: string | null
           provider_message_id: string
+          response_text?: string | null
+          status?: string
         }
         Update: {
+          completed_at?: string | null
           created_at?: string
           enrollment_id?: string
           id?: string
+          outcome?: string | null
           provider_message_id?: string
+          response_text?: string | null
+          status?: string
         }
         Relationships: [
           {
@@ -704,6 +863,7 @@ export type Database = {
           enrollment_id: string
           id: string
           is_correct: boolean
+          progression_event_id: string | null
           question_id: string
           submitted_answer: string
         }
@@ -713,6 +873,7 @@ export type Database = {
           enrollment_id: string
           id?: string
           is_correct: boolean
+          progression_event_id?: string | null
           question_id: string
           submitted_answer: string
         }
@@ -722,6 +883,7 @@ export type Database = {
           enrollment_id?: string
           id?: string
           is_correct?: boolean
+          progression_event_id?: string | null
           question_id?: string
           submitted_answer?: string
         }
@@ -731,6 +893,13 @@ export type Database = {
             columns: ["enrollment_id"]
             isOneToOne: false
             referencedRelation: "whatsapp_course_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_quiz_attempts_progression_event_id_fkey"
+            columns: ["progression_event_id"]
+            isOneToOne: true
+            referencedRelation: "whatsapp_progression_events"
             referencedColumns: ["id"]
           },
           {
@@ -998,6 +1167,39 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_web_progression: {
+        Args: {
+          p_advance: boolean
+          p_complete: boolean
+          p_enrollment_id: string
+          p_expected_resource_id: string
+          p_is_correct: boolean
+          p_next_resource_id: string
+          p_progress: number
+          p_question_id: string
+          p_submitted_answer: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      apply_whatsapp_progression: {
+        Args: {
+          p_advance: boolean
+          p_complete: boolean
+          p_enrollment_id: string
+          p_event_id: string
+          p_expected_resource_id: string
+          p_is_correct: boolean
+          p_next_resource_id: string
+          p_outcome: string
+          p_progress: number
+          p_question_id: string
+          p_response_text: string
+          p_submitted_answer: string
+        }
+        Returns: undefined
+      }
+      find_auth_user_id_by_email: { Args: { p_email: string }; Returns: string }
       match_course_resources: {
         Args: {
           match_count?: number
