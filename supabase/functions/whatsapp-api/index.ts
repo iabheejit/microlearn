@@ -224,19 +224,20 @@ Deno.serve(async (req) => {
         const client = createServiceClient();
         const resources = await orderedLessons(courseId);
         if (!resources.length) return jsonResponse({ error: 'Add course lessons before enrolling a learner' }, 409);
-        const { data: course, error: courseError } = await client.from('courses').select('title').eq('id', courseId).single();
+        const { data: course, error: courseError } = await client.from('courses').select('title,whatsapp_welcome_template_key').eq('id', courseId).single();
         if (courseError) throw courseError;
+        const templateKey = course.whatsapp_welcome_template_key || 'course_welcome';
         const existing = await client.from('whatsapp_course_enrollments').select('id,status').eq('course_id', courseId).eq('phone_number', recipientDigits).maybeSingle();
         if (existing.error) throw existing.error;
         if (existing.data) return jsonResponse({ error: 'This learner is already enrolled in this course.' }, 409);
         const { data: approvedTemplates, error: templateError } = await client.from('whatsapp_template_versions')
-          .select('provider_template_name').eq('template_key', 'course_welcome').eq('review_status', 'APPROVED').order('version', { ascending: false }).limit(1);
+          .select('provider_template_name,language').eq('template_key', templateKey).eq('review_status', 'APPROVED').order('version', { ascending: false }).limit(1);
         if (templateError) throw templateError;
         const activeTemplate = approvedTemplates?.[0];
-        if (!activeTemplate) return jsonResponse({ error: 'The course welcome template is not approved yet.' }, 409);
+        if (!activeTemplate) return jsonResponse({ error: `This course's welcome template "${templateKey}" is not approved yet.` }, 409);
         const result = await callWhatsApp('/messages', 'POST', {
           messaging_product: 'whatsapp', to: recipientDigits, type: 'template',
-          template: { name: activeTemplate.provider_template_name, language: { code: 'en_US' }, components: [{ type: 'body', parameters: [learnerName, course.title].map((text) => ({ type: 'text', text })) }] },
+          template: { name: activeTemplate.provider_template_name, language: { code: activeTemplate.language || 'en_US' }, components: [{ type: 'body', parameters: [learnerName, course.title].map((text) => ({ type: 'text', text })) }] },
         });
         if (result.error) return result.error;
         const messageId = result.data?.messages?.[0]?.id;
@@ -252,6 +253,7 @@ Deno.serve(async (req) => {
           course_id: courseId, phone_number: recipientDigits, learner_name: learnerName,
           current_resource_id: null, status: 'active', progress_percentage: 0,
           awaiting_reply: true, completed_at: null, created_by: staff?.user.id,
+          welcome_template_name: activeTemplate.provider_template_name, welcome_message_id: messageId,
         }, { onConflict: 'course_id,phone_number' }).select().single();
         if (enrollmentError) throw enrollmentError;
         return jsonResponse({ enrollment, messageId });
