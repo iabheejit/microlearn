@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatUnlockTime } from "./course-engine";
 import {
   buttonMessage,
+  documentMessage,
+  HELP_IDS,
   textMessage,
   type InboundReply,
   type OutgoingMessage,
@@ -12,6 +14,7 @@ import {
   progressFromReply,
   type ReplyOptions,
 } from "./whatsapp-progression.server";
+import { certificateAttachment } from "./certificates.server";
 import {
   sendAutomatedWhatsApp,
   WhatsAppWindowClosedError,
@@ -24,12 +27,17 @@ import {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Client = SupabaseClient<any>;
 
-export const HELP_IDS = {
-  courses: "help:courses",
-  human: "help:human",
-} as const;
+export { HELP_IDS };
 const MY_COURSES: Reply = { id: HELP_IDS.courses, title: "My courses" };
 const TALK_TO_PERSON: Reply = { id: HELP_IDS.human, title: "Talk to a person" };
+const MY_CERTIFICATE: Reply = {
+  id: HELP_IDS.certificate,
+  title: "My certificate",
+};
+const ASK_FOR_COURSE: Reply = { id: HELP_IDS.join, title: "Ask for a course" };
+
+const NEWCOMER_MESSAGE =
+  "Hi! I'm MicroLearn from Ekatra: short lessons right here in WhatsApp. You're not enrolled in a course yet. What would you like to do?";
 
 export const DEFAULT_BOT_SETTINGS = {
   fallback_enabled: true,
@@ -51,6 +59,10 @@ const FALLBACK_REASONS: Record<string, string> = {
   no_lessons: "Enrolled course has no lessons",
 };
 const HUMAN_REASON = "Learner asked for a person";
+const JOIN_REASON = "Asked to join a course";
+const JOIN_REPLY =
+  "Thanks! We've let the Ekatra team know, and someone will reply here about getting you started.";
+const CERTIFICATE_INTENT = /^(my\s+)?cert(ificate)?s?$/i;
 // Longer than one attempt can spend sending (two messages, 30-second gateway timeout each).
 export const RESUME_AFTER_MS = 2 * 60 * 1000;
 
@@ -135,18 +147,87 @@ export async function coursesMessages(
     else status = progress;
     return `• *${title}*: ${status}`;
   });
-  return [textMessage(`📚 Your courses\n\n${lines.join("\n")}`)];
+  const text = `📚 Your courses\n\n${lines.join("\n")}`;
+  const buttons = codeByEnrollment.size
+    ? [MY_CERTIFICATE, TALK_TO_PERSON]
+    : [TALK_TO_PERSON];
+  // The list shares the buttons' message when it fits; a long list goes first, as plain text.
+  return text.length <= 900
+    ? [buttonMessage(text, buttons)]
+    : [textMessage(text), buttonMessage("Anything else?", buttons)];
 }
 
-async function hasCompletedCourse(client: Client, phone: string) {
+/** The learner's certificates as PDF documents (newest first, at most three). */
+export async function certificateMessages(
+  client: Client,
+  phone: string,
+  baseUrl: string | undefined,
+): Promise<OutgoingMessage[]> {
+  const { data, error } = await client
+    .from("course_certificates")
+    .select("course_id,verification_code,issued_at")
+    .eq("phone_number", phone)
+    .order("issued_at", { ascending: false })
+    .limit(3);
+  if (error) throw error;
+  if (!data?.length)
+    return [
+      buttonMessage(
+        "You'll get a certificate when you finish a course. Want to see where you are?",
+        [MY_COURSES],
+      ),
+    ];
+  const { data: courses, error: courseError } = await client
+    .from("courses")
+    .select("id,title")
+    .in(
+      "id",
+      data.map((row) => row.course_id as string),
+    );
+  if (courseError) throw courseError;
+  const titleById = new Map(
+    (courses ?? []).map((course) => [course.id as string, course.title as string]),
+  );
+  const messages = data.map((row) => {
+    const code = row.verification_code as string;
+    const title = titleById.get(row.course_id as string) ?? "Course";
+    if (!baseUrl)
+      return textMessage(`🎓 ${title}\nCertificate verification code: ${code}`);
+    const attachment = certificateAttachment(baseUrl, {
+      code,
+      courseTitle: title,
+    });
+    return documentMessage(
+      attachment.pdfUrl,
+      attachment.filename,
+      `🎓 ${title}. Anyone can verify it at ${attachment.verifyUrl}`,
+    );
+  });
+  return [...messages, buttonMessage("Anything else?", [MY_COURSES, TALK_TO_PERSON])];
+}
+
+/** Name and course of the learner's most recent completion, or null if they never finished one. */
+async function latestCompletion(client: Client, phone: string) {
   const { data, error } = await client
     .from("whatsapp_course_enrollments")
-    .select("id")
+    .select("learner_name,course_id")
     .eq("phone_number", phone)
     .eq("status", "completed")
-    .limit(1);
+    .order("completed_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
   if (error) throw error;
-  return Boolean(data?.length);
+  if (!data) return null;
+  const { data: course, error: courseError } = await client
+    .from("courses")
+    .select("title")
+    .eq("id", data.course_id as string)
+    .maybeSingle();
+  if (courseError) throw courseError;
+  return {
+    name: (data.learner_name as string) || "there",
+    course: (course?.title as string | undefined) ?? "your course",
+  };
 }
 
 type ClaimRow = {
@@ -273,6 +354,30 @@ export async function respondToInbound(
     });
     return { outcome: "help_courses", autoReply };
   }
+  if (replyId === HELP_IDS.certificate) {
+    const autoReply = await claimAndDeliver(client, {
+      key: providerMessageId,
+      phone,
+      kind: "courses",
+      messages: await certificateMessages(client, phone, options.baseUrl),
+      cooldownMinutes: 0,
+      flagReason: null,
+      send,
+    });
+    return { outcome: "help_certificate", autoReply };
+  }
+  if (replyId === HELP_IDS.join) {
+    const autoReply = await claimAndDeliver(client, {
+      key: providerMessageId,
+      phone,
+      kind: "human",
+      messages: [textMessage(JOIN_REPLY)],
+      cooldownMinutes: 0,
+      flagReason: JOIN_REASON,
+      send,
+    });
+    return { outcome: "help_join", autoReply };
+  }
   if (replyId === HELP_IDS.human) {
     const settings = await loadBotSettings(client);
     const autoReply = await claimAndDeliver(client, {
@@ -295,6 +400,7 @@ export async function respondToInbound(
     {
       send,
       now,
+      baseUrl: options.baseUrl,
     },
   );
   if (!FALLBACK_REASONS[outcome]) return { outcome, autoReply: null };
@@ -307,23 +413,50 @@ export async function respondToInbound(
   if (contactError) throw contactError;
   // A chat already waiting for staff (e.g. after "Talk to a person") gets no menu, and keeps its reason.
   const awaitingStaff = Boolean(contact?.needs_attention);
-  const reason =
-    outcome === "no_enrollment" && (await hasCompletedCourse(client, phone))
-      ? FALLBACK_REASONS.after_completion
-      : FALLBACK_REASONS[outcome];
-  const menuText =
-    outcome === "ambiguous_enrollment"
-      ? AMBIGUOUS_MESSAGE
-      : settings.fallback_message;
+
+  // Typing "certificate" is a clear request, so it is answered rather than met with a menu.
+  if (CERTIFICATE_INTENT.test((reply.text ?? reply.replyTitle ?? "").trim())) {
+    const autoReply = await claimAndDeliver(client, {
+      key: providerMessageId,
+      phone,
+      kind: "courses",
+      messages: await certificateMessages(client, phone, options.baseUrl),
+      cooldownMinutes: 0,
+      flagReason: null,
+      send,
+    });
+    return { outcome: "help_certificate", autoReply };
+  }
+
+  const graduate =
+    outcome === "no_enrollment" ? await latestCompletion(client, phone) : null;
+  let menu: OutgoingMessage;
+  let reason: string | null;
+  if (graduate) {
+    // A graduate saying hello is welcomed back, not flagged: only asking for a person flags the chat.
+    menu = buttonMessage(
+      `Welcome back, ${graduate.name}! 🎓 You've completed *${graduate.course}*. What would you like to do?`,
+      [MY_CERTIFICATE, MY_COURSES, TALK_TO_PERSON],
+    );
+    reason = null;
+  } else if (outcome === "no_enrollment") {
+    menu = buttonMessage(NEWCOMER_MESSAGE, [ASK_FOR_COURSE, TALK_TO_PERSON]);
+    reason = FALLBACK_REASONS[outcome];
+  } else {
+    menu = buttonMessage(
+      outcome === "ambiguous_enrollment"
+        ? AMBIGUOUS_MESSAGE
+        : settings.fallback_message,
+      [MY_COURSES, TALK_TO_PERSON],
+    );
+    reason = FALLBACK_REASONS[outcome];
+  }
   const autoReply = await claimAndDeliver(client, {
     key: providerMessageId,
     phone,
     kind: "fallback",
     // With the fallback switched off the chat is still flagged, but nothing is sent.
-    messages:
-      settings.fallback_enabled && !awaitingStaff
-        ? [buttonMessage(menuText, [MY_COURSES, TALK_TO_PERSON])]
-        : null,
+    messages: settings.fallback_enabled && !awaitingStaff ? [menu] : null,
     cooldownMinutes: settings.cooldown_minutes,
     flagReason: awaitingStaff ? null : reason,
     send,

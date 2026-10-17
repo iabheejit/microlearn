@@ -20,12 +20,14 @@ import { Route as UsersRouteImport } from './routes/users'
 import { Route as CoursesIndexRouteImport } from './routes/courses.index'
 import { Route as LearnIndexRouteImport } from './routes/learn.index'
 import { Route as LearnCourseIdRouteImport } from './routes/learn.$courseId'
+import { Route as VerifyCodeRouteImport } from './routes/verify.$code'
 import { Route as WhatsappIndexRouteImport } from './routes/whatsapp.index'
 import { Route as WhatsappWebhookStatusRouteImport } from './routes/whatsapp.webhook-status'
 import { Route as ApiPublicCourseSchedulerRouteImport } from './routes/api/public/course-scheduler'
 import { Route as CoursesEditorIndexRouteImport } from './routes/courses.editor.index'
 import { Route as CoursesEditorIdRouteImport } from './routes/courses.editor.$id'
 import { Route as CoursesPreviewIdRouteImport } from './routes/courses.preview.$id'
+import { Route as ApiPublicCertificatesCodeRouteImport } from './routes/api/public/certificates/$code'
 import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/public/whatsapp/webhook'
 
 const IndexRoute = IndexRouteImport.update({
@@ -83,6 +85,11 @@ const LearnCourseIdRoute = LearnCourseIdRouteImport.update({
   path: '/learn/$courseId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VerifyCodeRoute = VerifyCodeRouteImport.update({
+  id: '/verify/$code',
+  path: '/verify/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WhatsappIndexRoute = WhatsappIndexRouteImport.update({
   id: '/whatsapp/',
   path: '/whatsapp/',
@@ -114,6 +121,12 @@ const CoursesPreviewIdRoute = CoursesPreviewIdRouteImport.update({
   path: '/courses/preview/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicCertificatesCodeRoute =
+  ApiPublicCertificatesCodeRouteImport.update({
+    id: '/api/public/certificates/$code',
+    path: '/api/public/certificates/$code',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicWhatsappWebhookRoute =
   ApiPublicWhatsappWebhookRouteImport.update({
     id: '/api/public/whatsapp/webhook',
@@ -131,6 +144,7 @@ export interface FileRoutesByFullPath {
   '/telegram': typeof TelegramRoute
   '/users': typeof UsersRoute
   '/learn/$courseId': typeof LearnCourseIdRoute
+  '/verify/$code': typeof VerifyCodeRoute
   '/whatsapp/webhook-status': typeof WhatsappWebhookStatusRoute
   '/courses/': typeof CoursesIndexRoute
   '/learn/': typeof LearnIndexRoute
@@ -139,6 +153,7 @@ export interface FileRoutesByFullPath {
   '/courses/editor/$id': typeof CoursesEditorIdRoute
   '/courses/preview/$id': typeof CoursesPreviewIdRoute
   '/courses/editor/': typeof CoursesEditorIndexRoute
+  '/api/public/certificates/$code': typeof ApiPublicCertificatesCodeRoute
   '/api/public/whatsapp/webhook': typeof ApiPublicWhatsappWebhookRoute
 }
 export interface FileRoutesByTo {
@@ -151,6 +166,7 @@ export interface FileRoutesByTo {
   '/telegram': typeof TelegramRoute
   '/users': typeof UsersRoute
   '/learn/$courseId': typeof LearnCourseIdRoute
+  '/verify/$code': typeof VerifyCodeRoute
   '/whatsapp/webhook-status': typeof WhatsappWebhookStatusRoute
   '/courses': typeof CoursesIndexRoute
   '/learn': typeof LearnIndexRoute
@@ -159,6 +175,7 @@ export interface FileRoutesByTo {
   '/courses/editor/$id': typeof CoursesEditorIdRoute
   '/courses/preview/$id': typeof CoursesPreviewIdRoute
   '/courses/editor': typeof CoursesEditorIndexRoute
+  '/api/public/certificates/$code': typeof ApiPublicCertificatesCodeRoute
   '/api/public/whatsapp/webhook': typeof ApiPublicWhatsappWebhookRoute
 }
 export interface FileRoutesById {
@@ -172,6 +189,7 @@ export interface FileRoutesById {
   '/telegram': typeof TelegramRoute
   '/users': typeof UsersRoute
   '/learn/$courseId': typeof LearnCourseIdRoute
+  '/verify/$code': typeof VerifyCodeRoute
   '/whatsapp/webhook-status': typeof WhatsappWebhookStatusRoute
   '/courses/': typeof CoursesIndexRoute
   '/learn/': typeof LearnIndexRoute
@@ -180,6 +198,7 @@ export interface FileRoutesById {
   '/courses/editor/$id': typeof CoursesEditorIdRoute
   '/courses/preview/$id': typeof CoursesPreviewIdRoute
   '/courses/editor/': typeof CoursesEditorIndexRoute
+  '/api/public/certificates/$code': typeof ApiPublicCertificatesCodeRoute
   '/api/public/whatsapp/webhook': typeof ApiPublicWhatsappWebhookRoute
 }
 export interface FileRouteTypes {
@@ -194,6 +213,7 @@ export interface FileRouteTypes {
     | '/telegram'
     | '/users'
     | '/learn/$courseId'
+    | '/verify/$code'
     | '/whatsapp/webhook-status'
     | '/courses/'
     | '/learn/'
@@ -202,6 +222,7 @@ export interface FileRouteTypes {
     | '/courses/editor/$id'
     | '/courses/preview/$id'
     | '/courses/editor/'
+    | '/api/public/certificates/$code'
     | '/api/public/whatsapp/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -214,6 +235,7 @@ export interface FileRouteTypes {
     | '/telegram'
     | '/users'
     | '/learn/$courseId'
+    | '/verify/$code'
     | '/whatsapp/webhook-status'
     | '/courses'
     | '/learn'
@@ -222,6 +244,7 @@ export interface FileRouteTypes {
     | '/courses/editor/$id'
     | '/courses/preview/$id'
     | '/courses/editor'
+    | '/api/public/certificates/$code'
     | '/api/public/whatsapp/webhook'
   id:
     | '__root__'
@@ -234,6 +257,7 @@ export interface FileRouteTypes {
     | '/telegram'
     | '/users'
     | '/learn/$courseId'
+    | '/verify/$code'
     | '/whatsapp/webhook-status'
     | '/courses/'
     | '/learn/'
@@ -242,6 +266,7 @@ export interface FileRouteTypes {
     | '/courses/editor/$id'
     | '/courses/preview/$id'
     | '/courses/editor/'
+    | '/api/public/certificates/$code'
     | '/api/public/whatsapp/webhook'
   fileRoutesById: FileRoutesById
 }
@@ -255,6 +280,7 @@ export interface RootRouteChildren {
   TelegramRoute: typeof TelegramRoute
   UsersRoute: typeof UsersRoute
   LearnCourseIdRoute: typeof LearnCourseIdRoute
+  VerifyCodeRoute: typeof VerifyCodeRoute
   WhatsappWebhookStatusRoute: typeof WhatsappWebhookStatusRoute
   CoursesIndexRoute: typeof CoursesIndexRoute
   LearnIndexRoute: typeof LearnIndexRoute
@@ -263,6 +289,7 @@ export interface RootRouteChildren {
   CoursesEditorIdRoute: typeof CoursesEditorIdRoute
   CoursesPreviewIdRoute: typeof CoursesPreviewIdRoute
   CoursesEditorIndexRoute: typeof CoursesEditorIndexRoute
+  ApiPublicCertificatesCodeRoute: typeof ApiPublicCertificatesCodeRoute
   ApiPublicWhatsappWebhookRoute: typeof ApiPublicWhatsappWebhookRoute
 }
 
@@ -345,6 +372,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LearnCourseIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/verify/$code': {
+      id: '/verify/$code'
+      path: '/verify/$code'
+      fullPath: '/verify/$code'
+      preLoaderRoute: typeof VerifyCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/whatsapp/': {
       id: '/whatsapp/'
       path: '/whatsapp'
@@ -387,6 +421,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CoursesPreviewIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/certificates/$code': {
+      id: '/api/public/certificates/$code'
+      path: '/api/public/certificates/$code'
+      fullPath: '/api/public/certificates/$code'
+      preLoaderRoute: typeof ApiPublicCertificatesCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/whatsapp/webhook': {
       id: '/api/public/whatsapp/webhook'
       path: '/api/public/whatsapp/webhook'
@@ -407,6 +448,7 @@ const rootRouteChildren: RootRouteChildren = {
   TelegramRoute: TelegramRoute,
   UsersRoute: UsersRoute,
   LearnCourseIdRoute: LearnCourseIdRoute,
+  VerifyCodeRoute: VerifyCodeRoute,
   WhatsappWebhookStatusRoute: WhatsappWebhookStatusRoute,
   CoursesIndexRoute: CoursesIndexRoute,
   LearnIndexRoute: LearnIndexRoute,
@@ -415,6 +457,7 @@ const rootRouteChildren: RootRouteChildren = {
   CoursesEditorIdRoute: CoursesEditorIdRoute,
   CoursesPreviewIdRoute: CoursesPreviewIdRoute,
   CoursesEditorIndexRoute: CoursesEditorIndexRoute,
+  ApiPublicCertificatesCodeRoute: ApiPublicCertificatesCodeRoute,
   ApiPublicWhatsappWebhookRoute: ApiPublicWhatsappWebhookRoute,
 }
 export const routeTree = rootRouteImport

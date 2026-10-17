@@ -143,7 +143,10 @@ function setup() {
     });
     fake.rows("course_certificates").push({
       enrollment_id: "done",
+      course_id: COURSE,
+      phone_number: PHONE,
       verification_code: "ABC123DEF456",
+      issued_at: "2026-10-16T12:00:00Z",
     });
   };
   const send = async (
@@ -173,7 +176,12 @@ function setup() {
   const inbound = (
     input: { text?: string | null; replyId?: string; replyTitle?: string },
     id = `wamid.in.${++counter}`,
-  ) => respondToInbound(fake.client, PHONE, input, id, { send, now: clock });
+  ) =>
+    respondToInbound(fake.client, PHONE, input, id, {
+      send,
+      now: clock,
+      baseUrl: "https://app.test",
+    });
   const contact = () =>
     fake
       .rows("whatsapp_contacts")
@@ -194,9 +202,11 @@ function setup() {
 }
 
 const MENU = ["help:courses", "help:human"];
+const NEWCOMER_MENU = ["help:join", "help:human"];
+const GRADUATE_MENU = ["help:certificate", "help:courses", "help:human"];
 
 describe("WhatsApp fallback replies", () => {
-  it("offers the help menu to a learner who finished their course, and flags the chat", async () => {
+  it("welcomes a graduate back with their certificate and does not flag the chat", async () => {
     const t = setup();
     t.completed();
     expect(await t.inbound({ text: "Hi" })).toEqual({
@@ -207,20 +217,36 @@ describe("WhatsApp fallback replies", () => {
       {
         type: "button",
         content: expect.stringContaining(
-          "couldn't match your message to a lesson",
+          "Welcome back, Ann! 🎓 You've completed *WhatsApp Learning Essentials*",
         ),
-        buttons: MENU,
+        buttons: GRADUATE_MENU,
+      },
+    ]);
+    // Only asking for a person flags a graduate's chat.
+    expect(t.contact().needs_attention).toBe(false);
+  });
+
+  it("offers a newcomer a way to ask for a course, and flags the chat", async () => {
+    const t = setup();
+    expect(await t.inbound({ text: "Hi" })).toEqual({
+      outcome: "no_enrollment",
+      autoReply: "sent",
+    });
+    expect(t.take()).toEqual([
+      {
+        type: "button",
+        content: expect.stringContaining("I'm MicroLearn from Ekatra"),
+        buttons: NEWCOMER_MENU,
       },
     ]);
     expect(t.contact()).toMatchObject({
       needs_attention: true,
-      attention_reason: "Message after course completion",
+      attention_reason: "Message didn't match an active course step",
     });
   });
 
   it("stays quiet within the cooldown but keeps the chat flagged", async () => {
     const t = setup();
-    t.completed();
     await t.inbound({ text: "Hi" });
     t.take();
     // Staff resolve the chat; the learner writes again a few minutes later.
@@ -247,6 +273,17 @@ describe("WhatsApp fallback replies", () => {
     expect(t.take()).toHaveLength(1);
   });
 
+  it("keeps a graduate unflagged within the cooldown too", async () => {
+    const t = setup();
+    t.completed();
+    await t.inbound({ text: "Hi" });
+    t.take();
+    t.advance(5);
+    expect((await t.inbound({ text: "hi again" })).autoReply).toBe("skipped");
+    expect(t.take()).toEqual([]);
+    expect(t.contact().needs_attention).toBe(false);
+  });
+
   it("lists the learner's courses when they tap My courses, regardless of cooldown", async () => {
     const t = setup();
     t.completed();
@@ -263,13 +300,103 @@ describe("WhatsApp fallback replies", () => {
       await t.inbound({ replyId: "help:courses", replyTitle: "My courses" }),
     ).toEqual({ outcome: "help_courses", autoReply: "sent" });
     const [message] = t.take();
-    expect(message.type).toBe("text");
+    expect(message.type).toBe("button");
+    expect(message.buttons).toEqual(["help:certificate", "help:human"]);
     expect(message.content).toContain(
       "*WhatsApp Learning Essentials*: ✅ Completed · certificate ABC123DEF456",
     );
     expect(message.content).toContain(
       "*Money Basics*: ⏸️ Paused · 40% complete",
     );
+  });
+
+  it("offers only Talk to a person under My courses when there is no certificate", async () => {
+    const t = setup();
+    t.enroll({ progress_percentage: 40 });
+    await t.inbound({ replyId: "help:courses" });
+    const [message] = t.take();
+    expect(message.buttons).toEqual(["help:human"]);
+    expect(message.content).toContain("40% complete");
+  });
+
+  it("sends the certificate as a PDF document when the learner taps My certificate", async () => {
+    const t = setup();
+    t.completed();
+    expect(
+      await t.inbound({
+        replyId: "help:certificate",
+        replyTitle: "My certificate",
+      }),
+    ).toEqual({ outcome: "help_certificate", autoReply: "sent" });
+    const messages = t.take();
+    expect(messages.map((message) => message.type)).toEqual([
+      "document",
+      "button",
+    ]);
+    expect(messages[0].content).toContain(
+      "Certificate - WhatsApp Learning Essentials.pdf",
+    );
+    expect(messages[0].content).toContain(
+      "https://app.test/verify/ABC123DEF456",
+    );
+    expect(messages[1].buttons).toEqual(["help:courses", "help:human"]);
+    // A certificate request is never a reason to flag the chat.
+    expect(t.contact().needs_attention).toBe(false);
+  });
+
+  it("falls back to the verification code when the app URL is unknown", async () => {
+    const t = setup();
+    t.completed();
+    await respondToInbound(
+      t.client,
+      PHONE,
+      { replyId: "help:certificate" },
+      "wamid.nobase",
+      { send: t.send },
+    );
+    expect(t.take()[0]).toMatchObject({
+      type: "text",
+      content: expect.stringContaining("ABC123DEF456"),
+    });
+  });
+
+  it("answers a typed 'certificate' with the PDF instead of a menu", async () => {
+    const t = setup();
+    t.completed();
+    expect(await t.inbound({ text: " My Certificate " })).toEqual({
+      outcome: "help_certificate",
+      autoReply: "sent",
+    });
+    expect(t.take()[0].type).toBe("document");
+    expect(await t.inbound({ text: "cert" })).toMatchObject({
+      outcome: "help_certificate",
+    });
+  });
+
+  it("tells a learner without a certificate when they will get one", async () => {
+    const t = setup();
+    await t.inbound({ replyId: "help:certificate" });
+    expect(t.take()).toEqual([
+      {
+        type: "button",
+        content: expect.stringContaining(
+          "You'll get a certificate when you finish a course",
+        ),
+        buttons: ["help:courses"],
+      },
+    ]);
+  });
+
+  it("flags the chat when a newcomer taps Ask for a course", async () => {
+    const t = setup();
+    expect(
+      await t.inbound({ replyId: "help:join", replyTitle: "Ask for a course" }),
+    ).toEqual({ outcome: "help_join", autoReply: "sent" });
+    expect(t.take()[0].content).toContain("let the Ekatra team know");
+    expect(t.contact()).toMatchObject({
+      needs_attention: true,
+      attention_reason: "Asked to join a course",
+    });
   });
 
   it("offers a person when the learner has no WhatsApp course", async () => {
@@ -427,7 +554,7 @@ describe("WhatsApp fallback replies", () => {
         },
       );
     await callback("wamid.img1", { type: "image", image: { id: "media" } });
-    expect(t.take()[0].buttons).toEqual(MENU);
+    expect(t.take()[0].buttons).toEqual(NEWCOMER_MENU);
 
     t.enroll({});
     await callback("wamid.voice", { type: "audio", audio: { id: "media" } });

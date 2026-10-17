@@ -25,10 +25,21 @@ function setup(course: Row = {}) {
           answer: string;
           correct: boolean;
         } | null;
-        if (attempt)
-          fake
+        if (attempt) {
+          const prior = fake
             .rows("whatsapp_quiz_attempts")
-            .push({ ...attempt, enrollment_id: enrollment.id });
+            .filter(
+              (row) =>
+                row.enrollment_id === enrollment.id &&
+                row.question_id === attempt.question_id,
+            );
+          fake.rows("whatsapp_quiz_attempts").push({
+            ...attempt,
+            enrollment_id: enrollment.id,
+            is_correct: attempt.correct,
+            attempt_number: prior.length + 1,
+          });
+        }
         const state = args.p_state as Row;
         Object.assign(enrollment, state, {
           awaiting_reply: state.status === "active",
@@ -159,8 +170,12 @@ describe("WhatsApp course flow", () => {
     expect(await t.reply({ text: "hi" })).toBe("started");
     expect(t.take()).toEqual([
       {
+        type: "text",
+        content: expect.stringContaining("Welcome to *WA 101*, Ann!"),
+      },
+      {
         type: "button",
-        content: expect.stringContaining("Day 1 · Lesson 1/3: One"),
+        content: expect.stringContaining("*Day 1 · One*\n▰▰▰▱▱▱▱▱ 1 of 3"),
       },
     ]);
 
@@ -173,7 +188,7 @@ describe("WhatsApp course flow", () => {
       "wrong_answer",
     );
     expect(t.take().map((message) => message.content)).toEqual([
-      expect.stringContaining("Not quite. It is b."),
+      expect.stringContaining("Not quite. It is b. Give it one more go."),
       expect.stringContaining("Pick b"),
     ]);
 
@@ -181,8 +196,8 @@ describe("WhatsApp course flow", () => {
       "advanced",
     );
     expect(t.take().map((message) => message.content)).toEqual([
-      expect.stringContaining("Correct! It is b."),
-      expect.stringContaining("Lesson 2/3: Two"),
+      expect.stringMatching(/^✅ (Correct!|Nice one!|Spot on!) It is b\./),
+      expect.stringContaining("*Day 1 · Two*\n▰▰▰▰▰▱▱▱ 2 of 3"),
     ]);
     expect(t.rows("whatsapp_quiz_attempts").map((row) => row.correct)).toEqual([
       false,
@@ -195,8 +210,80 @@ describe("WhatsApp course flow", () => {
     ]);
     expect(await t.reply({ replyId: "course:resume" })).toBe("resumed");
     expect(t.take()).toEqual([
-      { type: "button", content: expect.stringContaining("Lesson 2/3: Two") },
+      { type: "button", content: expect.stringContaining("Day 1 · Two") },
     ]);
+  });
+
+  it("reveals the answer after a second wrong answer and moves on", async () => {
+    const t = setup();
+    Object.assign(t.enrollment(), {
+      current_resource_id: "l1",
+      current_step: "question",
+    });
+    expect(await t.reply({ replyId: "quiz:1", replyTitle: "a" })).toBe(
+      "wrong_answer",
+    );
+    t.take();
+    expect(await t.reply({ replyId: "quiz:1", replyTitle: "a" })).toBe(
+      "advanced",
+    );
+    expect(t.take().map((message) => message.content)).toEqual([
+      expect.stringContaining("The answer was *b*. It is b."),
+      expect.stringContaining("Day 1 · Two"),
+    ]);
+    expect(t.enrollment()).toMatchObject({ current_resource_id: "l2" });
+    expect(t.rows("whatsapp_quiz_attempts").map((row) => row.correct)).toEqual([
+      false,
+      false,
+    ]);
+  });
+
+  it("finishes with the score, a certificate PDF and closing buttons", async () => {
+    const t = setup();
+    // Answered the only question wrongly once, then correctly: 0 of 1 right on the first try.
+    Object.assign(t.enrollment(), {
+      current_resource_id: "l3",
+      current_step: "lesson",
+    });
+    t.rows("whatsapp_quiz_attempts").push(
+      {
+        enrollment_id: "e1",
+        question_id: "q1",
+        is_correct: false,
+        attempt_number: 1,
+      },
+      {
+        enrollment_id: "e1",
+        question_id: "q1",
+        is_correct: true,
+        attempt_number: 2,
+      },
+    );
+    const { progressFromReply: progress } =
+      await import("./whatsapp-progression.server");
+    expect(
+      await progress(
+        t.client,
+        PHONE,
+        { replyId: "course:next" },
+        "wamid.done",
+        {
+          send: t.send,
+          now: new Date("2026-10-17T10:00:00Z"),
+          baseUrl: "https://app.test",
+        },
+      ),
+    ).toBe("completed");
+    const messages = t.take();
+    expect(messages.map((message) => message.type)).toEqual([
+      "text",
+      "document",
+      "button",
+    ]);
+    expect(messages[0].content).toContain("Congratulations, Ann!");
+    expect(messages[0].content).toContain("🏆 0/1 correct on the first try");
+    const code = t.rows("course_certificates")[0].verification_code as string;
+    expect(messages[1].content).toContain(`https://app.test/verify/${code}`);
   });
 
   it("locks the next day until its unlock time", async () => {
@@ -204,7 +291,7 @@ describe("WhatsApp course flow", () => {
     Object.assign(t.enrollment(), { current_resource_id: "l2" });
     expect(await t.reply({ replyId: "course:next" })).toBe("day_complete");
     expect(t.take()[0].content).toMatch(
-      /Day 1 complete! Day 2 unlocks .*17 Oct.*09:00/,
+      /Day 1 done!\*\nNext up: _Three_ — unlocks .*17 Oct.*09:00/,
     );
     expect(t.enrollment()).toMatchObject({
       current_resource_id: "l3",
@@ -218,7 +305,7 @@ describe("WhatsApp course flow", () => {
     expect(await t.reply({ text: "next" }, "2026-10-17T09:01:00Z")).toBe(
       "unlocked",
     );
-    expect(t.take()[0].content).toContain("Day 2 · Lesson 3/3: Three");
+    expect(t.take()[0].content).toContain("*Day 2 · Three*");
   });
 
   it("never replays a delivered reply and resumes a partly sent one", async () => {
@@ -237,8 +324,8 @@ describe("WhatsApp course flow", () => {
       "resent",
     );
     expect(t.take().map((message) => message.content)).toEqual([
-      expect.stringContaining("Correct!"),
-      expect.stringContaining("Lesson 2/3"),
+      expect.stringMatching(/^✅ /),
+      expect.stringContaining("Day 1 · Two"),
     ]);
     expect(await t.reply({ replyId: "quiz:2" }, undefined, "wamid.retry")).toBe(
       "duplicate",
@@ -284,7 +371,7 @@ describe("course scheduler", () => {
     expect(await run(t, "2026-10-17T09:00:00Z")).toEqual([
       { enrollmentId: "e1", action: "unlocked" },
     ]);
-    expect(t.take()[0].content).toContain("Lesson 3/3: Three");
+    expect(t.take()[0].content).toContain("*Day 2 · Three*");
     expect(t.enrollment()).toMatchObject({ next_unlock_at: null });
   });
 
@@ -308,7 +395,7 @@ describe("course scheduler", () => {
         "2026-10-17T10:00:00Z",
       ),
     ).toBe("unlocked");
-    expect(t.take()[0].content).toContain("Lesson 3/3: Three");
+    expect(t.take()[0].content).toContain("*Day 2 · Three*");
   });
 
   it("reports a missing or unapproved nudge template without sending", async () => {
@@ -350,7 +437,7 @@ describe("course scheduler", () => {
     expect(await run(t, "2026-10-16T15:10:00Z")).toEqual([
       { enrollmentId: "e1", action: "redelivered" },
     ]);
-    expect(t.take()[0].content).toContain("Lesson 1/3");
+    expect(t.take()[0].content).toContain("Welcome to *WA 101*");
     expect(event.status).toBe("completed");
   });
 });

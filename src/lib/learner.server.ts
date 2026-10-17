@@ -6,6 +6,7 @@ import {
   type Input,
 } from "./course-engine";
 import { loadCourse, quizFor } from "./course-data.server";
+import { certificateUrls } from "./certificates.server";
 
 // Web learner engine on top of the channel-neutral course engine. Runs only on the server with the
 // service-role client: learners never read answer keys or write progress directly; every step is
@@ -207,6 +208,8 @@ export async function courseState(
         ? {
             code: certificate.verification_code as string,
             issuedAt: certificate.issued_at as string,
+            // Relative links: the browser resolves them against the page it is on.
+            ...certificateUrls("", certificate.verification_code as string),
           }
         : null,
     };
@@ -268,6 +271,12 @@ export type StepResult =
       explanation: string | null;
       next: "advanced" | "day_complete" | "completed";
     }
+  | {
+      status: "revealed";
+      answer: string;
+      explanation: string | null;
+      next: "advanced" | "day_complete" | "completed";
+    }
   | { status: "stale" };
 
 export async function submitStep(
@@ -311,13 +320,26 @@ export async function submitStep(
     input.step === "question"
       ? { kind: "answer", text: input.answer ?? "" }
       : { kind: "next" };
+  const quiz = await quizFor(client, current.id);
+  let priorWrong = 0;
+  if (input.step === "question" && quiz) {
+    const { count, error: countError } = await client
+      .from("web_quiz_attempts")
+      .select("id", { count: "exact", head: true })
+      .eq("enrollment_id", enrollment.id)
+      .eq("question_id", quiz.id)
+      .eq("is_correct", false);
+    if (countError) throw countError;
+    priorWrong = count ?? 0;
+  }
   const decision = decideStep({
     state: started,
     lessons: context.lessons,
-    quiz: await quizFor(client, current.id),
+    quiz,
     pacing: context.pacing,
     input: engineInput,
     now,
+    priorWrong,
   });
   if (
     decision.outcome === "hint" ||
@@ -362,7 +384,7 @@ export async function submitStep(
   const dayComplete = decision.outputs.find(
     (output) => output.kind === "day_complete",
   );
-  if (feedback && !feedback.correct)
+  if (feedback && !feedback.correct && feedback.revealed === undefined)
     return { status: "incorrect", explanation: feedback.explanation };
   const next =
     decision.outcome === "completed"
@@ -370,6 +392,13 @@ export async function submitStep(
       : decision.outcome === "day_complete"
         ? "day_complete"
         : "advanced";
+  if (feedback && feedback.revealed !== undefined)
+    return {
+      status: "revealed",
+      answer: feedback.revealed,
+      explanation: feedback.explanation,
+      next,
+    };
   if (feedback)
     return { status: "correct", explanation: feedback.explanation, next };
   if (decision.outcome === "question") return { status: "question" };

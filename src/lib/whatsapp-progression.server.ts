@@ -12,6 +12,7 @@ import {
   type InboundReply,
   type OutgoingMessage,
 } from "./whatsapp-course-messages";
+import { certificateAttachment } from "./certificates.server";
 import { sendAutomatedWhatsApp } from "./whatsapp-send.server";
 
 // WhatsApp course progression on top of the channel-neutral engine (course-engine.ts).
@@ -139,9 +140,61 @@ async function certificateText(
         .replaceAll("{{code}}", verification)
     : `🎓 Congratulations, ${enrollment.learner_name}! You completed ${course.title}.`;
   // The certificate code is always included, even when a custom message omits {{code}}.
-  return message.includes(verification)
-    ? message
-    : `${message}\nCertificate verification code: ${verification}`;
+  return {
+    code: verification,
+    text: message.includes(verification)
+      ? message
+      : `${message}\nCertificate verification code: ${verification}`,
+  };
+}
+
+/** Wrong answers this learner already gave to a question, so a second miss can reveal the answer. */
+export async function priorWrongAnswers(
+  client: Client,
+  enrollmentId: string,
+  quiz: { id: string } | null,
+) {
+  if (!quiz) return 0;
+  const { count, error } = await client
+    .from("whatsapp_quiz_attempts")
+    .select("id", { count: "exact", head: true })
+    .eq("enrollment_id", enrollmentId)
+    .eq("question_id", quiz.id)
+    .eq("is_correct", false);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+/** "🏆 4/5 correct on the first try", counting the final answer that is not stored yet. */
+async function scoreLine(
+  client: Client,
+  enrollmentId: string,
+  pending: Decision["attempt"],
+) {
+  const { data, error } = await client
+    .from("whatsapp_quiz_attempts")
+    .select("question_id,is_correct,attempt_number")
+    .eq("enrollment_id", enrollmentId);
+  if (error) throw error;
+  const rows = (data ?? []) as {
+    question_id: string;
+    is_correct: boolean;
+    attempt_number: number;
+  }[];
+  if (pending) {
+    rows.push({
+      question_id: pending.questionId,
+      is_correct: pending.correct,
+      attempt_number:
+        rows.filter((row) => row.question_id === pending.questionId).length + 1,
+    });
+  }
+  const questions = new Set(rows.map((row) => row.question_id));
+  if (!questions.size) return undefined;
+  const firstTry = rows.filter(
+    (row) => row.attempt_number === 1 && row.is_correct,
+  ).length;
+  return `🏆 ${firstTry}/${questions.size} correct on the first try`;
 }
 
 /** Messages for a decision; issues the certificate first when the course is completed. */
@@ -150,17 +203,29 @@ export async function messagesFor(
   decision: Decision,
   enrollment: EnrollmentRow,
   course: CourseContext,
+  options: { baseUrl?: string } = {},
 ) {
-  const completionText =
+  const completed =
     decision.outcome === "completed"
       ? await certificateText(client, enrollment, course)
-      : "";
+      : null;
   return renderOutputs(decision.outputs, {
+    completionText: completed?.text ?? "",
+    scoreLine: completed
+      ? await scoreLine(client, enrollment.id, decision.attempt)
+      : undefined,
+    // Without a public base URL there is nowhere to host the PDF, so only the text goes out.
+    certificate:
+      completed && options.baseUrl
+        ? certificateAttachment(options.baseUrl, {
+            code: completed.code,
+            courseTitle: course.title,
+          })
+        : undefined,
     courseTitle: course.title,
     learnerName: enrollment.learner_name,
     lessonIntro: course.lessonIntro,
     timezone: course.pacing.timezone,
-    completionText,
   });
 }
 
@@ -226,7 +291,12 @@ export async function applyAndDeliver(
   return true;
 }
 
-export type ReplyOptions = { send?: Send; now?: Date };
+export type ReplyOptions = {
+  send?: Send;
+  now?: Date;
+  /** Public base URL of the app, used to link the certificate PDF. */
+  baseUrl?: string;
+};
 
 export async function progressFromReply(
   client: Client,
@@ -277,16 +347,23 @@ export async function progressFromReply(
   const input: Input = interpretReply(
     typeof reply === "string" ? { text: reply } : reply,
   );
+  const quiz = await quizFor(client, enrollment.current_resource_id);
   const decision = decideStep({
     state: stateOf(enrollment),
     lessons: course.lessons,
-    quiz: await quizFor(client, enrollment.current_resource_id),
+    quiz,
     pacing: course.pacing,
     input,
     now,
+    priorWrong:
+      enrollment.current_step === "question"
+        ? await priorWrongAnswers(client, enrollment.id, quiz)
+        : 0,
   });
   if (!decision.outputs.length) return decision.outcome;
-  const messages = await messagesFor(client, decision, enrollment, course);
+  const messages = await messagesFor(client, decision, enrollment, course, {
+    baseUrl: options.baseUrl,
+  });
   const claimed = await applyAndDeliver(client, {
     key: providerMessageId,
     enrollment,

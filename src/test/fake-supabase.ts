@@ -28,6 +28,7 @@ export function fakeSupabase(
     const filters: Array<(row: Row) => boolean> = [];
     let sort: { column: string; ascending: boolean } | null = null;
     let mode: "many" | "single" | "maybeSingle" = "many";
+    let countOnly = false;
 
     const run = () => {
       const matching = () =>
@@ -59,6 +60,7 @@ export function fakeSupabase(
         return { data: null, error: null };
       }
       const found = matching();
+      if (countOnly) return { data: null, count: found.length, error: null };
       if (sort) {
         const { column, ascending } = sort;
         found.sort(
@@ -77,7 +79,14 @@ export function fakeSupabase(
     };
 
     const builder = {
-      select: () => builder,
+      select: (
+        _columns?: string,
+        opts?: { count?: string; head?: boolean },
+      ) => {
+        // select("id", { count: "exact", head: true }) returns only the number of matching rows.
+        if (opts?.head && opts.count) countOnly = true;
+        return builder;
+      },
       insert: (row: Row) => {
         op = "insert";
         values = row;

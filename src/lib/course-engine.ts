@@ -65,9 +65,22 @@ export type LessonOutput = {
 export type Output =
   | LessonOutput
   | { kind: "question"; quiz: Quiz }
-  | { kind: "feedback"; correct: boolean; explanation: string | null }
+  | {
+      kind: "feedback";
+      correct: boolean;
+      explanation: string | null;
+      /** The right answer, shown when the learner has used up their tries and the course moves on. */
+      revealed?: string;
+    }
+  | { kind: "welcome"; dayCount: number; lessonCount: number }
   | { kind: "paused" }
-  | { kind: "day_complete"; day: number; unlockAt: string }
+  | {
+      kind: "day_complete";
+      day: number;
+      unlockAt: string;
+      /** Title of the next day's first lesson, so the learner knows what to look forward to. */
+      nextTitle: string;
+    }
   | { kind: "locked"; day: number; unlockAt: string }
   | { kind: "completed" }
   | { kind: "hint"; step: Step };
@@ -102,7 +115,12 @@ export type DecideArgs = {
   pacing: Pacing;
   input: Input;
   now: Date;
+  /** Wrong answers already given to this question; a second wrong answer reveals the right one. */
+  priorWrong?: number;
 };
+
+/** Wrong answers after which the course shows the right answer and moves on instead of asking again. */
+export const MAX_WRONG_ANSWERS = 2;
 
 export function gradeAnswer(reply: string, quiz: Quiz) {
   const answer = reply.trim().toLowerCase();
@@ -137,6 +155,7 @@ export function decideStep({
   pacing,
   input,
   now,
+  priorWrong = 0,
 }: DecideArgs): Decision {
   const unchanged = (outcome: Outcome, outputs: Output[]): Decision => ({
     outcome,
@@ -212,7 +231,14 @@ export function decideStep({
     return {
       outcome: "started",
       state: { ...state, currentResourceId: lessons[0].id, step: "lesson" },
-      outputs: [lessonOutput(lessons, 0)],
+      outputs: [
+        {
+          kind: "welcome",
+          dayCount: dayInfo(lessons, 0).dayCount,
+          lessonCount: lessons.length,
+        },
+        lessonOutput(lessons, 0),
+      ],
       attempt: null,
     };
   }
@@ -255,6 +281,7 @@ export function decideStep({
               kind: "day_complete",
               day: dayInfo(lessons, index).day,
               unlockAt: unlockAt.toISOString(),
+              nextTitle: next.title,
             },
           ],
           attempt,
@@ -292,6 +319,20 @@ export function decideStep({
     answer: input.text.trim().slice(0, 4096),
     correct,
   };
+  if (!correct && priorWrong + 1 >= MAX_WRONG_ANSWERS) {
+    // Out of tries: show the answer and carry on, so nobody is stuck on one question.
+    return advance(
+      [
+        {
+          kind: "feedback",
+          correct: false,
+          explanation: quiz.explanation,
+          revealed: quiz.correctAnswer,
+        },
+      ],
+      attempt,
+    );
+  }
   if (!correct) {
     return {
       outcome: "wrong_answer",

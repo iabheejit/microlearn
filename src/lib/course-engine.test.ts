@@ -69,6 +69,7 @@ describe("decideStep", () => {
       step: "lesson",
     });
     expect(result.outputs).toEqual([
+      { kind: "welcome", dayCount: 2, lessonCount: 3 },
       expect.objectContaining({
         kind: "lesson",
         position: 1,
@@ -77,6 +78,52 @@ describe("decideStep", () => {
         dayCount: 2,
       }),
     ]);
+  });
+
+  it("reveals the answer and moves on after the second wrong answer", () => {
+    const asking = {
+      ...fresh,
+      currentResourceId: "l1",
+      step: "question" as const,
+    };
+    const result = decideStep({
+      state: asking,
+      lessons,
+      quiz,
+      pacing: immediate,
+      input: { kind: "answer", text: "1" },
+      now,
+      priorWrong: 1,
+    });
+    expect(result.outcome).toBe("advanced");
+    expect(result.state.currentResourceId).toBe("l2");
+    expect(result.attempt).toEqual({
+      questionId: "q1",
+      answer: "1",
+      correct: false,
+    });
+    expect(result.outputs).toEqual([
+      {
+        kind: "feedback",
+        correct: false,
+        explanation: "It is b.",
+        revealed: "b",
+      },
+      expect.objectContaining({ kind: "lesson", position: 2 }),
+    ]);
+  });
+
+  it("still asks again after a first wrong answer", () => {
+    const result = decideStep({
+      state: { ...fresh, currentResourceId: "l1", step: "question" },
+      lessons,
+      quiz,
+      pacing: immediate,
+      input: { kind: "answer", text: "1" },
+      now,
+      priorWrong: 0,
+    });
+    expect(result.outcome).toBe("wrong_answer");
   });
 
   it("separates the lesson from its question: Next reveals the question", () => {
@@ -179,7 +226,12 @@ describe("decideStep", () => {
       nextUnlockAt: "2026-10-17T09:00:00.000Z",
     });
     expect(done.outputs).toEqual([
-      { kind: "day_complete", day: 1, unlockAt: "2026-10-17T09:00:00.000Z" },
+      {
+        kind: "day_complete",
+        day: 1,
+        unlockAt: "2026-10-17T09:00:00.000Z",
+        nextTitle: "Three",
+      },
     ]);
 
     const early = decide(done.state, next, {

@@ -383,7 +383,7 @@ const CoursePreview = () => {
                             <div className="h-full bg-primary" style={{ width: `${enrollment.progress_percentage}%` }} />
                           </div>
                           {enrollment.course_certificates?.[0]?.verification_code && (
-                            <p className="text-xs text-muted-foreground">Certificate: {enrollment.course_certificates[0].verification_code}</p>
+                            <p className="text-xs text-muted-foreground">Certificate: <a className="underline" href={`/verify/${enrollment.course_certificates[0].verification_code}`} target="_blank" rel="noreferrer">{enrollment.course_certificates[0].verification_code}</a></p>
                           )}
                         </div>
                       )}

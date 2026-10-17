@@ -72,7 +72,12 @@ export default function LearnerCourse({ courseId }: { courseId: string }) {
               correct: true,
               text: `Correct! ${result.explanation ?? ""}`.trim(),
             }
-          : null,
+          : result.status === "revealed"
+            ? {
+                correct: false,
+                text: `The answer was ${result.answer}. ${result.explanation ?? ""}`.trim(),
+              }
+            : null,
       );
       if (result.status === "stale")
         toast({
@@ -82,7 +87,8 @@ export default function LearnerCourse({ courseId }: { courseId: string }) {
         });
       if (
         result.status === "completed" ||
-        (result.status === "correct" && result.next === "completed")
+        ((result.status === "correct" || result.status === "revealed") &&
+          result.next === "completed")
       ) {
         toast({
           title: "Course complete!",
@@ -203,12 +209,35 @@ export default function LearnerCourse({ courseId }: { courseId: string }) {
                     </CardHeader>
                     <CardContent>
                       {data.certificate ? (
-                        <p>
-                          Certificate verification code:{" "}
-                          <span className="font-mono font-semibold">
-                            {data.certificate.code}
-                          </span>
-                        </p>
+                        <div className="space-y-3">
+                          <p>
+                            Certificate verification code:{" "}
+                            <span className="font-mono font-semibold">
+                              {data.certificate.code}
+                            </span>
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            <Button asChild size="sm">
+                              <a href={data.certificate.pdfUrl}>
+                                Download certificate
+                              </a>
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                const url = `${window.location.origin}${data.certificate?.verifyUrl}`;
+                                navigator.clipboard
+                                  ?.writeText(url)
+                                  .then(() =>
+                                    toast({ title: "Verify link copied" }),
+                                  );
+                              }}
+                            >
+                              Copy verify link
+                            </Button>
+                          </div>
+                        </div>
                       ) : (
                         <p className="text-muted-foreground">
                           Your certificate is being issued.

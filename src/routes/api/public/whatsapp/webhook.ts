@@ -6,6 +6,7 @@ import {
   type InboundTextHandler,
 } from "@/lib/whatsapp-webhook.server";
 import { respondToInbound } from "@/lib/whatsapp-fallback.server";
+import { appBaseUrl } from "@/lib/certificates.server";
 
 // Outcomes staff should see on the callback row even though the callback succeeded.
 const PROGRESSION_NOTES: Record<string, string> = {
@@ -19,19 +20,22 @@ const PROGRESSION_NOTES: Record<string, string> = {
 
 // Course progression (and the help-menu fallback when it cannot reply) runs on top of the verified,
 // persisted callback.
-const progressCourse: InboundTextHandler = async (client, message) => {
-  const { outcome } = await respondToInbound(
-    client,
-    message.phone,
-    {
-      text: message.text,
-      replyId: message.replyId,
-      replyTitle: message.replyTitle,
-    },
-    message.id,
-  );
-  return PROGRESSION_NOTES[outcome] ?? null;
-};
+const progressCourse =
+  (baseUrl: string): InboundTextHandler =>
+  async (client, message) => {
+    const { outcome } = await respondToInbound(
+      client,
+      message.phone,
+      {
+        text: message.text,
+        replyId: message.replyId,
+        replyTitle: message.replyTitle,
+      },
+      message.id,
+      { baseUrl },
+    );
+    return PROGRESSION_NOTES[outcome] ?? null;
+  };
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -75,7 +79,7 @@ export const Route = createFileRoute("/api/public/whatsapp/webhook")({
             deliveryId,
             payload,
             undefined,
-            progressCourse,
+            progressCourse(appBaseUrl(request)),
           );
           return json({ ok: true, ...result });
         } catch (error) {
