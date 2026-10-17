@@ -13,6 +13,8 @@ const PROGRESSION_NOTES: Record<string, string> = {
     "Learner has more than one active course awaiting a reply; help menu offered and chat flagged.",
   no_lessons:
     "Enrolled course has no lessons; help menu offered and chat flagged.",
+  reply_expired:
+    "Automated reply expired: the 24-hour window closed before it was delivered.",
 };
 
 // Course progression (and the help-menu fallback when it cannot reply) runs on top of the verified,

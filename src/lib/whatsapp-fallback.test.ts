@@ -5,6 +5,7 @@ import {
   respondToInbound,
 } from "./whatsapp-fallback.server";
 import { persistWhatsAppCallback } from "./whatsapp-webhook.server";
+import { WhatsAppWindowClosedError } from "./whatsapp-send.server";
 
 const PHONE = "919766072308";
 const COURSE = "course-1";
@@ -12,6 +13,7 @@ const COURSE = "course-1";
 function setup() {
   const sent: Array<{ type: unknown; content: string; buttons: string[] }> = [];
   let failNext = 0;
+  let windowClosed = false;
   let clock = new Date("2026-10-17T10:00:00Z");
   const fake = fakeSupabase({
     unique: {
@@ -149,6 +151,7 @@ function setup() {
     payload: Record<string, unknown>,
     content: string,
   ) => {
+    if (windowClosed) throw new WhatsAppWindowClosedError("closed");
     if (failNext > 0) {
       failNext -= 1;
       throw new Error("gateway timeout");
@@ -184,6 +187,7 @@ function setup() {
     contact,
     take: () => sent.splice(0, sent.length),
     failOnce: () => (failNext = 1),
+    closeWindow: () => (windowClosed = true),
     advance: (minutes: number) =>
       (clock = new Date(clock.getTime() + minutes * 60000)),
   };
@@ -210,7 +214,7 @@ describe("WhatsApp fallback replies", () => {
     ]);
     expect(t.contact()).toMatchObject({
       needs_attention: true,
-      attention_reason: "Message didn't match an active course step",
+      attention_reason: "Message after course completion",
     });
   });
 
@@ -236,6 +240,8 @@ describe("WhatsApp fallback replies", () => {
       (await t.inbound({ replyId: "Start", replyTitle: "Start" })).autoReply,
     ).toBe("skipped");
 
+    // Once staff resolve the chat and the cooldown has passed, the menu is offered again.
+    Object.assign(t.contact(), { needs_attention: false });
     t.advance(60);
     expect((await t.inbound({ text: "hello?" })).autoReply).toBe("sent");
     expect(t.take()).toHaveLength(1);
@@ -434,6 +440,73 @@ describe("WhatsApp fallback replies", () => {
       type: "reaction",
       reaction: { message_id: "wamid.out.1", emoji: "👍" },
     });
+    await callback("wamid.system", {
+      type: "system",
+      system: { body: "User changed their number" },
+    });
     expect(t.take()).toEqual([]);
+  });
+
+  it("sends no menu while the chat waits for staff, and keeps the hand-off reason", async () => {
+    const t = setup();
+    await t.inbound({ replyId: "help:human" });
+    t.take();
+    t.advance(120);
+    expect((await t.inbound({ text: "hello?" })).autoReply).toBe("skipped");
+    expect(t.take()).toEqual([]);
+    expect(t.contact()).toMatchObject({
+      needs_attention: true,
+      attention_reason: "Learner asked for a person",
+    });
+  });
+
+  it("defers to a concurrent attempt that holds the claim", async () => {
+    const t = setup();
+    const rpc = t.client.rpc.bind(t.client);
+    // Another worker claims the message between our outbox read and our claim.
+    (t.client as unknown as { rpc: typeof rpc }).rpc = ((
+      name: string,
+      args: Row,
+    ) => {
+      t.rows("whatsapp_auto_replies").push({
+        id: "other",
+        provider_message_id: args.p_provider_message_id,
+        phone_number: PHONE,
+        status: "pending",
+        will_reply: true,
+        response_messages: [{ payload: { type: "text" }, content: "menu" }],
+        delivered_count: 0,
+        created_at: "2026-10-17T10:00:00Z",
+      });
+      return rpc(name, args);
+    }) as typeof rpc;
+    await expect(t.inbound({ text: "Hi" })).rejects.toThrow(
+      AutoReplyInProgressError,
+    );
+    expect(t.take()).toEqual([]);
+  });
+
+  it("closes a reply the 24-hour window outlived instead of failing forever", async () => {
+    const t = setup();
+    t.rows("whatsapp_auto_replies").push({
+      id: "old",
+      provider_message_id: "wamid.old",
+      phone_number: PHONE,
+      kind: "fallback",
+      will_reply: true,
+      status: "pending",
+      delivered_count: 0,
+      created_at: "2026-10-16T08:00:00Z",
+      response_messages: [{ payload: { type: "text" }, content: "menu" }],
+    });
+    t.closeWindow();
+    expect(await t.inbound({ text: "Hi" }, "wamid.old")).toEqual({
+      outcome: "reply_expired",
+      autoReply: null,
+    });
+    expect(t.rows("whatsapp_auto_replies")[0].status).toBe("completed");
+    expect((await t.inbound({ text: "Hi" }, "wamid.old")).outcome).toBe(
+      "duplicate",
+    );
   });
 });

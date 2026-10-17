@@ -12,7 +12,10 @@ import {
   progressFromReply,
   type ReplyOptions,
 } from "./whatsapp-progression.server";
-import { sendAutomatedWhatsApp } from "./whatsapp-send.server";
+import {
+  sendAutomatedWhatsApp,
+  WhatsAppWindowClosedError,
+} from "./whatsapp-send.server";
 
 // Replies to inbound WhatsApp messages that course progression cannot place: a help menu, the learner's
 // course list, or a hand-off to staff. Each reply is claimed per provider message ID through
@@ -43,6 +46,7 @@ const AMBIGUOUS_MESSAGE =
 // Progression outcomes that leave the learner without a reply, and why staff should look at the chat.
 const FALLBACK_REASONS: Record<string, string> = {
   no_enrollment: "Message didn't match an active course step",
+  after_completion: "Message after course completion",
   ambiguous_enrollment: "Learner is active in more than one WhatsApp course",
   no_lessons: "Enrolled course has no lessons",
 };
@@ -134,6 +138,17 @@ export async function coursesMessages(
   return [textMessage(`📚 Your courses\n\n${lines.join("\n")}`)];
 }
 
+async function hasCompletedCourse(client: Client, phone: string) {
+  const { data, error } = await client
+    .from("whatsapp_course_enrollments")
+    .select("id")
+    .eq("phone_number", phone)
+    .eq("status", "completed")
+    .limit(1);
+  if (error) throw error;
+  return Boolean(data?.length);
+}
+
 type ClaimRow = {
   id: string;
   claimed: boolean;
@@ -165,24 +180,44 @@ async function claimAndDeliver(
   });
   if (error) throw error;
   const row = data as ClaimRow;
-  // Another worker holds this message; a later retry resumes its delivery if it stalls.
-  if (!row.claimed) return "duplicate" as const;
+  if (!row.claimed) {
+    if (row.status === "completed") return "duplicate" as const;
+    // Another worker holds this message. Fail so the provider retries: if that worker dies,
+    // the retry resumes its delivery once the claim is stale.
+    throw new AutoReplyInProgressError(
+      `Automated reply for ${args.key} is being delivered by another attempt`,
+    );
+  }
   if (!row.will_reply) return "skipped" as const;
-  await deliverEvent(
-    client,
-    row,
-    args.phone,
-    args.send,
-    "whatsapp_auto_replies",
-  );
-  return "sent" as const;
+  return deliverAutoReply(client, row, args.phone, args.send);
+}
+
+/** Delivers a claimed reply; one the 24-hour window outlived is closed instead of retried forever. */
+async function deliverAutoReply(
+  client: Client,
+  row: Pick<ClaimRow, "id" | "response_messages" | "delivered_count">,
+  phone: string,
+  send: NonNullable<ReplyOptions["send"]>,
+) {
+  try {
+    await deliverEvent(client, row, phone, send, "whatsapp_auto_replies");
+    return "sent" as const;
+  } catch (error) {
+    if (!(error instanceof WhatsAppWindowClosedError)) throw error;
+    const { error: closeError } = await client
+      .from("whatsapp_auto_replies")
+      .update({ status: "completed", completed_at: new Date().toISOString() })
+      .eq("id", row.id);
+    if (closeError) throw closeError;
+    return "expired" as const;
+  }
 }
 
 export type InboundResult = {
   /** Progression outcome, or help_courses / help_human for menu taps, or duplicate / resent on retries. */
   outcome: string;
   /** What happened to the automated reply outside progression, when there was one. */
-  autoReply: "sent" | "skipped" | "duplicate" | null;
+  autoReply: "sent" | "skipped" | "expired" | "duplicate" | null;
 };
 
 /**
@@ -218,8 +253,11 @@ export async function respondToInbound(
       throw new AutoReplyInProgressError(
         `Automated reply for ${providerMessageId} is still being delivered`,
       );
-    await deliverEvent(client, existing, phone, send, "whatsapp_auto_replies");
-    return { outcome: "resent", autoReply: null };
+    const autoReply = await deliverAutoReply(client, existing, phone, send);
+    return {
+      outcome: autoReply === "expired" ? "reply_expired" : "resent",
+      autoReply: null,
+    };
   }
 
   const replyId = reply.replyId?.trim();
@@ -259,9 +297,20 @@ export async function respondToInbound(
       now,
     },
   );
-  const reason = FALLBACK_REASONS[outcome];
-  if (!reason) return { outcome, autoReply: null };
+  if (!FALLBACK_REASONS[outcome]) return { outcome, autoReply: null };
   const settings = await loadBotSettings(client);
+  const { data: contact, error: contactError } = await client
+    .from("whatsapp_contacts")
+    .select("needs_attention")
+    .eq("phone_number", phone)
+    .maybeSingle();
+  if (contactError) throw contactError;
+  // A chat already waiting for staff (e.g. after "Talk to a person") gets no menu, and keeps its reason.
+  const awaitingStaff = Boolean(contact?.needs_attention);
+  const reason =
+    outcome === "no_enrollment" && (await hasCompletedCourse(client, phone))
+      ? FALLBACK_REASONS.after_completion
+      : FALLBACK_REASONS[outcome];
   const menuText =
     outcome === "ambiguous_enrollment"
       ? AMBIGUOUS_MESSAGE
@@ -271,11 +320,12 @@ export async function respondToInbound(
     phone,
     kind: "fallback",
     // With the fallback switched off the chat is still flagged, but nothing is sent.
-    messages: settings.fallback_enabled
-      ? [buttonMessage(menuText, [MY_COURSES, TALK_TO_PERSON])]
-      : null,
+    messages:
+      settings.fallback_enabled && !awaitingStaff
+        ? [buttonMessage(menuText, [MY_COURSES, TALK_TO_PERSON])]
+        : null,
     cooldownMinutes: settings.cooldown_minutes,
-    flagReason: reason,
+    flagReason: awaitingStaff ? null : reason,
     send,
   });
   return { outcome, autoReply };
