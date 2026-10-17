@@ -50,6 +50,13 @@
       "when": 1792166599450,
       "tag": "0006_course_pacing",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792200000001,
+      "tag": "0008_whatsapp_fallback",
+      "breakpoints": true
     }
   ]
 }

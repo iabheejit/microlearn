@@ -5,29 +5,33 @@ import {
   persistWhatsAppCallback,
   type InboundTextHandler,
 } from "@/lib/whatsapp-webhook.server";
-import { progressFromReply } from "@/lib/whatsapp-progression.server";
+import { respondToInbound } from "@/lib/whatsapp-fallback.server";
 
 // Outcomes staff should see on the callback row even though the callback succeeded.
 const PROGRESSION_NOTES: Record<string, string> = {
   ambiguous_enrollment:
-    "Learner has more than one active course awaiting a reply; progression skipped.",
-  no_lessons: "Enrolled course has no lessons; progression skipped.",
+    "Learner has more than one active course awaiting a reply; help menu offered and chat flagged.",
+  no_lessons:
+    "Enrolled course has no lessons; help menu offered and chat flagged.",
+  reply_expired:
+    "Automated reply expired: the 24-hour window closed before it was delivered.",
 };
 
-// Course progression runs on top of the verified, persisted callback.
-const progressCourse: InboundTextHandler = async (client, message) =>
-  PROGRESSION_NOTES[
-    await progressFromReply(
-      client,
-      message.phone,
-      {
-        text: message.text,
-        replyId: message.replyId,
-        replyTitle: message.replyTitle,
-      },
-      message.id,
-    )
-  ] ?? null;
+// Course progression (and the help-menu fallback when it cannot reply) runs on top of the verified,
+// persisted callback.
+const progressCourse: InboundTextHandler = async (client, message) => {
+  const { outcome } = await respondToInbound(
+    client,
+    message.phone,
+    {
+      text: message.text,
+      replyId: message.replyId,
+      replyTitle: message.replyTitle,
+    },
+    message.id,
+  );
+  return PROGRESSION_NOTES[outcome] ?? null;
+};
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {

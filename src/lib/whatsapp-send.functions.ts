@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Database } from "@/integrations/supabase/types";
 
 const SendSchema = z.object({
   phoneNumber: z.string().transform((p) => p.replace(/\D/g, "")).pipe(z.string().regex(/^[1-9]\d{6,14}$/, "Enter a full international phone number.")),
@@ -30,4 +32,36 @@ export const listNudgeTemplates = createServerFn({ method: "POST" }).middleware(
   if (error || role?.status !== "active" || !["admin", "content_creator"].includes(role.role)) throw new Error("Active staff access is required.");
   const { approvedReplyTemplates } = await import("./whatsapp-send.server");
   return (await approvedReplyTemplates({ allowQuickReplies: true })).filter((template) => template.variables.length <= 2);
+});
+
+const requireActiveStaff = async (context: { supabase: SupabaseClient<Database>; userId: string }) => {
+  const { data: role, error } = await context.supabase.from("user_roles").select("role,status").eq("user_id", context.userId).maybeSingle();
+  if (error || role?.status !== "active" || !["admin", "content_creator"].includes(role.role)) throw new Error("Active staff access is required.");
+};
+
+const PhoneSchema = z.object({ phoneNumber: z.string().transform((p) => p.replace(/\D/g, "")).pipe(z.string().regex(/^[1-9]\d{6,14}$/)) });
+
+/** Clears a chat's "Needs attention" flag; the flag itself is only ever set by the webhook. */
+export const resolveWhatsAppAttention = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator(PhoneSchema).handler(async ({ data, context }) => {
+  await requireActiveStaff(context);
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { error } = await supabaseAdmin.from("whatsapp_contacts").update({ needs_attention: false, attention_reason: null, attention_at: null }).eq("phone_number", data.phoneNumber);
+  if (error) throw new Error("The chat could not be marked resolved.");
+  return { ok: true as const };
+});
+
+const BotSettingsSchema = z.object({
+  fallback_enabled: z.boolean(),
+  fallback_message: z.string().trim().min(1).max(1000),
+  cooldown_minutes: z.number().int().min(0).max(1440),
+  handoff_message: z.string().trim().min(1).max(1000),
+});
+
+/** Fallback menu and hand-off replies for WhatsApp messages that match no course step. */
+export const updateWhatsAppBotSettings = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator(BotSettingsSchema).handler(async ({ data, context }) => {
+  await requireActiveStaff(context);
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { error } = await supabaseAdmin.from("whatsapp_bot_settings").upsert({ id: true, ...data, updated_at: new Date().toISOString(), updated_by: context.userId }, { onConflict: "id" });
+  if (error) throw new Error("The auto-reply settings could not be saved.");
+  return { ok: true as const };
 });

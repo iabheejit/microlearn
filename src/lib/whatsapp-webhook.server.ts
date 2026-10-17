@@ -153,7 +153,10 @@ export function serviceClient() {
 
 export type CallbackResult = { status: "processed" | "ignored" | "duplicate" };
 
-/** Runs for each stored inbound text or tapped reply; a returned string is noted on the callback row. */
+/**
+ * Runs for each stored inbound message (text, tapped reply, or media/unsupported with no text);
+ * a returned string is noted on the callback row.
+ */
 export type InboundTextHandler = (
   client: SupabaseClient,
   message: {
@@ -306,8 +309,14 @@ export async function persistWhatsAppCallback(
       if (messageError) throw messageError;
       // Failures propagate: the callback is marked 'error' and the provider retries it.
       // The handler must be idempotent per provider message ID (progression is).
+      // Reactions and system notices (e.g. a changed number) are not requests; every other message,
+      // media included, gets a reply.
       const reply = replyOf(message);
-      if (onInboundText && (reply.text || reply.replyId)) {
+      if (
+        onInboundText &&
+        message.type !== "reaction" &&
+        message.type !== "system"
+      ) {
         const note = await onInboundText(client, {
           id: message.id,
           phone: normalized,
