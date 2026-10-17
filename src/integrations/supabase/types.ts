@@ -710,27 +710,108 @@ export type Database = {
           },
         ]
       }
+      whatsapp_auto_replies: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          delivered_count: number
+          id: string
+          kind: string
+          phone_number: string
+          provider_message_id: string
+          response_messages: Json | null
+          status: string
+          will_reply: boolean
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          delivered_count?: number
+          id?: string
+          kind: string
+          phone_number: string
+          provider_message_id: string
+          response_messages?: Json | null
+          status?: string
+          will_reply: boolean
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          delivered_count?: number
+          id?: string
+          kind?: string
+          phone_number?: string
+          provider_message_id?: string
+          response_messages?: Json | null
+          status?: string
+          will_reply?: boolean
+        }
+        Relationships: []
+      }
+      whatsapp_bot_settings: {
+        Row: {
+          cooldown_minutes: number
+          fallback_enabled: boolean
+          fallback_message: string
+          handoff_message: string
+          id: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          cooldown_minutes?: number
+          fallback_enabled?: boolean
+          fallback_message?: string
+          handoff_message?: string
+          id?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          cooldown_minutes?: number
+          fallback_enabled?: boolean
+          fallback_message?: string
+          handoff_message?: string
+          id?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       whatsapp_contacts: {
         Row: {
+          attention_at: string | null
+          attention_reason: string | null
           created_at: string
           id: string
+          last_fallback_at: string | null
           name: string | null
+          needs_attention: boolean
           phone_number: string
           updated_at: string
           wati_id: string | null
         }
         Insert: {
+          attention_at?: string | null
+          attention_reason?: string | null
           created_at?: string
           id?: string
+          last_fallback_at?: string | null
           name?: string | null
+          needs_attention?: boolean
           phone_number: string
           updated_at?: string
           wati_id?: string | null
         }
         Update: {
+          attention_at?: string | null
+          attention_reason?: string | null
           created_at?: string
           id?: string
+          last_fallback_at?: string | null
           name?: string | null
+          needs_attention?: boolean
           phone_number?: string
           updated_at?: string
           wati_id?: string | null
@@ -1305,6 +1386,17 @@ export type Database = {
           p_state: Json
         }
         Returns: undefined
+      }
+      claim_whatsapp_auto_reply: {
+        Args: {
+          p_cooldown_minutes: number
+          p_flag_reason: string
+          p_kind: string
+          p_messages: Json
+          p_phone: string
+          p_provider_message_id: string
+        }
+        Returns: Json
       }
       course_scheduler_secret_matches: {
         Args: { p_secret: string }
