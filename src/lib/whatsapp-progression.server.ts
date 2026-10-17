@@ -67,7 +67,11 @@ export const stateColumns = (state: EnrollmentState) => ({
   completed_at: state.completedAt,
 });
 
-/** Sends an event's stored messages in order, resuming after the last one WhatsApp accepted. */
+/** Outbox tables whose rows carry response_messages, delivered_count and status. */
+export type OutboxTable =
+  "whatsapp_progression_events" | "whatsapp_auto_replies";
+
+/** Sends an outbox row's stored messages in order, resuming after the last one WhatsApp accepted. */
 export async function deliverEvent(
   client: Client,
   event: {
@@ -77,6 +81,7 @@ export async function deliverEvent(
   },
   phone: string,
   send: Send,
+  table: OutboxTable = "whatsapp_progression_events",
 ) {
   const messages = event.response_messages ?? [];
   for (
@@ -86,13 +91,13 @@ export async function deliverEvent(
   ) {
     await send(phone, messages[index].payload, messages[index].content);
     const { error } = await client
-      .from("whatsapp_progression_events")
+      .from(table)
       .update({ delivered_count: index + 1 })
       .eq("id", event.id);
     if (error) throw error;
   }
   const { error } = await client
-    .from("whatsapp_progression_events")
+    .from(table)
     .update({ status: "completed", completed_at: new Date().toISOString() })
     .eq("id", event.id);
   if (error) throw error;

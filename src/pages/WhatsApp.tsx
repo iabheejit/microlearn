@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Sidebar from "@/components/dashboard/Sidebar";
 import WhatsAppIntegration from "@/components/dashboard/WhatsAppIntegration";
+import WhatsAppAutoReplySettings from "@/components/dashboard/WhatsAppAutoReplySettings";
 import { 
   fetchWhatsAppTemplates, 
   fetchContacts, 
@@ -178,6 +179,8 @@ const WhatsApp = () => {
               </AlertDescription>
             </Alert>
           )}
+
+          <WhatsAppAutoReplySettings />
 
           {isLoading ? (
             <div className="flex items-center justify-center h-64">

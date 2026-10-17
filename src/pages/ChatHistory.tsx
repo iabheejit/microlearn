@@ -1,14 +1,16 @@
 
 import { useEffect, useState } from "react";
 import WhatsAppTemplateReply from "@/components/dashboard/WhatsAppTemplateReply";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { resolveWhatsAppAttention } from "@/lib/whatsapp-send.functions";
 import Sidebar from "@/components/dashboard/Sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Search, MessageSquare, Send, Loader2 } from "lucide-react";
+import { Search, MessageSquare, Send, Loader2, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useWhatsAppChat, useTelegramChat } from "@/hooks/useChatHistory";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,12 +24,27 @@ interface ChatSummary {
   phone_number?: string;
   chat_id?: string;
   last_interaction_at: string;
+  needs_attention?: boolean;
+  attention_reason?: string | null;
+  attention_at?: string | null;
 }
+
+const AttentionBadge = ({ chat }: { chat: ChatSummary }) =>
+  chat.needs_attention ? (
+    <span className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+      <Badge variant="destructive" className="gap-1"><AlertTriangle className="h-3 w-3" />Needs attention</Badge>
+      {chat.attention_reason && <span className="text-muted-foreground">{chat.attention_reason}{chat.attention_at ? ` · ${new Date(chat.attention_at).toLocaleString()}` : ""}</span>}
+    </span>
+  ) : null;
 
 const ChatHistory = () => {
   const { toast } = useToast();
   const [selectedPlatform, setSelectedPlatform] = useState<"all" | "whatsapp" | "telegram">("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [attentionOnly, setAttentionOnly] = useState(false);
+  const [resolving, setResolving] = useState(false);
+  const queryClient = useQueryClient();
+  const resolveAttention = useServerFn(resolveWhatsAppAttention);
   const [selectedChat, setSelectedChat] = useState<ChatSummary | null>(null);
   const [chatModalOpen, setChatModalOpen] = useState(false);
   const [newMessage, setNewMessage] = useState("");
@@ -60,17 +77,38 @@ const ChatHistory = () => {
   const { data: whatsappChats, isLoading: loadingWhatsapp } = useQuery({
     queryKey: ['whatsapp-chats'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('whatsapp_contacts').select('id, phone_number, updated_at').order('updated_at', { ascending: false });
+      const { data, error } = await supabase.from('whatsapp_contacts').select('id, phone_number, updated_at, needs_attention, attention_reason, attention_at').order('updated_at', { ascending: false });
 
       if (error) throw error;
       return data.map((contact): ChatSummary => ({
         id: contact.id,
         platform: 'whatsapp',
         phone_number: contact.phone_number,
-        last_interaction_at: contact.updated_at
+        last_interaction_at: contact.updated_at,
+        needs_attention: contact.needs_attention,
+        attention_reason: contact.attention_reason,
+        attention_at: contact.attention_at,
       }));
-    }
+    },
+    refetchInterval: 30000
   });
+  const attentionCount = (whatsappChats ?? []).filter((chat) => chat.needs_attention).length;
+  // The open chat's flag follows the list, so it updates after a resolve or a staff reply.
+  const selectedWhatsAppChat = whatsappChats?.find((chat) => chat.phone_number && chat.phone_number === selectedChat?.phone_number);
+
+  const handleResolve = async () => {
+    if (!selectedChat?.phone_number || resolving) return;
+    setResolving(true);
+    try {
+      await resolveAttention({ data: { phoneNumber: selectedChat.phone_number } });
+      await queryClient.invalidateQueries({ queryKey: ['whatsapp-chats'] });
+      toast({ title: "Marked resolved" });
+    } catch (error) {
+      toast({ title: "Could not mark resolved", description: error instanceof Error ? error.message : "Try again.", variant: "destructive" });
+    } finally {
+      setResolving(false);
+    }
+  };
 
   const { data: telegramChats, isLoading: loadingTelegram } = useQuery({
     queryKey: ['telegram-chats'],
@@ -103,7 +141,7 @@ const ChatHistory = () => {
       }
       
       setNewMessage("");
-      await Promise.all([refetchWhatsAppMessages(), refetchTelegramMessages()]);
+      await Promise.all([refetchWhatsAppMessages(), refetchTelegramMessages(), queryClient.invalidateQueries({ queryKey: ['whatsapp-chats'] })]);
     } catch (error) {
       if (error instanceof WhatsAppReplyWindowClosedError) {
         setWindowRejected(true);
@@ -146,6 +184,8 @@ const ChatHistory = () => {
       chats.push(...(telegramChats || []));
     }
     
+    if (attentionOnly) chats = chats.filter((chat) => chat.needs_attention);
+
     if (searchQuery) {
       chats = chats.filter(chat => 
         chat.phone_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -178,6 +218,12 @@ const ChatHistory = () => {
                 className="pl-8"
               />
             </div>
+            <div className="mt-3 flex items-center gap-2">
+              <Button variant={attentionOnly ? "default" : "outline"} size="sm" aria-pressed={attentionOnly} onClick={() => setAttentionOnly((value) => !value)}>
+                <AlertTriangle className="mr-2 h-4 w-4" />
+                Needs attention ({attentionCount})
+              </Button>
+            </div>
           </div>
 
           <Tabs defaultValue="all" onValueChange={(value) => setSelectedPlatform(value as any)}>
@@ -201,6 +247,7 @@ const ChatHistory = () => {
                       <p className="text-sm text-muted-foreground">
                         Last active: {new Date(chat.last_interaction_at).toLocaleDateString()}
                       </p>
+                      <AttentionBadge chat={chat} />
                     </div>
                     <Button variant="ghost" size="icon">
                       <MessageSquare className="h-4 w-4" />
@@ -224,6 +271,7 @@ const ChatHistory = () => {
 
             <TabsContent value="whatsapp" className="space-y-4 mt-4">
               {(whatsappChats || [])
+                .filter(chat => !attentionOnly || chat.needs_attention)
                 .filter(chat => !searchQuery || chat.phone_number?.toLowerCase().includes(searchQuery.toLowerCase()))
                 .map((chat) => (
                 <Card key={chat.id} className="p-4 hover:bg-accent/50 transition-colors cursor-pointer" onClick={() => handleOpenChat(chat)}>
@@ -233,6 +281,7 @@ const ChatHistory = () => {
                       <p className="text-sm text-muted-foreground">
                         Last active: {new Date(chat.last_interaction_at).toLocaleDateString()}
                       </p>
+                      <AttentionBadge chat={chat} />
                     </div>
                     <Button variant="ghost" size="icon">
                       <MessageSquare className="h-4 w-4" />
@@ -300,6 +349,15 @@ const ChatHistory = () => {
               </Badge>
             </DialogTitle>
           </DialogHeader>
+          {selectedWhatsAppChat?.needs_attention && (
+            <div className="flex items-center justify-between gap-2 rounded-md border border-destructive/40 p-2" role="status">
+              <AttentionBadge chat={selectedWhatsAppChat} />
+              <Button size="sm" variant="outline" onClick={handleResolve} disabled={resolving}>
+                {resolving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                Mark resolved
+              </Button>
+            </div>
+          )}
           
           <div className="flex-1 overflow-y-auto my-4 p-3 bg-muted/50 rounded-md min-h-[300px] max-h-[400px]">
             {selectedChat?.phone_number ? (
@@ -365,7 +423,7 @@ const ChatHistory = () => {
               <p className="text-sm text-muted-foreground">The 24-hour reply window is closed. Send an approved template, or wait for a new learner message.</p>
             </div>
           )}
-          {selectedChat?.phone_number && <WhatsAppTemplateReply key={selectedChat.phone_number} phoneNumber={selectedChat.phone_number} onSent={refetchWhatsAppMessages} />}
+          {selectedChat?.phone_number && <WhatsAppTemplateReply key={selectedChat.phone_number} phoneNumber={selectedChat.phone_number} onSent={() => { void refetchWhatsAppMessages(); void queryClient.invalidateQueries({ queryKey: ['whatsapp-chats'] }); }} />}
           <div className="flex gap-2">
             <Textarea 
               aria-label="Message"

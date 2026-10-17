@@ -26,17 +26,20 @@ export type OutgoingMessage = {
   content: string;
 };
 
-type Reply = { id: string; title: string };
+export type Reply = { id: string; title: string };
 
 const truncate = (value: string, max: number) =>
   value.length <= max ? value : `${value.slice(0, max - 1)}…`;
 
-const textMessage = (body: string): OutgoingMessage => ({
+export const textMessage = (body: string): OutgoingMessage => ({
   payload: { type: "text", text: { body: truncate(body, TEXT_MAX) } },
   content: truncate(body, TEXT_MAX),
 });
 
-const buttonMessage = (body: string, buttons: Reply[]): OutgoingMessage => ({
+export const buttonMessage = (
+  body: string,
+  buttons: Reply[],
+): OutgoingMessage => ({
   payload: {
     type: "interactive",
     interactive: {
