@@ -52,10 +52,10 @@
       "breakpoints": true
     },
     {
-      "idx": 7,
+      "idx": 8,
       "version": "7",
-      "when": 1792207351923,
-      "tag": "0007_whatsapp_fallback",
+      "when": 1792200000001,
+      "tag": "0008_whatsapp_fallback",
       "breakpoints": true
     }
   ]
