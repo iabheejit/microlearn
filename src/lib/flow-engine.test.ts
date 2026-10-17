@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  acceptedAnswer,
+  immediateGotoTargets,
   initialState,
   interpolate,
   MAX_STEPS,
@@ -381,13 +383,99 @@ describe("validateGraph", () => {
     expect(errors(g(ask({ variable: "Email Address" })))).toContain(
       "invalid_variable",
     );
-    expect(errors(g(ask({ validate: "regex", pattern: "(" })))).toContain(
-      "invalid_pattern",
+    // Free regular expressions are not accepted (they could block the webhook).
+    expect(errors(g(ask({ validate: "regex", pattern: "^(a+)+$" })))).toContain(
+      "invalid_shape",
     );
-    expect(errors(g(ask({ validate: "regex" })))).toContain("invalid_pattern");
-    expect(errors(g(ask({ validate: "regex", pattern: "^\\d{6}$" })))).toEqual(
-      [],
+    expect(errors(g(ask({ validate: "one_of" })))).toContain("invalid_choices");
+    expect(errors(g(ask({ minLength: 5, maxLength: 2 })))).toContain(
+      "invalid_length",
     );
+    expect(
+      errors(g(ask({ validate: "one_of", choices: ["Yes", "No"] }))),
+    ).toEqual([]);
+  });
+
+  it("validates list rows when buttons is an empty array", () => {
+    const node: FlowNode = {
+      id: "m",
+      type: "message",
+      data: {
+        text: "Pick",
+        buttons: [],
+        list: { button: "Open", rows: [{ id: "r1", title: "x".repeat(40) }] },
+      },
+    };
+    const result = validateGraph(
+      graph([node, text("a", "x")], [edge("t", "m"), edge("m", "a")]),
+      { kind: "keyword" },
+    );
+    expect(result.issues.map((issue) => issue.code)).toEqual(
+      expect.arrayContaining(["invalid_option_title", "invalid_handle"]),
+    );
+    const sent = run(graph([node], [edge("t", "m")]), { kind: "start" });
+    expect(sent).toMatchObject({
+      outcome: "waiting_reply",
+      outputs: [{ kind: "list" }],
+    });
+  });
+
+  it("refuses chains longer than one run may go", () => {
+    const nodes: FlowNode[] = Array.from(
+      { length: MAX_STEPS + 1 },
+      (_, index) => ({
+        id: `s${index}`,
+        type: "set_variable",
+        data: { variable: "n", value: String(index) },
+      }),
+    );
+    const chain = (count: number) =>
+      graph(nodes.slice(0, count), [
+        edge("t", "s0"),
+        ...nodes
+          .slice(1, count)
+          .map((node, index) => edge(`s${index}`, node.id)),
+      ]);
+    expect(errors(chain(MAX_STEPS))).toEqual([]);
+    expect(errors(chain(MAX_STEPS + 1))).toContain("run_too_long");
+  });
+
+  it("needs defaults for variables in template values", () => {
+    const tpl = (param: string): FlowNode => ({
+      id: "tpl",
+      type: "template",
+      data: {
+        name: "promo",
+        language: "en",
+        params: [param],
+        waitForReply: false,
+      },
+    });
+    const g = (param: string) => graph([tpl(param)], [edge("t", "tpl")]);
+    expect(errors(g("{{var.city}}"))).toContain("template_param_needs_default");
+    expect(errors(g("{{var.city|your city}}"))).toEqual([]);
+  });
+
+  it("refuses flows that hand over to each other without waiting", () => {
+    const goto = graph(
+      [{ id: "g", type: "goto_flow", data: { flowId: "f2" } }],
+      [edge("t", "g")],
+    );
+    const codes = (gotoTargets: Record<string, string[]>) =>
+      validateGraph(goto, {
+        kind: "keyword",
+        flowId: "f1",
+        gotoTargets,
+      }).issues.map((issue) => issue.code);
+    expect(codes({ f2: ["f3"], f3: ["f1"] })).toContain("goto_loop");
+    expect(codes({ f2: ["f3"], f3: [] })).toEqual([]);
+    // A wait before the hand-over breaks the loop.
+    const waiting = graph(
+      [menu, { id: "g", type: "goto_flow", data: { flowId: "f2" } }],
+      [edge("t", "menu"), edge("menu", "g", "courses")],
+    );
+    expect(immediateGotoTargets(waiting)).toEqual([]);
+    expect(immediateGotoTargets(goto)).toEqual(["f2"]);
   });
 });
 
@@ -404,6 +492,7 @@ describe("validateKeywords", () => {
     expect(codes(["STOP"])).toContain("reserved_keyword");
     expect(codes(["Next"])).toContain("reserved_keyword");
     expect(codes(["course:next"])).toContain("reserved_keyword");
+    expect(codes(["help:menu"])).toContain("reserved_keyword");
     expect(codes(["x".repeat(33)])).toContain("keyword_too_long");
   });
 });
@@ -560,6 +649,64 @@ describe("runFlow", () => {
         enrollment: { courseId: "c", status: "active" },
       }).outputs,
     ).toEqual([{ kind: "text", text: "no" }]);
+  });
+
+  it("treats empty numbers as missing and sees a new enrollment", () => {
+    const cond = (rules: unknown[]): FlowNode =>
+      ({
+        id: "c",
+        type: "condition",
+        data: { match: "all", rules },
+      }) as FlowNode;
+    const g = (node: FlowNode, before: FlowNode[] = [], first = "c") =>
+      graph(
+        [...before, node, text("yes", "yes"), text("no", "no")],
+        [
+          edge("t", first),
+          ...(before.length ? [edge(before[0].id, "c", "enrolled")] : []),
+          edge("c", "yes", "true"),
+          edge("c", "no", "false"),
+        ],
+      );
+    const lt = cond([
+      { source: "variable", variable: "score", op: "lt", value: "5" },
+    ]);
+    expect(
+      run(
+        g(lt),
+        { kind: "start" },
+        { ...initialState(), variables: { score: "" } },
+      ).outputs,
+    ).toEqual([{ kind: "text", text: "no" }]);
+    const enrolled = g(
+      cond([{ source: "enrollment", op: "active" }]),
+      [{ id: "en", type: "enroll", data: { courseId: "c1" } }],
+      "en",
+    );
+    expect(run(enrolled, { kind: "start" }).outputs).toEqual([
+      { kind: "text", text: "yes" },
+    ]);
+  });
+
+  it("stops instead of sending a template with an empty value", () => {
+    const g = graph(
+      [
+        {
+          id: "tpl",
+          type: "template",
+          data: {
+            name: "promo",
+            language: "en",
+            params: ["{{name}}"],
+            waitForReply: false,
+          },
+        },
+      ],
+      [edge("t", "tpl")],
+    );
+    expect(
+      run(g, { kind: "start" }, initialState(), { windowOpen: false }),
+    ).toMatchObject({ outcome: "template_param_empty", outputs: [] });
   });
 
   it("waits on delays and resumes only once due", () => {
@@ -742,5 +889,42 @@ describe("interpolate", () => {
         { windowOpen: true, learnerName: "Asha", courseTitle: "Maths" },
       ),
     ).toBe("Asha / Maths / 1 /  / ");
+    expect(
+      interpolate(
+        "{{var.city|your city}} {{name | friend}}",
+        { city: " " },
+        {
+          windowOpen: true,
+        },
+      ),
+    ).toBe("your city friend");
+  });
+});
+
+describe("acceptedAnswer", () => {
+  const ask = (data: Record<string, unknown>) =>
+    ({ text: "?", variable: "a", validate: "text", ...data }) as Parameters<
+      typeof acceptedAnswer
+    >[0];
+  it("checks fixed validators in linear time", () => {
+    expect(acceptedAnswer(ask({ validate: "number" }), " 42 ")).toBe("42");
+    expect(acceptedAnswer(ask({ validate: "number" }), "4 2")).toBeNull();
+    expect(acceptedAnswer(ask({ validate: "email" }), "a@b.co")).toBe("a@b.co");
+    expect(acceptedAnswer(ask({ validate: "email" }), "a@b")).toBeNull();
+    expect(acceptedAnswer(ask({ validate: "phone" }), "+91 98000-00001")).toBe(
+      "919800000001",
+    );
+    expect(acceptedAnswer(ask({ validate: "phone" }), "12")).toBeNull();
+    expect(
+      acceptedAnswer(
+        ask({ validate: "one_of", choices: ["Yes", "No"] }),
+        "yes",
+      ),
+    ).toBe("Yes");
+    expect(acceptedAnswer(ask({ minLength: 3 }), "ab")).toBeNull();
+    expect(acceptedAnswer(ask({ maxLength: 3 }), "abcd")).toBeNull();
+    const started = Date.now();
+    acceptedAnswer(ask({ validate: "email" }), `${"a.".repeat(500)}@`);
+    expect(Date.now() - started).toBeLessThan(50);
   });
 });

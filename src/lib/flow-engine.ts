@@ -31,6 +31,9 @@ export const LIMITS = {
   nodes: 200,
   keyword: 32,
   keywords: 20,
+  answer: 1024,
+  choices: 20,
+  choice: 100,
 } as const;
 /** Nodes one run may visit; a guard on top of the no-loop-without-a-wait rule. */
 export const MAX_STEPS = 25;
@@ -49,6 +52,13 @@ export const RESERVED_KEYWORDS = [
   "unsubscribe",
 ];
 export const FLOW_BUTTON_PREFIX = "flow:";
+/** Button-id prefixes owned by courses (course:, quiz:), the help menu (help:) and flows (flow:). */
+export const RESERVED_PREFIXES = [
+  "course:",
+  "quiz:",
+  "help:",
+  FLOW_BUTTON_PREFIX,
+];
 
 const VARIABLE = /^[a-z][a-z0-9_]{0,31}$/;
 const OPTION_ID = /^[a-z0-9_-]{1,32}$/i;
@@ -71,8 +81,13 @@ const nodeData = {
   ask: z.object({
     text: z.string(),
     variable: z.string(),
-    validate: z.enum(["text", "number", "email", "regex"]).default("text"),
-    pattern: z.string().max(200).optional(),
+    // Fixed validators only: staff-authored regular expressions could block the webhook (ReDoS).
+    validate: z
+      .enum(["text", "number", "email", "phone", "one_of"])
+      .default("text"),
+    minLength: z.number().int().min(0).max(LIMITS.answer).optional(),
+    maxLength: z.number().int().min(1).max(LIMITS.answer).optional(),
+    choices: z.array(z.string()).optional(),
     retryText: z.string().optional(),
   }),
   condition: z.object({
@@ -174,7 +189,7 @@ export const DEFAULT_HANDLE = "next";
 export const OTHER_HANDLE = "other";
 
 const optionsOf = (node: NodeOf<"message">) =>
-  node.data.buttons ?? node.data.list?.rows ?? [];
+  node.data.buttons?.length ? node.data.buttons : (node.data.list?.rows ?? []);
 const hasOptions = (node: FlowNode): node is NodeOf<"message"> =>
   node.type === "message" && optionsOf(node).length > 0;
 
@@ -235,6 +250,11 @@ export type ValidateOptions = {
   flowIds?: string[];
   /** When given, Enroll nodes must name one of these WhatsApp courses. */
   courseIds?: string[];
+  /**
+   * Other published flows' Go to flow targets reachable without a wait (immediateGotoTargets),
+   * so flows that hand over to each other forever are refused at publish.
+   */
+  gotoTargets?: Record<string, string[]>;
 };
 
 export type Validation = {
@@ -287,7 +307,7 @@ function checkNode(node: FlowNode, options: ValidateOptions): Issue[] {
         node.data.text,
         buttons?.length || list ? LIMITS.interactiveBody : LIMITS.text,
       );
-      const items = buttons ?? list?.rows ?? [];
+      const items = optionsOf(node);
       if (buttons && buttons.length > LIMITS.buttons)
         error(
           "too_many_buttons",
@@ -313,7 +333,7 @@ function checkNode(node: FlowNode, options: ValidateOptions): Issue[] {
               `Row descriptions are limited to ${LIMITS.rowDescription} characters.`,
             );
       }
-      const max = buttons ? LIMITS.buttonTitle : LIMITS.rowTitle;
+      const max = buttons?.length ? LIMITS.buttonTitle : LIMITS.rowTitle;
       const seenIds = new Set<string>();
       const seenTitles = new Set<string>();
       for (const item of items) {
@@ -335,16 +355,26 @@ function checkNode(node: FlowNode, options: ValidateOptions): Issue[] {
     case "ask":
       checkText(node.data.text, LIMITS.text);
       checkVariable(node.data.variable);
-      if (node.data.validate === "regex") {
-        try {
-          new RegExp(node.data.pattern ?? "");
-          if (!node.data.pattern) throw new Error("empty");
-        } catch {
+      {
+        const { minLength, maxLength, choices, validate } = node.data;
+        if (
+          minLength !== undefined &&
+          maxLength !== undefined &&
+          minLength > maxLength
+        )
+          error("invalid_length", "The minimum length is above the maximum.");
+        if (
+          validate === "one_of" &&
+          (!choices?.length ||
+            choices.length > LIMITS.choices ||
+            choices.some(
+              (choice) => !choice.trim() || choice.length > LIMITS.choice,
+            ))
+        )
           error(
-            "invalid_pattern",
-            "Enter a valid pattern to check replies against.",
+            "invalid_choices",
+            `List 1–${LIMITS.choices} accepted answers of up to ${LIMITS.choice} characters.`,
           );
-        }
       }
       break;
     case "condition":
@@ -376,6 +406,12 @@ function checkNode(node: FlowNode, options: ValidateOptions): Issue[] {
         )
       )
         error("invalid_template_params", "Fill in every template value.");
+      // WhatsApp rejects empty template values, and a variable may be unset at send time.
+      if (params.some((value) => /\{\{\s*var\.[a-z0-9_]+\s*\}\}/i.test(value)))
+        error(
+          "template_param_needs_default",
+          "Give each variable in a template value a default, like {{var.city|your city}}.",
+        );
       if (options.templates && name.trim()) {
         const approved = options.templates.find(
           (item) => item.name === name && item.language === language,
@@ -512,7 +548,12 @@ export function validateGraph(
         });
     issues.push(...checkWindow(graph, nodes, out, trigger, options.kind));
   }
-  issues.push(...checkLoops(nodes, out));
+  const loops = checkLoops(nodes, out);
+  issues.push(...loops);
+  // Run length is only finite once every loop waits.
+  if (!loops.length) issues.push(...checkRunLength(nodes, out));
+  if (trigger && options.flowId && options.gotoTargets)
+    issues.push(...checkGotoLoops(graph, options.flowId, options.gotoTargets));
   for (const node of graph.nodes) {
     if (!hasOptions(node)) continue;
     const handles = out.get(node.id);
@@ -558,6 +599,92 @@ function checkLoops(
   for (const [nodeId, node] of nodes)
     if (!state.has(nodeId) && !waits(node)) visit(nodeId);
   return issues;
+}
+
+/** One run visits at most MAX_STEPS nodes; refuse chains of non-waiting steps that would hit the limit. */
+function checkRunLength(
+  nodes: Map<string, FlowNode>,
+  out: Map<string, Map<string, string>>,
+): Issue[] {
+  const length = new Map<string, number>();
+  const measure = (nodeId: string): number => {
+    const known = length.get(nodeId);
+    if (known !== undefined) return known;
+    const node = nodes.get(nodeId);
+    let steps = 1;
+    if (node && !waits(node))
+      for (const next of out.get(nodeId)?.values() ?? [])
+        steps = Math.max(steps, 1 + measure(next));
+    length.set(nodeId, steps);
+    return steps;
+  };
+  const issues: Issue[] = [];
+  // A run starts after the trigger or a wait, so the trigger itself is not counted.
+  for (const [nodeId, node] of nodes)
+    if (node.type !== "trigger" && measure(nodeId) > MAX_STEPS) {
+      issues.push({
+        severity: "error",
+        code: "run_too_long",
+        message: `More than ${MAX_STEPS} steps run here without waiting; add a wait or shorten the flow.`,
+        nodeId,
+      });
+      break;
+    }
+  return issues;
+}
+
+/** Go to flow nodes this flow can reach from its trigger without waiting for a reply or a delay. */
+export function immediateGotoTargets(graph: FlowGraph): string[] {
+  const nodes = new Map(graph.nodes.map((node) => [node.id, node]));
+  const trigger = graph.nodes.find((node) => node.type === "trigger");
+  const targets = new Set<string>();
+  const seen = new Set<string>();
+  const stack = trigger ? [trigger.id] : [];
+  while (stack.length) {
+    const node = nodes.get(stack.pop()!);
+    if (!node || seen.has(node.id)) continue;
+    seen.add(node.id);
+    if (node.type === "goto_flow") targets.add(node.data.flowId);
+    if (node.type !== "trigger" && waits(node)) continue;
+    for (const edge of graph.edges)
+      if (edge.source === node.id) stack.push(edge.target);
+  }
+  return [...targets];
+}
+
+function checkGotoLoops(
+  graph: FlowGraph,
+  flowId: string,
+  gotoTargets: Record<string, string[]>,
+): Issue[] {
+  const reachesSelf = (start: string) => {
+    const seen = new Set<string>();
+    const stack = [start];
+    while (stack.length) {
+      const current = stack.pop()!;
+      if (current === flowId) return true;
+      if (seen.has(current)) continue;
+      seen.add(current);
+      stack.push(...(gotoTargets[current] ?? []));
+    }
+    return false;
+  };
+  const immediate = new Set(immediateGotoTargets(graph));
+  return graph.nodes
+    .filter(
+      (node): node is NodeOf<"goto_flow"> =>
+        node.type === "goto_flow" &&
+        immediate.has(node.data.flowId) &&
+        node.data.flowId !== flowId &&
+        reachesSelf(node.data.flowId),
+    )
+    .map((node) => ({
+      severity: "error" as const,
+      code: "goto_loop",
+      message:
+        "These flows hand over to each other without ever waiting for the learner.",
+      nodeId: node.id,
+    }));
 }
 
 /**
@@ -635,11 +762,7 @@ export function validateKeywords(values: string[]): {
         "reserved_keyword",
         `"${keyword}" is reserved for courses and opt-out.`,
       );
-    if (
-      keyword.startsWith("course:") ||
-      keyword.startsWith("quiz:") ||
-      keyword.startsWith(FLOW_BUTTON_PREFIX)
-    )
+    if (RESERVED_PREFIXES.some((prefix) => keyword.startsWith(prefix)))
       error("reserved_keyword", `"${keyword}" looks like a button id.`);
   }
   return { keywords, issues };
@@ -703,6 +826,8 @@ export type FlowOutcome =
   /** A free-form message was due but the window is closed (or a delay resumed late). */
   | "window_closed"
   | "step_limit"
+  /** A template value was empty after filling in variables. */
+  | "template_param_empty"
   /** The input does not apply to the session (finished, or a reply while a delay is pending). */
   | "ignored"
   | "missing_node";
@@ -733,41 +858,60 @@ export const initialState = (): FlowSessionState => ({
 export const optionReplyId = (nodeId: string, optionId: string) =>
   `${FLOW_BUTTON_PREFIX}${nodeId}:${optionId}`;
 
-/** Fills {{name}}, {{course}} and {{var.x}}; unknown values become empty. */
+/** Fills {{name}}, {{course}} and {{var.x}}, using a `|default` when the value is empty. */
 export function interpolate(
   text: string,
   variables: Record<string, string>,
   context: FlowContext,
 ) {
   return text.replace(
-    /\{\{\s*([a-z][a-z0-9_.]*)\s*\}\}/gi,
-    (_, key: string) => {
-      if (key === "name") return context.learnerName ?? "";
-      if (key === "course") return context.courseTitle ?? "";
-      if (key.startsWith("var.")) return variables[key.slice(4)] ?? "";
-      return "";
+    /\{\{\s*([a-z][a-z0-9_.]*)\s*(?:\|([^{}]*))?\}\}/gi,
+    (_, key: string, fallback: string | undefined) => {
+      const value =
+        key === "name"
+          ? context.learnerName
+          : key === "course"
+            ? context.courseTitle
+            : key.startsWith("var.")
+              ? variables[key.slice(4)]
+              : undefined;
+      return value?.trim() ? value : (fallback?.trim() ?? "");
     },
   );
 }
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-export function acceptsAnswer(data: DataOf<"ask">, reply: string) {
+const EMAIL = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/;
+const PHONE = /^\+?[0-9][0-9 ()-]{5,22}$/;
+
+/** The value an Ask node saves for a reply, or null when the reply does not pass its validator. */
+export function acceptedAnswer(data: DataOf<"ask">, reply: string) {
   const value = reply.trim();
-  if (!value) return false;
+  if (!value || value.length > LIMITS.answer) return null;
+  if (data.minLength !== undefined && value.length < data.minLength)
+    return null;
+  if (data.maxLength !== undefined && value.length > data.maxLength)
+    return null;
   switch (data.validate) {
     case "number":
-      return /^-?\d+(\.\d+)?$/.test(value);
+      return /^-?\d+(\.\d+)?$/.test(value) ? value : null;
     case "email":
-      return EMAIL.test(value);
-    case "regex":
-      try {
-        // Staff-authored pattern; cap the input it runs on.
-        return new RegExp(data.pattern ?? "").test(value.slice(0, 256));
-      } catch {
-        return false;
-      }
+      return EMAIL.test(value) ? value : null;
+    case "phone": {
+      const digits = value.replace(/\D/g, "");
+      return PHONE.test(value) && digits.length >= 7 && digits.length <= 15
+        ? digits
+        : null;
+    }
+    case "one_of": {
+      const typed = value.toLowerCase();
+      return (
+        data.choices
+          ?.find((choice) => choice.trim().toLowerCase() === typed)
+          ?.trim() ?? null
+      );
+    }
     default:
-      return true;
+      return value;
   }
 }
 
@@ -805,10 +949,11 @@ function ruleHolds(
           return (current ?? "").toLowerCase().includes(value.toLowerCase());
         case "gt":
         case "lt": {
+          // Empty values are missing, not zero.
+          if (!current?.trim() || !value.trim()) return false;
           const a = Number(current);
           const b = Number(value);
-          if (current === undefined || Number.isNaN(a) || Number.isNaN(b))
-            return false;
+          if (Number.isNaN(a) || Number.isNaN(b)) return false;
           return rule.op === "gt" ? a > b : a < b;
         }
       }
@@ -875,6 +1020,7 @@ export function runFlow({
     outputs: [],
     actions: [],
   });
+  let enrollment = context.enrollment;
   const fill = (text: string) => interpolate(text, variables, context);
 
   let current: string | null;
@@ -900,8 +1046,9 @@ export function runFlow({
           return finish("waiting_reply", "waiting_reply", waiting.id);
         }
       } else if (waiting.type === "ask") {
-        if (acceptsAnswer(waiting.data, input.text)) {
-          variables[waiting.data.variable] = input.text.trim();
+        const answer = acceptedAnswer(waiting.data, input.text);
+        if (answer !== null) {
+          variables[waiting.data.variable] = answer;
           current = nextOf(waiting.id, "valid");
         } else {
           current = nextOf(waiting.id, "invalid");
@@ -947,17 +1094,22 @@ export function runFlow({
       case "ask":
         outputs.push({ kind: "text", text: fill(node.data.text) });
         return finish("waiting_reply", "waiting_reply", node.id);
-      case "template":
+      case "template": {
+        const params = node.data.params.map(fill);
+        // WhatsApp rejects empty values; stop rather than send a broken template.
+        if (params.some((value) => !value.trim()))
+          return finish("template_param_empty", "expired", node.id);
         outputs.push({
           kind: "template",
           name: node.data.name,
           language: node.data.language,
-          params: node.data.params.map(fill),
+          params,
         });
         if (node.data.waitForReply && nextOf(node.id))
           return finish("waiting_reply", "waiting_reply", node.id);
         current = nextOf(node.id);
         break;
+      }
       case "delay":
         if (!nextOf(node.id)) return finish("completed", "completed");
         return finish(
@@ -970,7 +1122,7 @@ export function runFlow({
         );
       case "condition": {
         const results = node.data.rules.map((rule) =>
-          ruleHolds(rule, variables, context),
+          ruleHolds(rule, variables, { ...context, enrollment }),
         );
         const holds =
           node.data.match === "any"
@@ -981,12 +1133,14 @@ export function runFlow({
       }
       case "enroll": {
         // One active course per learner (enrollLearner): an existing active or paused enrollment blocks.
-        const enrollment = context.enrollment;
         const blocked = Boolean(
           enrollment && enrollment.status !== "completed",
         );
-        if (!blocked)
+        if (!blocked) {
           actions.push({ kind: "enroll", courseId: node.data.courseId });
+          // Later steps (conditions) see the new enrollment.
+          enrollment = { courseId: node.data.courseId, status: "active" };
+        }
         current = nextOf(node.id, blocked ? "blocked" : "enrolled");
         break;
       }
