@@ -1,9 +1,9 @@
 -- Staff-built WhatsApp flows (keyword, fallback, before/after a course, broadcasts). Rules live in
 -- src/lib/flow-engine.ts; these tables hold drafts, immutable published versions, sessions and the outbox.
--- Active staff read everything; all writes go through trusted server code (service role) and the RPCs below.
+-- Re-runnable. Active staff read everything; all writes go through trusted server code (service role) and the RPCs below.
 -- RPC errors carry SQLSTATEs in class MF so callers can tell them apart from generic constraint errors.
 
-CREATE TABLE public.whatsapp_flows (
+CREATE TABLE IF NOT EXISTS public.whatsapp_flows (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL CHECK (length(btrim(name)) BETWEEN 1 AND 120),
   kind text NOT NULL CHECK (kind IN ('keyword', 'fallback', 'course_start', 'course_complete', 'broadcast')),
@@ -24,14 +24,15 @@ CREATE TABLE public.whatsapp_flows (
   CHECK (NOT is_active OR (published_version IS NOT NULL AND archived_at IS NULL))
 );
 -- At most one active fallback, and one active before/after flow per course.
-CREATE UNIQUE INDEX whatsapp_flows_one_active_fallback ON public.whatsapp_flows (kind) WHERE kind = 'fallback' AND is_active;
-CREATE UNIQUE INDEX whatsapp_flows_one_active_per_course ON public.whatsapp_flows (kind, course_id)
+CREATE UNIQUE INDEX IF NOT EXISTS whatsapp_flows_one_active_fallback ON public.whatsapp_flows (kind) WHERE kind = 'fallback' AND is_active;
+CREATE UNIQUE INDEX IF NOT EXISTS whatsapp_flows_one_active_per_course ON public.whatsapp_flows (kind, course_id)
   WHERE kind IN ('course_start', 'course_complete') AND is_active;
+DROP TRIGGER IF EXISTS update_whatsapp_flows_updated_at ON public.whatsapp_flows;
 CREATE TRIGGER update_whatsapp_flows_updated_at BEFORE UPDATE ON public.whatsapp_flows
 FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 -- Published graphs never change, so a running session keeps the version it started on.
-CREATE TABLE public.whatsapp_flow_versions (
+CREATE TABLE IF NOT EXISTS public.whatsapp_flow_versions (
   flow_id uuid NOT NULL REFERENCES public.whatsapp_flows(id) ON DELETE CASCADE,
   version integer NOT NULL CHECK (version > 0),
   graph jsonb NOT NULL,
@@ -39,17 +40,22 @@ CREATE TABLE public.whatsapp_flow_versions (
   published_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (flow_id, version)
 );
-ALTER TABLE public.whatsapp_flows ADD CONSTRAINT whatsapp_flows_published_version_fkey
-  FOREIGN KEY (id, published_version) REFERENCES public.whatsapp_flow_versions (flow_id, version) DEFERRABLE INITIALLY DEFERRED;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'whatsapp_flows_published_version_fkey') THEN
+    ALTER TABLE public.whatsapp_flows ADD CONSTRAINT whatsapp_flows_published_version_fkey
+      FOREIGN KEY (id, published_version) REFERENCES public.whatsapp_flow_versions (flow_id, version) DEFERRABLE INITIALLY DEFERRED;
+  END IF;
+END $$;
 
 -- Keywords of active keyword flows; the primary key makes a keyword start at most one flow.
-CREATE TABLE public.whatsapp_flow_keywords (
+CREATE TABLE IF NOT EXISTS public.whatsapp_flow_keywords (
   keyword text PRIMARY KEY CHECK (keyword = lower(btrim(keyword)) AND length(keyword) BETWEEN 1 AND 32),
   flow_id uuid NOT NULL REFERENCES public.whatsapp_flows(id) ON DELETE CASCADE
 );
-CREATE INDEX whatsapp_flow_keywords_flow_idx ON public.whatsapp_flow_keywords (flow_id);
+CREATE INDEX IF NOT EXISTS whatsapp_flow_keywords_flow_idx ON public.whatsapp_flow_keywords (flow_id);
 
-CREATE TABLE public.whatsapp_flow_sessions (
+CREATE TABLE IF NOT EXISTS public.whatsapp_flow_sessions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   phone_number text NOT NULL CHECK (phone_number ~ '^[1-9][0-9]{6,14}$'),
   flow_id uuid NOT NULL,
@@ -69,19 +75,20 @@ CREATE TABLE public.whatsapp_flow_sessions (
   CHECK (status <> 'handed_off' OR handed_off_at IS NOT NULL)
 );
 -- One open session per phone; a handed-off session keeps flows quiet until staff resolve it or 24 hours pass.
-CREATE UNIQUE INDEX whatsapp_flow_sessions_one_open ON public.whatsapp_flow_sessions (phone_number)
+CREATE UNIQUE INDEX IF NOT EXISTS whatsapp_flow_sessions_one_open ON public.whatsapp_flow_sessions (phone_number)
   WHERE status IN ('waiting_reply', 'waiting_delay', 'handed_off');
-CREATE INDEX whatsapp_flow_sessions_due_idx ON public.whatsapp_flow_sessions (wait_until) WHERE status = 'waiting_delay';
-CREATE INDEX whatsapp_flow_sessions_waiting_idx ON public.whatsapp_flow_sessions (updated_at) WHERE status = 'waiting_reply';
-CREATE INDEX whatsapp_flow_sessions_handoff_idx ON public.whatsapp_flow_sessions (handed_off_at) WHERE status = 'handed_off';
-CREATE INDEX whatsapp_flow_sessions_flow_idx ON public.whatsapp_flow_sessions (flow_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS whatsapp_flow_sessions_due_idx ON public.whatsapp_flow_sessions (wait_until) WHERE status = 'waiting_delay';
+CREATE INDEX IF NOT EXISTS whatsapp_flow_sessions_waiting_idx ON public.whatsapp_flow_sessions (updated_at) WHERE status = 'waiting_reply';
+CREATE INDEX IF NOT EXISTS whatsapp_flow_sessions_handoff_idx ON public.whatsapp_flow_sessions (handed_off_at) WHERE status = 'handed_off';
+CREATE INDEX IF NOT EXISTS whatsapp_flow_sessions_flow_idx ON public.whatsapp_flow_sessions (flow_id, created_at DESC);
+DROP TRIGGER IF EXISTS update_whatsapp_flow_sessions_updated_at ON public.whatsapp_flow_sessions;
 CREATE TRIGGER update_whatsapp_flow_sessions_updated_at BEFORE UPDATE ON public.whatsapp_flow_sessions
 FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 -- Outbox, same pattern as whatsapp_progression_events: the key (provider message ID or
 -- flow:<kind>:<session>:<version>) is claimed first, messages are stored with the step, and
 -- delivery resumes from delivered_count.
-CREATE TABLE public.whatsapp_flow_events (
+CREATE TABLE IF NOT EXISTS public.whatsapp_flow_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   key text NOT NULL UNIQUE,
   phone_number text NOT NULL,
@@ -95,8 +102,8 @@ CREATE TABLE public.whatsapp_flow_events (
   created_at timestamptz NOT NULL DEFAULT now(),
   completed_at timestamptz
 );
-CREATE INDEX whatsapp_flow_events_pending_idx ON public.whatsapp_flow_events (created_at) WHERE status = 'pending';
-CREATE INDEX whatsapp_flow_events_session_idx ON public.whatsapp_flow_events (session_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS whatsapp_flow_events_pending_idx ON public.whatsapp_flow_events (created_at) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS whatsapp_flow_events_session_idx ON public.whatsapp_flow_events (session_id, created_at DESC);
 
 DO $$
 DECLARE
@@ -107,6 +114,7 @@ BEGIN
     EXECUTE format('GRANT SELECT ON public.%I TO authenticated', t);
     EXECUTE format('GRANT ALL ON public.%I TO service_role', t);
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
+    EXECUTE format('DROP POLICY IF EXISTS "Active staff can view WhatsApp flows" ON public.%I', t);
     EXECUTE format(
       'CREATE POLICY "Active staff can view WhatsApp flows" ON public.%I FOR SELECT TO authenticated USING (private.has_role(auth.uid(), ''admin'') OR private.has_role(auth.uid(), ''content_creator''))',
       t
@@ -127,9 +135,14 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'flow_keyword_inactive' USING ERRCODE = 'MF004';
   END IF;
+  -- Raises flow_keyword_invalid for reserved words, so no write path can make one live.
+  IF private.normalize_flow_keywords(ARRAY[NEW.keyword]) IS DISTINCT FROM ARRAY[NEW.keyword] THEN
+    RAISE EXCEPTION 'flow_keyword_invalid' USING ERRCODE = 'MF004', DETAIL = NEW.keyword;
+  END IF;
   RETURN NEW;
 END;
 $$;
+DROP TRIGGER IF EXISTS check_whatsapp_flow_keyword ON public.whatsapp_flow_keywords;
 CREATE TRIGGER check_whatsapp_flow_keyword BEFORE INSERT OR UPDATE ON public.whatsapp_flow_keywords
 FOR EACH ROW EXECUTE FUNCTION private.check_whatsapp_flow_keyword();
 
@@ -145,6 +158,7 @@ BEGIN
   RETURN NULL;
 END;
 $$;
+DROP TRIGGER IF EXISTS drop_inactive_whatsapp_flow_keywords ON public.whatsapp_flows;
 CREATE TRIGGER drop_inactive_whatsapp_flow_keywords AFTER UPDATE OF is_active, kind, archived_at ON public.whatsapp_flows
 FOR EACH ROW EXECUTE FUNCTION private.drop_inactive_whatsapp_flow_keywords();
 
@@ -186,13 +200,15 @@ SET search_path = public
 AS $$
 DECLARE
   v_taken text;
+  v_keywords text[] := private.normalize_flow_keywords(p_keywords);
 BEGIN
   DELETE FROM public.whatsapp_flow_keywords WHERE flow_id = p_flow_id;
-  SELECT k.keyword INTO v_taken FROM public.whatsapp_flow_keywords k WHERE k.keyword = ANY (p_keywords) LIMIT 1;
+  SELECT k.keyword INTO v_taken FROM public.whatsapp_flow_keywords k WHERE k.keyword = ANY (v_keywords) LIMIT 1;
   IF v_taken IS NOT NULL THEN
     RAISE EXCEPTION 'flow_keyword_taken' USING ERRCODE = 'MF003', DETAIL = v_taken;
   END IF;
-  INSERT INTO public.whatsapp_flow_keywords (keyword, flow_id) SELECT unnest(p_keywords), p_flow_id;
+  INSERT INTO public.whatsapp_flow_keywords (keyword, flow_id) SELECT unnest(v_keywords), p_flow_id;
+  UPDATE public.whatsapp_flows SET keywords = v_keywords WHERE id = p_flow_id AND keywords IS DISTINCT FROM v_keywords;
 END;
 $$;
 
@@ -253,7 +269,7 @@ BEGIN
   IF p_active AND v_flow.published_version IS NULL THEN
     RAISE EXCEPTION 'flow_not_published' USING ERRCODE = 'MF001';
   END IF;
-  IF p_active AND v_flow.kind = 'keyword' AND cardinality(v_flow.keywords) = 0 THEN
+  IF p_active AND v_flow.kind = 'keyword' AND cardinality(private.normalize_flow_keywords(v_flow.keywords)) = 0 THEN
     RAISE EXCEPTION 'flow_needs_keywords' USING ERRCODE = 'MF002';
   END IF;
   BEGIN

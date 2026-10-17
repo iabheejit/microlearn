@@ -226,7 +226,7 @@ describe("validateGraph", () => {
       data: {
         name: "nudge",
         language: "en",
-        params: ["{{name}}"],
+        params: ["{{name|there}}"],
         waitForReply: true,
       },
     };
@@ -454,6 +454,15 @@ describe("validateGraph", () => {
     const g = (param: string) => graph([tpl(param)], [edge("t", "tpl")]);
     expect(errors(g("{{var.city}}"))).toContain("template_param_needs_default");
     expect(errors(g("{{var.city|your city}}"))).toEqual([]);
+    expect(errors(g("{{name}}"))).toContain("template_param_needs_default");
+    expect(errors(g("{{var.city|}}"))).toContain(
+      "template_param_needs_default",
+    );
+    expect(errors(g(" {{course}} {{var.a| }} "))).toContain(
+      "template_param_needs_default",
+    );
+    // Literal text keeps the value non-empty.
+    expect(errors(g("Hi {{var.city}}"))).toEqual([]);
   });
 
   it("refuses flows that hand over to each other without waiting", () => {

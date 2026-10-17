@@ -406,11 +406,21 @@ function checkNode(node: FlowNode, options: ValidateOptions): Issue[] {
         )
       )
         error("invalid_template_params", "Fill in every template value.");
-      // WhatsApp rejects empty template values, and a variable may be unset at send time.
-      if (params.some((value) => /\{\{\s*var\.[a-z0-9_]+\s*\}\}/i.test(value)))
+      // WhatsApp rejects empty template values, and any placeholder may be empty at send time.
+      if (
+        params.some(
+          (value) =>
+            !value
+              .replace(
+                PLACEHOLDER,
+                (_, __, fallback?: string) => fallback ?? "",
+              )
+              .trim(),
+        )
+      )
         error(
           "template_param_needs_default",
-          "Give each variable in a template value a default, like {{var.city|your city}}.",
+          "A template value made only of placeholders needs a default, like {{var.city|your city}}.",
         );
       if (options.templates && name.trim()) {
         const approved = options.templates.find(
@@ -858,6 +868,9 @@ export const initialState = (): FlowSessionState => ({
 export const optionReplyId = (nodeId: string, optionId: string) =>
   `${FLOW_BUTTON_PREFIX}${nodeId}:${optionId}`;
 
+/** {{name}}, {{course}} or {{var.x}}, with an optional `|default`. */
+const PLACEHOLDER = /\{\{\s*([a-z][a-z0-9_.]*)\s*(?:\|([^{}]*))?\}\}/gi;
+
 /** Fills {{name}}, {{course}} and {{var.x}}, using a `|default` when the value is empty. */
 export function interpolate(
   text: string,
@@ -865,7 +878,7 @@ export function interpolate(
   context: FlowContext,
 ) {
   return text.replace(
-    /\{\{\s*([a-z][a-z0-9_.]*)\s*(?:\|([^{}]*))?\}\}/gi,
+    PLACEHOLDER,
     (_, key: string, fallback: string | undefined) => {
       const value =
         key === "name"
