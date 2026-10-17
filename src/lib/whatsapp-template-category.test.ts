@@ -194,3 +194,19 @@ describe("submitTemplateVersion", () => {
     expect(rows("whatsapp_template_versions").find((r) => r.id === "old")).toMatchObject({ is_active: true });
   });
 });
+
+describe("submitTemplateVersion ordering", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  it("keeps a category webhook that beat Meta's response", async () => {
+    vi.stubEnv("LOVABLE_API_KEY", "k");
+    vi.stubEnv("WHATSAPP_API_KEY", "w");
+    const fake = fakeSupabase({ rpc: { activate_whatsapp_template_version: () => ({ error: null }) } });
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.method !== "POST") return new Response(JSON.stringify({ data: [] }));
+      await persistWhatsAppCallback("d-cat-fast", { entry: [{ time: 1792200800, changes: [{ field: "template_category_update", value: { message_template_name: "nudge", message_template_language: "en_US", previous_category: "MARKETING", new_category: "UTILITY" } }] }] }, fake.client);
+      return new Response(JSON.stringify({ id: "5", status: "PENDING", category: "MARKETING" }));
+    }));
+    const saved = await submitTemplateVersion({ templateKey: "nudge", body: "Hi {{1}}, your next lesson is ready.", sampleValues: ["A"], category: "UTILITY", language: "en_US", actorId: "u1" }, fake.client);
+    expect(saved).toMatchObject({ category: "UTILITY", review_status: "PENDING" });
+  });
+});

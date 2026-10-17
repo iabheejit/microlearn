@@ -35,3 +35,16 @@ export function templatePlaceholderCount(body: string) {
   const expected = placeholders.length ? Math.max(...placeholders) : 0;
   return new Set(placeholders).size === expected ? expected : null;
 }
+
+const REVIEW_STATUSES = ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED', 'PAUSED', 'ERROR', 'IN_APPEAL', 'DISABLED', 'PENDING_DELETION', 'DELETED', 'LIMIT_EXCEEDED', 'ARCHIVED'];
+
+/**
+ * The review status to store for a status Meta reports, or null to keep the stored one. FLAGGED is a quality
+ * warning on a template that can still be sent, so it must not knock it out of the 'latest APPROVED' lookup;
+ * REINSTATED means approved again; anything unrecognised is recorded but never overwrites a status.
+ */
+export function nextReviewStatus(incoming: unknown): string | null {
+  const status = typeof incoming === 'string' ? incoming.trim().toUpperCase() : '';
+  if (status === 'REINSTATED') return 'APPROVED';
+  return REVIEW_STATUSES.includes(status) ? status : null;
+}

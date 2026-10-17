@@ -124,15 +124,6 @@ export function parseTemplateWebhook(field: unknown, value: unknown, entryTime?:
   return null;
 }
 
-const REVIEW_STATUSES = ["DRAFT", "PENDING", "APPROVED", "REJECTED", "PAUSED", "ERROR", "IN_APPEAL", "DISABLED", "PENDING_DELETION", "DELETED", "LIMIT_EXCEEDED", "ARCHIVED"];
 
-/**
- * The review status to store for a status Meta reports, or null to keep the stored one. FLAGGED is a quality
- * warning on a template that can still be sent, so it must not knock it out of the "latest APPROVED" lookup;
- * REINSTATED means approved again; anything unrecognised is recorded but never overwrites a status.
- */
-export function nextReviewStatus(incoming: unknown): string | null {
-  const status = typeof incoming === "string" ? incoming.trim().toUpperCase() : "";
-  if (status === "REINSTATED") return "APPROVED";
-  return REVIEW_STATUSES.includes(status) ? status : null;
-}
+// Shared with the edge functions (rollback path) so every writer stores the same review statuses.
+export { nextReviewStatus } from "../../supabase/functions/_shared/whatsapp-logic.ts";

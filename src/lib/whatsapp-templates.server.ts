@@ -125,8 +125,10 @@ export async function applyTemplateWebhook(client: Client, update: TemplateWebho
       update.kind === "category"
         ? {
             correct_category: update.correctCategory,
+            // category_updated_at marks that Meta stated the category, even when it is unchanged.
+            ...(update.category ? { category: update.category, category_updated_at: now } : {}),
             ...(update.category && update.category !== version.category
-              ? { category: update.category, previous_category: update.previousCategory ?? version.category, category_updated_at: now }
+              ? { previous_category: update.previousCategory ?? version.category }
               : {}),
           }
         : status
@@ -134,7 +136,7 @@ export async function applyTemplateWebhook(client: Client, update: TemplateWebho
           : {};
     if (Object.keys(patch).length) {
       const { error } = await client.from("whatsapp_template_versions")
-        .update({ ...patch, last_checked_at: now, ...(update.occurredAt ? { provider_event_at: update.occurredAt } : {}) })
+        .update({ ...patch, last_checked_at: now, provider_event_at: update.occurredAt ?? now })
         .eq("id", version.id);
       if (error) throw error;
     }
@@ -147,8 +149,12 @@ export async function applyTemplateWebhook(client: Client, update: TemplateWebho
     details: {
       source: "webhook", template_name: update.name, template_id: update.templateId, language: update.language,
       previous_category: update.previousCategory, new_category: update.category, correct_category: update.correctCategory, reason: update.reason,
-      occurred_at: update.occurredAt, ...(stale ? { ignored: "older than the stored update" } : {}),
-      ...(update.kind === "status" && !status ? { ignored: "status kept; Meta reported a non-review event" } : {}),
+      occurred_at: update.occurredAt,
+      ...(stale
+        ? { ignored: "older than the stored update" }
+        : update.kind === "status" && !status
+          ? { ignored: "status kept; Meta reported a non-review event" }
+          : {}),
     },
   });
   if (eventError) throw eventError;
@@ -264,21 +270,30 @@ export async function submitTemplateVersion(input: SubmitTemplateInput, client: 
     }));
   } catch (error) {
     const message = error instanceof WhatsAppRequestError && error.providerMessage ? `Meta refused the template: ${error.providerMessage}` : error instanceof Error ? error.message : "Meta refused the template.";
-    await client.from("whatsapp_template_versions").update({ review_status: "ERROR", rejection_reason: message.slice(0, 2000) }).eq("id", row.id);
-    await client.from("whatsapp_template_events").insert({ template_version_id: row.id, event_type: "submit_failed", status: "ERROR", actor_id: input.actorId, details: { provider_template_name: providerName, error: message.slice(0, 2000) } });
+    const { error: markError } = await client.from("whatsapp_template_versions").update({ review_status: "ERROR", rejection_reason: message.slice(0, 2000) }).eq("id", row.id);
+    if (markError) console.error("Refused template version could not be marked ERROR", row.id, markError.code);
+    const { error: failEventError } = await client.from("whatsapp_template_events").insert({ template_version_id: row.id, event_type: "submit_failed", status: "ERROR", actor_id: input.actorId, details: { provider_template_name: providerName, error: message.slice(0, 2000) } });
+    if (failEventError) console.error("Refused template submission could not be recorded", row.id, failEventError.code);
     throw new Error(message);
   }
 
   // Meta may approve a UTILITY request as MARKETING; record what it answered beside what was requested.
   const category = asCategory(created.category) ?? input.category;
   const { error: providerError } = await client.from("whatsapp_template_versions").update({
-    provider_template_id: created.id ? String(created.id) : null, provider_response: created, category,
+    provider_template_id: created.id ? String(created.id) : null, provider_response: created,
   }).eq("id", row.id);
   if (providerError) throw providerError;
-  // Only a row no webhook has touched yet takes the status from Meta's response.
+  // Status and category come from Meta's response only while no status or category webhook has updated the
+  // row: one that beat the response is newer and must not be rolled back.
   const { error: statusError } = await client.from("whatsapp_template_versions")
     .update({ review_status: nextReviewStatus(created.status) ?? "PENDING" }).eq("id", row.id).eq("review_status", "DRAFT");
   if (statusError) throw statusError;
+  if (category !== input.category) {
+    const { error: categoryError } = await client.from("whatsapp_template_versions")
+      .update({ category, previous_category: input.category, category_updated_at: new Date().toISOString() })
+      .eq("id", row.id).is("category_updated_at", null);
+    if (categoryError) throw categoryError;
+  }
   const { error: activateError } = await client.rpc("activate_whatsapp_template_version", { p_version_id: row.id });
   if (activateError) throw activateError;
 
