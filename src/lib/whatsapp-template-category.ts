@@ -31,7 +31,12 @@ export const templateKeyFromName = (name: string) => name.replace(/_v\d+$/, "");
 export const placeholdersOf = (body: string) =>
   [...new Set([...body.matchAll(/\{\{(\d+)\}\}/g)].map((m) => Number(m[1])))].sort((a, b) => a - b);
 
-export const samePlaceholders = (a: string, b: string) => placeholdersOf(a).join(",") === placeholdersOf(b).join(",");
+const firstAppearance = (body: string) => [...new Set([...body.matchAll(/\{\{(\d+)\}\}/g)].map((m) => m[1]))].join(",");
+const hasOtherPlaceholders = (body: string) => /\{\{(?!\d+\}\})/.test(body);
+
+/** Same {{n}} placeholders in the same order of first appearance, and no named or malformed ones. */
+export const samePlaceholders = (a: string, b: string) =>
+  firstAppearance(a) === firstAppearance(b) && !hasOtherPlaceholders(b);
 
 const PROMOTIONAL: Array<[RegExp, string]> = [
   [/\b(\d+\s?% off|discount|coupon|promo(tion|tional)?|sale|deal|offer)\b/i, "offers or discounts"],
@@ -79,6 +84,8 @@ export function categoryState(input: { category: unknown; correctCategory?: unkn
 
 export type TemplateWebhookUpdate = {
   kind: "category" | "status";
+  /** When Meta sent the change (the webhook entry's time), used to ignore stale retries. */
+  occurredAt: string | null;
   templateId: string | null;
   name: string | null;
   language: string | null;
@@ -94,10 +101,14 @@ export type TemplateWebhookUpdate = {
 const text = (value: unknown) => (typeof value === "string" && value.trim() ? value.trim() : typeof value === "number" ? String(value) : null);
 
 /** Reads a WABA template_category_update or message_template_status_update change; anything else is null. */
-export function parseTemplateWebhook(field: unknown, value: unknown): TemplateWebhookUpdate | null {
+export function parseTemplateWebhook(field: unknown, value: unknown, entryTime?: unknown): TemplateWebhookUpdate | null {
   if (!value || typeof value !== "object") return null;
   const v = value as Record<string, unknown>;
-  const base = { templateId: text(v.message_template_id), name: text(v.message_template_name), language: text(v.message_template_language) };
+  const seconds = Number(entryTime);
+  const base = {
+    templateId: text(v.message_template_id), name: text(v.message_template_name), language: text(v.message_template_language),
+    occurredAt: Number.isFinite(seconds) && seconds > 0 ? new Date(seconds * 1000).toISOString() : null,
+  };
   if (!base.templateId && !base.name) return null;
   if (field === "template_category_update")
     return {
@@ -111,4 +122,17 @@ export function parseTemplateWebhook(field: unknown, value: unknown): TemplateWe
       status: text(v.event)?.toUpperCase() ?? null, reason: text(v.reason),
     };
   return null;
+}
+
+const REVIEW_STATUSES = ["DRAFT", "PENDING", "APPROVED", "REJECTED", "PAUSED", "ERROR", "IN_APPEAL", "DISABLED", "PENDING_DELETION", "DELETED", "LIMIT_EXCEEDED", "ARCHIVED"];
+
+/**
+ * The review status to store for a status Meta reports, or null to keep the stored one. FLAGGED is a quality
+ * warning on a template that can still be sent, so it must not knock it out of the "latest APPROVED" lookup;
+ * REINSTATED means approved again; anything unrecognised is recorded but never overwrites a status.
+ */
+export function nextReviewStatus(incoming: unknown): string | null {
+  const status = typeof incoming === "string" ? incoming.trim().toUpperCase() : "";
+  if (status === "REINSTATED") return "APPROVED";
+  return REVIEW_STATUSES.includes(status) ? status : null;
 }

@@ -1099,6 +1099,7 @@ export type Database = {
           is_active: boolean
           language: string
           last_checked_at: string | null
+          provider_event_at: string | null
           provider_response: Json | null
           provider_template_id: string | null
           previous_category: string | null
@@ -1124,6 +1125,7 @@ export type Database = {
           is_active?: boolean
           language?: string
           last_checked_at?: string | null
+          provider_event_at?: string | null
           provider_response?: Json | null
           provider_template_id?: string | null
           previous_category?: string | null
@@ -1149,6 +1151,7 @@ export type Database = {
           is_active?: boolean
           language?: string
           last_checked_at?: string | null
+          provider_event_at?: string | null
           provider_response?: Json | null
           provider_template_id?: string | null
           previous_category?: string | null
@@ -1245,6 +1248,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      activate_whatsapp_template_version: {
+        Args: { p_version_id: string }
+        Returns: undefined
+      }
       apply_web_progression: {
         Args: {
           p_advance: boolean

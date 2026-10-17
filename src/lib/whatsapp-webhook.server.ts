@@ -244,10 +244,16 @@ export async function persistWhatsAppCallback(
   );
   const messages = changes.flatMap((change) => change.value.messages ?? []);
   const statuses = changes.flatMap((change) => change.value.statuses ?? []);
-  const templateUpdates = changes.flatMap((change) => {
-    const update = parseTemplateWebhook(change.field, change.value);
-    return update ? [update] : [];
-  });
+  const templateUpdates = (parsed.data.entry ?? []).flatMap((entry) =>
+    (entry.changes ?? []).flatMap((change) => {
+      const update = parseTemplateWebhook(
+        change.field,
+        change.value,
+        entry.time,
+      );
+      return update ? [update] : [];
+    }),
+  );
   const eventType = messages.length
     ? "message"
     : statuses.length

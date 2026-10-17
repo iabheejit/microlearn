@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { WhatsAppRequestError, whatsappGateway } from "./whatsapp-send.server";
 import {
   asCategory,
+  nextReviewStatus,
   placeholdersOf,
   samePlaceholders,
   templateKeyFromName,
@@ -28,12 +29,6 @@ export type WabaTemplate = {
   body: string;
   quickReplies: string[];
   rejectedReason: string | null;
-};
-
-const REVIEW_STATUSES = ["DRAFT", "PENDING", "APPROVED", "REJECTED", "PAUSED", "ERROR", "IN_APPEAL", "DISABLED", "PENDING_DELETION", "DELETED", "LIMIT_EXCEEDED", "ARCHIVED"];
-const reviewStatus = (value: unknown) => {
-  const upper = String(value ?? "").toUpperCase();
-  return REVIEW_STATUSES.includes(upper) ? upper : "ERROR";
 };
 
 export async function listWabaTemplates(): Promise<WabaTemplate[]> {
@@ -69,19 +64,23 @@ export async function listWabaTemplates(): Promise<WabaTemplate[]> {
 
 /** Mirrors Meta's status and category onto our version rows and records each category change. */
 export async function syncTemplateVersions(client: Client, templates: WabaTemplate[]) {
-  const { data: versions, error } = await client.from("whatsapp_template_versions").select("id,provider_template_name,category,correct_category,review_status");
+  const { data: versions, error } = await client.from("whatsapp_template_versions").select("id,provider_template_name,language,category,correct_category,review_status");
   if (error) throw error;
   const now = new Date().toISOString();
   for (const version of versions ?? []) {
-    const remote = templates.find((t) => t.name === version.provider_template_name);
+    // Meta template names are unique per language, not globally.
+    const remote = templates.find((t) => t.name === version.provider_template_name && t.language === version.language);
     if (!remote) continue;
+    const status = nextReviewStatus(remote.status) ?? version.review_status;
     const categoryChanged = remote.category && remote.category !== version.category;
     const { error: updateError } = await client.from("whatsapp_template_versions").update({
-      review_status: reviewStatus(remote.status),
-      rejection_reason: remote.status === "REJECTED" ? remote.rejectedReason || "Meta requested changes" : null,
+      review_status: status,
+      rejection_reason: status === "REJECTED" ? remote.rejectedReason || "Meta requested changes" : null,
       provider_template_id: remote.id,
       correct_category: remote.correctCategory,
       last_checked_at: now,
+      // The catalog is Meta's current state, so webhooks sent before it are stale.
+      provider_event_at: now,
       ...(categoryChanged ? { category: remote.category, previous_category: version.category, category_updated_at: now } : {}),
     }).eq("id", version.id);
     if (updateError) throw updateError;
@@ -95,21 +94,33 @@ export async function syncTemplateVersions(client: Client, templates: WabaTempla
   }
 }
 
+type VersionMatch = { id: string; category: string; review_status: string; provider_event_at: string | null };
+
+async function findVersion(client: Client, update: TemplateWebhookUpdate): Promise<VersionMatch | null> {
+  const columns = "id,category,review_status,provider_event_at";
+  if (update.name && update.language) {
+    const { data, error } = await client.from("whatsapp_template_versions").select(columns)
+      .eq("provider_template_name", update.name).eq("language", update.language).maybeSingle();
+    if (error) throw error;
+    if (data) return data;
+  }
+  if (update.templateId) {
+    // Template IDs are per name and language, so an ID match is exact.
+    const { data, error } = await client.from("whatsapp_template_versions").select(columns).eq("provider_template_id", update.templateId).maybeSingle();
+    if (error) throw error;
+    return data;
+  }
+  return null;
+}
+
 /** Applies a template webhook (category update or review status) to the matching version row. */
 export async function applyTemplateWebhook(client: Client, update: TemplateWebhookUpdate) {
-  let version: { id: string; category: string } | null = null;
-  if (update.name) {
-    const { data, error } = await client.from("whatsapp_template_versions").select("id,category").eq("provider_template_name", update.name).maybeSingle();
-    if (error) throw error;
-    version = data;
-  }
-  if (!version && update.templateId) {
-    const { data, error } = await client.from("whatsapp_template_versions").select("id,category").eq("provider_template_id", update.templateId).maybeSingle();
-    if (error) throw error;
-    version = data;
-  }
+  const version = await findVersion(client, update);
+  // A retried webhook older than what we already stored must not roll the version back.
+  const stale = Boolean(version?.provider_event_at && update.occurredAt && update.occurredAt < version.provider_event_at);
+  const status = update.kind === "status" ? nextReviewStatus(update.status) : null;
   const now = new Date().toISOString();
-  if (version) {
+  if (version && !stale) {
     const patch =
       update.kind === "category"
         ? {
@@ -118,14 +129,17 @@ export async function applyTemplateWebhook(client: Client, update: TemplateWebho
               ? { category: update.category, previous_category: update.previousCategory ?? version.category, category_updated_at: now }
               : {}),
           }
-        : {
-            review_status: reviewStatus(update.status),
-            rejection_reason: update.status === "REJECTED" ? update.reason || "Meta requested changes" : null,
-          };
-    const { error } = await client.from("whatsapp_template_versions").update({ ...patch, last_checked_at: now }).eq("id", version.id);
-    if (error) throw error;
+        : status
+          ? { review_status: status, rejection_reason: status === "REJECTED" ? update.reason || "Meta requested changes" : null }
+          : {};
+    if (Object.keys(patch).length) {
+      const { error } = await client.from("whatsapp_template_versions")
+        .update({ ...patch, last_checked_at: now, ...(update.occurredAt ? { provider_event_at: update.occurredAt } : {}) })
+        .eq("id", version.id);
+      if (error) throw error;
+    }
   }
-  // Templates created outside MicroLearn are still recorded so staff see every category change.
+  // Every change is recorded, including flags, stale retries and templates created outside MicroLearn.
   const { error: eventError } = await client.from("whatsapp_template_events").insert({
     template_version_id: version?.id ?? null,
     event_type: update.kind === "category" ? "category_update" : "review_update",
@@ -133,6 +147,8 @@ export async function applyTemplateWebhook(client: Client, update: TemplateWebho
     details: {
       source: "webhook", template_name: update.name, template_id: update.templateId, language: update.language,
       previous_category: update.previousCategory, new_category: update.category, correct_category: update.correctCategory, reason: update.reason,
+      occurred_at: update.occurredAt, ...(stale ? { ignored: "older than the stored update" } : {}),
+      ...(update.kind === "status" && !status ? { ignored: "status kept; Meta reported a non-review event" } : {}),
     },
   });
   if (eventError) throw eventError;
@@ -206,7 +222,11 @@ export type SubmitTemplateInput = {
   actorId: string;
 };
 
-/** Submits the next version of a template key to Meta and makes it the key's active version. */
+/**
+ * Submits the next version of a template key to Meta and makes it the key's active version. The row is
+ * written before the request so an approval or category webhook that beats Meta's response still finds it;
+ * activation happens in one transaction once Meta has accepted the template.
+ */
 export async function submitTemplateVersion(input: SubmitTemplateInput, client: Client = supabaseAdmin) {
   const positions = placeholdersOf(input.body);
   if (positions.some((p, i) => p !== i + 1) || input.sampleValues.length !== positions.length)
@@ -222,6 +242,14 @@ export async function submitTemplateVersion(input: SubmitTemplateInput, client: 
   while (taken.has(nameFor(version))) version++;
   const providerName = nameFor(version);
   const buttons = input.quickReply ? [input.quickReply] : [];
+  const now = new Date().toISOString();
+
+  const { data: row, error: insertError } = await client.from("whatsapp_template_versions").insert({
+    template_key: input.templateKey, version, provider_template_name: providerName, language: input.language,
+    category: input.category, requested_category: input.category, body: input.body, sample_values: input.sampleValues, buttons,
+    review_status: "DRAFT", submitted_by: input.actorId, submitted_at: now, last_checked_at: now, is_active: false,
+  }).select("id").single();
+  if (insertError) throw insertError;
 
   let created: { id?: string; status?: string; category?: string };
   try {
@@ -235,25 +263,32 @@ export async function submitTemplateVersion(input: SubmitTemplateInput, client: 
       ],
     }));
   } catch (error) {
-    if (error instanceof WhatsAppRequestError && error.providerMessage) throw new Error(`Meta refused the template: ${error.providerMessage}`);
-    throw error;
+    const message = error instanceof WhatsAppRequestError && error.providerMessage ? `Meta refused the template: ${error.providerMessage}` : error instanceof Error ? error.message : "Meta refused the template.";
+    await client.from("whatsapp_template_versions").update({ review_status: "ERROR", rejection_reason: message.slice(0, 2000) }).eq("id", row.id);
+    await client.from("whatsapp_template_events").insert({ template_version_id: row.id, event_type: "submit_failed", status: "ERROR", actor_id: input.actorId, details: { provider_template_name: providerName, error: message.slice(0, 2000) } });
+    throw new Error(message);
   }
-  // Meta may approve a UTILITY request as MARKETING; record what it answered, and what was requested.
+
+  // Meta may approve a UTILITY request as MARKETING; record what it answered beside what was requested.
   const category = asCategory(created.category) ?? input.category;
-  const now = new Date().toISOString();
-  const { error: deactivateError } = await client.from("whatsapp_template_versions").update({ is_active: false }).eq("template_key", input.templateKey);
-  if (deactivateError) throw deactivateError;
-  const { data: row, error: insertError } = await client.from("whatsapp_template_versions").insert({
-    template_key: input.templateKey, version, provider_template_name: providerName, provider_template_id: created.id ? String(created.id) : null,
-    language: input.language, category, requested_category: input.category, body: input.body, sample_values: input.sampleValues, buttons,
-    review_status: reviewStatus(created.status || "PENDING"), provider_response: created, submitted_by: input.actorId,
-    submitted_at: now, last_checked_at: now, is_active: true,
-  }).select().single();
-  if (insertError) throw insertError;
+  const { error: providerError } = await client.from("whatsapp_template_versions").update({
+    provider_template_id: created.id ? String(created.id) : null, provider_response: created, category,
+  }).eq("id", row.id);
+  if (providerError) throw providerError;
+  // Only a row no webhook has touched yet takes the status from Meta's response.
+  const { error: statusError } = await client.from("whatsapp_template_versions")
+    .update({ review_status: nextReviewStatus(created.status) ?? "PENDING" }).eq("id", row.id).eq("review_status", "DRAFT");
+  if (statusError) throw statusError;
+  const { error: activateError } = await client.rpc("activate_whatsapp_template_version", { p_version_id: row.id });
+  if (activateError) throw activateError;
+
+  const { data: saved, error: savedError } = await client.from("whatsapp_template_versions")
+    .select("id,version,provider_template_name,provider_template_id,category,requested_category,review_status").eq("id", row.id).single();
+  if (savedError) throw savedError;
   const { error: eventError } = await client.from("whatsapp_template_events").insert({
-    template_version_id: row.id, event_type: "submitted", status: row.review_status, actor_id: input.actorId,
-    details: { provider_template_name: providerName, provider_template_id: row.provider_template_id, requested_category: input.category, category },
+    template_version_id: row.id, event_type: "submitted", status: saved.review_status, actor_id: input.actorId,
+    details: { provider_template_name: providerName, provider_template_id: saved.provider_template_id, requested_category: input.category, category },
   });
   if (eventError) throw eventError;
-  return row as { id: string; version: number; provider_template_name: string; category: string; requested_category: string; review_status: string };
+  return saved as { id: string; version: number; provider_template_name: string; category: string; requested_category: string; review_status: string };
 }
