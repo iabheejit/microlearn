@@ -1,5 +1,6 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import qrcode from "qrcode-generator";
+import { certificateFilename, pdfSafeText } from "./certificate-text";
 
 // Pure certificate rendering (no I/O), safe for the Cloudflare Worker runtime: pdf-lib and
 // qrcode-generator are plain JavaScript. Text uses the built-in Helvetica fonts, which only cover
@@ -13,23 +14,7 @@ export type CertificateDetails = {
   verifyUrl: string;
 };
 
-/** Strips diacritics and anything Helvetica cannot draw; never returns an empty string. */
-export function pdfSafeText(value: string, fallback: string) {
-  const cleaned = value
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^\x20-\x7e]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  return cleaned || fallback;
-}
-
-export function certificateFilename(courseTitle: string) {
-  const safe = pdfSafeText(courseTitle, "Course")
-    .replace(/[^A-Za-z0-9 _-]/g, "")
-    .trim();
-  return `Certificate - ${safe || "Course"}.pdf`;
-}
+export { pdfSafeText, certificateFilename };
 
 const INK = rgb(0.1, 0.12, 0.18);
 const MUTED = rgb(0.4, 0.43, 0.5);

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { certificateFilename } from "./certificate-pdf";
+import { certificateFilename } from "./certificate-text";
 
 // The only place certificates are looked up for the public verify page and PDF. Callers get the
 // learner's name, course, date and code — never the phone number or user id.
@@ -79,8 +79,11 @@ export async function findCertificate(
 /** Public base URL of the app: PUBLIC_APP_URL when set, else the origin the request arrived on. */
 export function appBaseUrl(request?: Request) {
   const configured = process.env.PUBLIC_APP_URL?.trim();
-  const base = configured || (request ? new URL(request.url).origin : "");
-  return base.replace(/\/+$/, "");
+  const base = (
+    configured || (request ? new URL(request.url).origin : "")
+  ).replace(/\/+$/, "");
+  // WhatsApp only fetches public HTTPS documents; anything else means "send the code as text".
+  return /^https:\/\/[^\s/]+/.test(base) ? base : "";
 }
 
 export function certificateUrls(base: string, code: string) {

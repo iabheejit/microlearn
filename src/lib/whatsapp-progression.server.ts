@@ -13,7 +13,10 @@ import {
   type OutgoingMessage,
 } from "./whatsapp-course-messages";
 import { certificateAttachment } from "./certificates.server";
-import { sendAutomatedWhatsApp } from "./whatsapp-send.server";
+import {
+  sendAutomatedWhatsApp,
+  WhatsAppWindowClosedError,
+} from "./whatsapp-send.server";
 
 // WhatsApp course progression on top of the channel-neutral engine (course-engine.ts).
 // Every step is committed with its outgoing messages (apply_whatsapp_step) before anything is sent;
@@ -90,7 +93,22 @@ export async function deliverEvent(
     index < messages.length;
     index++
   ) {
-    await send(phone, messages[index].payload, messages[index].content);
+    try {
+      await send(phone, messages[index].payload, messages[index].content);
+    } catch (error) {
+      // A document WhatsApp cannot fetch must not strand the rest of the step: send its link as text.
+      if (
+        messages[index].payload.type !== "document" ||
+        error instanceof WhatsAppWindowClosedError
+      )
+        throw error;
+      console.error("Document send failed; sending its link as text", error);
+      await send(
+        phone,
+        { type: "text", text: { body: messages[index].content } },
+        messages[index].content,
+      );
+    }
     const { error } = await client
       .from(table)
       .update({ delivered_count: index + 1 })
