@@ -1,5 +1,6 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createServiceClient, requireStaff } from '../_shared/auth.ts';
+import { nextReviewStatus } from '../_shared/whatsapp-logic.ts';
 
 const GATEWAY_URL = 'https://connector-gateway.lovable.dev/whatsapp';
 const TARGET_PHONE = '919766072308';
@@ -38,17 +39,28 @@ Deno.serve(async (req) => {
       return json({ ok: true, state: 'recently_checked' });
     }
 
-    const templatesResponse = await gateway('/message_templates?fields=id,name,status,language,category,components,rejected_reason&limit=100');
+    const templatesResponse = await gateway('/message_templates?fields=id,name,status,language,category,correct_category,components,rejected_reason&limit=100');
     const templates = Array.isArray(templatesResponse.data) ? templatesResponse.data as Record<string, unknown>[] : [];
-    const remote = templates.find((item) => item.name === version.provider_template_name);
-    const reviewStatus = String(remote?.status || version.review_status).toUpperCase();
+    const remote = templates.find((item) => item.name === version.provider_template_name && item.language === version.language)
+      ?? (version.provider_template_id ? templates.find((item) => String(item.id) === version.provider_template_id) : undefined);
+    // FLAGGED, REINSTATED and unknown statuses must not break the CHECK constraint or drop an approved version.
+    const reviewStatus = nextReviewStatus(remote?.status) ?? version.review_status;
     const rejectionReason = reviewStatus === 'REJECTED' ? String(remote?.rejected_reason || 'Meta requested changes') : null;
     const checkedAt = new Date().toISOString();
+    const remoteCategory = remote?.category ? String(remote.category).toUpperCase() : null;
+    const categoryChanged = Boolean(remoteCategory && remoteCategory !== version.category);
     const { error: updateVersionError } = await client.from('whatsapp_template_versions').update({
       review_status: reviewStatus, rejection_reason: rejectionReason, provider_template_id: remote?.id ? String(remote.id) : version.provider_template_id,
       provider_response: remote || version.provider_response, last_checked_at: checkedAt,
+      // Meta may approve or recategorize a UTILITY request as MARKETING; mirror its category.
+      ...(remoteCategory ? { correct_category: remote?.correct_category ? String(remote.correct_category).toUpperCase() : null } : {}),
+      ...(categoryChanged ? { category: remoteCategory, previous_category: version.category, category_updated_at: checkedAt } : {}),
     }).eq('id', version.id);
     if (updateVersionError) throw updateVersionError;
+    if (categoryChanged) {
+      await client.from('whatsapp_template_events').insert({ template_version_id: version.id, event_type: 'category_update', status: remoteCategory,
+        details: { source: 'monitor', previous_category: version.category, new_category: remoteCategory } });
+    }
     await client.from('whatsapp_template_events').insert({ template_version_id: version.id, event_type: 'approval_checked', status: reviewStatus, details: { checked_at: checkedAt } });
     if (reviewStatus !== 'APPROVED') return json({ ok: true, state: reviewStatus });
 

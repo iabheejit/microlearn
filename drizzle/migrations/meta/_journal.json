@@ -52,6 +52,13 @@
       "breakpoints": true
     },
     {
+      "idx": 7,
+      "version": "7",
+      "when": 1792200000000,
+      "tag": "0007_whatsapp_template_categories",
+      "breakpoints": true
+    },
+    {
       "idx": 8,
       "version": "7",
       "when": 1792200000001,

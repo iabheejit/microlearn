@@ -50,17 +50,17 @@ const CourseEditor = ({ initialCourse, onSave, isSaving = false }: CourseEditorP
   };
 
   const [course, setCourse] = useState<Course>(initialCourse || defaultCourse);
-  const [welcomeTemplates, setWelcomeTemplates] = useState<Array<{ key: string; language: string }>>([]);
+  const [welcomeTemplates, setWelcomeTemplates] = useState<Array<{ key: string; language: string; category: string }>>([]);
 
   useEffect(() => {
     supabase.from("whatsapp_template_versions")
-      .select("template_key,language")
+      .select("template_key,language,category")
       .eq("review_status", "APPROVED")
       .order("version", { ascending: false })
       .then(({ data }) => {
-        const seen = new Map<string, string>();
-        (data || []).forEach((row) => { if (!seen.has(row.template_key)) seen.set(row.template_key, row.language); });
-        setWelcomeTemplates(Array.from(seen, ([key, language]) => ({ key, language })));
+        const seen = new Map<string, { language: string; category: string }>();
+        (data || []).forEach((row) => { if (!seen.has(row.template_key)) seen.set(row.template_key, { language: row.language, category: row.category }); });
+        setWelcomeTemplates(Array.from(seen, ([key, value]) => ({ key, ...value })));
       });
   }, []);
 
@@ -461,7 +461,7 @@ const CourseEditor = ({ initialCourse, onSave, isSaving = false }: CourseEditorP
                       const match = welcomeTemplates.find((t) => t.key === key);
                       return (
                         <SelectItem key={key} value={key}>
-                          {key}{match ? ` (${match.language})` : " (not approved yet)"}
+                          {key}{match ? ` (${match.language} · ${match.category.toLowerCase()})` : " (not approved yet)"}
                         </SelectItem>
                       );
                     })}

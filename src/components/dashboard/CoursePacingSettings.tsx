@@ -213,6 +213,7 @@ export default function CoursePacingSettings({
                       value={`${t.name}:${t.language}`}
                     >
                       {t.name} · {t.language}
+                      {t.category ? ` · ${t.category.toLowerCase()}` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -223,6 +224,14 @@ export default function CoursePacingSettings({
                 approved template ({"{{1}}"} = learner name, {"{{2}}"} = course
                 title), ideally with a quick-reply "Start" button.
               </p>
+              {templates.find(
+                (t) => `${t.name}:${t.language}` === selectedTemplate,
+              )?.category === "MARKETING" && (
+                <p className="text-xs text-destructive">
+                  Meta bills this template as marketing. Rewrite it as utility
+                  on the Meta Templates page.
+                </p>
+              )}
               {error && (
                 <p className="text-xs text-destructive">
                   Could not load templates from WhatsApp.
