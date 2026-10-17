@@ -6,12 +6,12 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
+import TemplateCategoryCatalog from '@/components/whatsapp/TemplateCategoryCatalog';
+import TemplateSubmitDialog, { type TemplateDraft } from '@/components/whatsapp/TemplateSubmitDialog';
+import { UTILITY_TEMPLATE_DRAFTS, categoryState, placeholdersOf } from '@/lib/whatsapp-template-category';
+import type { WabaTemplate } from '@/lib/whatsapp-templates.server';
 import { AlertCircle, CheckCircle2, Clock3, FileClock, RefreshCw, Send, Webhook } from 'lucide-react';
 
 const statusVariant = (status: string) => {
@@ -27,8 +27,8 @@ export default function WhatsAppWebhookStatus() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [editorOpen, setEditorOpen] = useState(false);
-  const [body, setBody] = useState('Hello {{1}}, welcome to {{2}}. Your first lesson is ready. Reply to this message if you need help.');
-  const [samples, setSamples] = useState(['Abheejit', 'WhatsApp Learning Essentials']);
+  const welcomeDraft = UTILITY_TEMPLATE_DRAFTS.course_welcome;
+  const [draft, setDraft] = useState<TemplateDraft>({ templateKey: 'course_welcome', body: welcomeDraft.body, samples: welcomeDraft.samples, language: 'en_US', purpose: welcomeDraft.purpose });
 
   const query = useQuery({
     queryKey: ['whatsapp-diagnostics'],
@@ -38,7 +38,7 @@ export default function WhatsAppWebhookStatus() {
       if (!role || role.status !== 'active' || !['admin', 'content_creator'].includes(role.role)) throw new Error('Staff access required');
       const [callbacksResult, versionsResult, jobsResult, eventsResult] = await Promise.all([
         supabase.from('whatsapp_webhook_callbacks').select('*').order('received_at', { ascending: false }).limit(50),
-        supabase.from('whatsapp_template_versions').select('*').eq('template_key', 'course_welcome').order('version', { ascending: false }),
+        supabase.from('whatsapp_template_versions').select('*').order('created_at', { ascending: false }).limit(50),
         supabase.from('whatsapp_template_send_jobs').select('*').order('created_at', { ascending: false }).limit(20),
         supabase.from('whatsapp_template_events').select('*').order('created_at', { ascending: false }).limit(50),
       ]);
@@ -62,25 +62,12 @@ export default function WhatsAppWebhookStatus() {
     onError: (error) => toast({ title: 'Status check failed', description: error instanceof Error ? error.message : 'Try again.', variant: 'destructive' }),
   });
 
-  const submitMutation = useMutation({
-    mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke('whatsapp-api', { body: { endpoint: 'submitTemplateVersion', body, sampleValues: samples } });
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: async () => {
-      setEditorOpen(false);
-      await queryClient.invalidateQueries({ queryKey: ['whatsapp-diagnostics'] });
-      toast({ title: 'New version submitted', description: 'Meta review tracking is now active for the new version.' });
-    },
-    onError: (error) => toast({ title: 'Submission failed', description: error instanceof Error ? error.message : 'Try again.', variant: 'destructive' }),
-  });
-
   const callbacks = query.data?.callbacks || [];
   const versions = query.data?.versions || [];
   const jobs = query.data?.jobs || [];
   const events = query.data?.events || [];
-  const activeVersion = versions.find((version) => version.is_active);
+  const activeVersion = versions.find((version) => version.is_active && version.template_key === 'course_welcome');
+  const activeCategory = activeVersion ? categoryState({ category: activeVersion.category, correctCategory: activeVersion.correct_category, requestedCategory: activeVersion.requested_category }) : null;
   const latestJob = jobs[0];
   const lastProcessed = callbacks.find((callback) => callback.status === 'processed');
   const lastError = callbacks.find((callback) => callback.status === 'error');
@@ -108,10 +95,21 @@ export default function WhatsAppWebhookStatus() {
   }, [queryClient]);
 
   const openRevision = () => {
-    if (activeVersion) {
-      setBody(activeVersion.body);
-      setSamples(Array.isArray(activeVersion.sample_values) ? activeVersion.sample_values.map(String) : []);
-    }
+    setDraft(activeVersion
+      ? { templateKey: 'course_welcome', body: activeVersion.body, samples: Array.isArray(activeVersion.sample_values) ? activeVersion.sample_values.map(String) : [], language: activeVersion.language, purpose: welcomeDraft.purpose }
+      : { templateKey: 'course_welcome', body: welcomeDraft.body, samples: welcomeDraft.samples, language: 'en_US', purpose: welcomeDraft.purpose });
+    setEditorOpen(true);
+  };
+
+  // Rewrite any WABA template as utility: reuse our recorded samples, else the known course drafts.
+  const openRewrite = (template: WabaTemplate) => {
+    const known = UTILITY_TEMPLATE_DRAFTS[template.templateKey];
+    const recorded = versions.find((version) => version.provider_template_name === template.name);
+    const recordedSamples = recorded && Array.isArray(recorded.sample_values) ? recorded.sample_values.map(String) : null;
+    const count = placeholdersOf(template.body).length;
+    const samples = recordedSamples ?? known?.samples ?? ['Abheejit', 'WhatsApp Learning Essentials'];
+    setDraft({ templateKey: template.templateKey, body: template.body, language: template.language, quickReply: template.quickReplies[0] ?? known?.quickReply, purpose: known?.purpose,
+      samples: Array.from({ length: count }, (_, i) => samples[i] ?? '') });
     setEditorOpen(true);
   };
 
@@ -139,8 +137,11 @@ export default function WhatsAppWebhookStatus() {
 
           <section className="mb-6 space-y-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div><h2 className="text-lg font-semibold">Template approval</h2><p className="text-sm text-muted-foreground">The active version is checked automatically every five minutes.</p></div>
-               <Button onClick={openRevision}><FileClock className="mr-2 h-4 w-4" /> {activeVersion?.review_status === 'REJECTED' ? 'Revise and resubmit' : 'Submit new version'}</Button>
+              <div><h2 className="text-lg font-semibold">Template approval</h2><p className="text-sm text-muted-foreground">The active course_welcome version is checked automatically every five minutes.</p></div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" onClick={() => { const nudge = UTILITY_TEMPLATE_DRAFTS.course_day_ready; setDraft({ templateKey: 'course_day_ready', body: nudge.body, samples: nudge.samples, language: 'en_US', quickReply: nudge.quickReply, purpose: nudge.purpose }); setEditorOpen(true); }}><Send className="mr-2 h-4 w-4" /> New nudge template</Button>
+                <Button onClick={openRevision}><FileClock className="mr-2 h-4 w-4" /> {activeVersion?.review_status === 'REJECTED' ? 'Revise and resubmit' : 'Submit new welcome version'}</Button>
+              </div>
             </div>
             <div className="grid gap-4 md:grid-cols-4">
               <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Active version</CardTitle></CardHeader><CardContent><div className="text-xl font-semibold">{activeVersion ? `v${activeVersion.version}` : 'Not imported'}</div><p className="mt-1 text-xs text-muted-foreground">{activeVersion?.provider_template_name || 'course_welcome'}</p></CardContent></Card>
@@ -148,14 +149,18 @@ export default function WhatsAppWebhookStatus() {
               <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Automatic send</CardTitle></CardHeader><CardContent><Badge variant={statusVariant(latestJob?.status || 'queued')}>{latestJob?.status || 'Waiting for approval'}</Badge><p className="mt-2 text-xs text-muted-foreground">To +91 97660 72308</p></CardContent></Card>
               <Card><CardHeader className="pb-2"><CardTitle className="text-sm">WhatsApp message ID</CardTitle></CardHeader><CardContent><p className="break-all font-mono text-xs">{latestJob?.provider_message_id || 'Created after Meta accepts the send'}</p></CardContent></Card>
             </div>
+            {activeCategory?.state === 'pending_change' && <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertTitle>Meta will recategorize this template as {activeCategory.correctCategory}</AlertTitle><AlertDescription>Submit a utility rewrite, or request a review in Business Support within 60 days.</AlertDescription></Alert>}
+            {activeCategory?.state === 'approved_as_other' && <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertTitle>Requested as {activeCategory.requested}, categorized as {activeCategory.category}</AlertTitle><AlertDescription>Meta decided the wording is not utility. Revise it to be non-promotional and about the learner's enrollment.</AlertDescription></Alert>}
             {activeVersion?.rejection_reason && <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertTitle>Meta requested changes</AlertTitle><AlertDescription>{activeVersion.rejection_reason}</AlertDescription></Alert>}
           </section>
 
+          <TemplateCategoryCatalog onRewrite={openRewrite} />
+
           <Card className="mb-6">
             <CardHeader><CardTitle>Live Meta status feed</CardTitle></CardHeader>
-            <CardContent className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Version</TableHead><TableHead>Name</TableHead><TableHead>Status</TableHead><TableHead>Submitted</TableHead><TableHead>Last checked</TableHead></TableRow></TableHeader><TableBody>
-              {versions.map((version) => <TableRow key={version.id}><TableCell>v{version.version}{version.is_active ? ' · active' : ''}</TableCell><TableCell className="font-mono text-xs">{version.provider_template_name}</TableCell><TableCell><Badge variant={statusVariant(version.review_status)}>{version.review_status}</Badge></TableCell><TableCell>{formatDate(version.submitted_at)}</TableCell><TableCell>{formatDate(version.last_checked_at)}</TableCell></TableRow>)}
-              {!query.isLoading && versions.length === 0 && <TableRow><TableCell colSpan={5} className="h-20 text-center text-muted-foreground">The current Meta template has not been imported yet.</TableCell></TableRow>}
+            <CardContent className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Version</TableHead><TableHead>Name</TableHead><TableHead>Category</TableHead><TableHead>Status</TableHead><TableHead>Submitted</TableHead><TableHead>Last checked</TableHead></TableRow></TableHeader><TableBody>
+              {versions.map((version) => <TableRow key={version.id}><TableCell>v{version.version}{version.is_active ? ' · active' : ''}</TableCell><TableCell className="font-mono text-xs">{version.provider_template_name}</TableCell><TableCell><Badge variant={version.category === 'MARKETING' ? 'destructive' : 'secondary'}>{version.category}</Badge>{version.correct_category && version.correct_category !== version.category && <div className="mt-1 text-xs text-destructive">→ {version.correct_category}</div>}</TableCell><TableCell><Badge variant={statusVariant(version.review_status)}>{version.review_status}</Badge></TableCell><TableCell>{formatDate(version.submitted_at)}</TableCell><TableCell>{formatDate(version.last_checked_at)}</TableCell></TableRow>)}
+              {!query.isLoading && versions.length === 0 && <TableRow><TableCell colSpan={6} className="h-20 text-center text-muted-foreground">The current Meta template has not been imported yet.</TableCell></TableRow>}
             </TableBody></Table></CardContent>
           </Card>
 
@@ -180,11 +185,10 @@ export default function WhatsAppWebhookStatus() {
         </div>
       </main>
 
-      <Dialog open={editorOpen} onOpenChange={setEditorOpen}><DialogContent><DialogHeader><DialogTitle>Submit the next course_welcome version</DialogTitle><DialogDescription>Each submission creates a new Meta template version and preserves the complete audit history.</DialogDescription></DialogHeader>
-        <div className="space-y-4"><div className="space-y-2"><Label htmlFor="template-body">Message</Label><Textarea id="template-body" value={body} onChange={(event) => setBody(event.target.value)} rows={5} /></div>
-          <div className="grid gap-3 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor="sample-1">Sample for {'{{1}}'}</Label><Input id="sample-1" value={samples[0] || ''} onChange={(event) => setSamples([event.target.value, samples[1] || ''])} /></div><div className="space-y-2"><Label htmlFor="sample-2">Sample for {'{{2}}'}</Label><Input id="sample-2" value={samples[1] || ''} onChange={(event) => setSamples([samples[0] || '', event.target.value])} /></div></div>
-        </div><DialogFooter><Button variant="outline" onClick={() => setEditorOpen(false)}>Cancel</Button><Button onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}>{submitMutation.isPending ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />} Submit to Meta</Button></DialogFooter>
-      </DialogContent></Dialog>
+      <TemplateSubmitDialog open={editorOpen} onOpenChange={setEditorOpen} draft={draft} onSubmitted={() => {
+        void queryClient.invalidateQueries({ queryKey: ['whatsapp-diagnostics'] });
+        void queryClient.invalidateQueries({ queryKey: ['whatsapp-template-catalog'] });
+      }} />
     </div>
   );
 }

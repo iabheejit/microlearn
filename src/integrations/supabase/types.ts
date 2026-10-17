@@ -1171,16 +1171,22 @@ export type Database = {
       whatsapp_template_versions: {
         Row: {
           body: string
+          buttons: Json
           category: string
+          category_updated_at: string | null
+          correct_category: string | null
           created_at: string
           id: string
           is_active: boolean
           language: string
           last_checked_at: string | null
+          provider_event_at: string | null
           provider_response: Json | null
           provider_template_id: string | null
+          previous_category: string | null
           provider_template_name: string
           rejection_reason: string | null
+          requested_category: string | null
           review_status: string
           sample_values: Json
           submitted_at: string | null
@@ -1191,16 +1197,22 @@ export type Database = {
         }
         Insert: {
           body: string
+          buttons?: Json
           category?: string
+          category_updated_at?: string | null
+          correct_category?: string | null
           created_at?: string
           id?: string
           is_active?: boolean
           language?: string
           last_checked_at?: string | null
+          provider_event_at?: string | null
           provider_response?: Json | null
           provider_template_id?: string | null
+          previous_category?: string | null
           provider_template_name: string
           rejection_reason?: string | null
+          requested_category?: string | null
           review_status?: string
           sample_values?: Json
           submitted_at?: string | null
@@ -1211,16 +1223,22 @@ export type Database = {
         }
         Update: {
           body?: string
+          buttons?: Json
           category?: string
+          category_updated_at?: string | null
+          correct_category?: string | null
           created_at?: string
           id?: string
           is_active?: boolean
           language?: string
           last_checked_at?: string | null
+          provider_event_at?: string | null
           provider_response?: Json | null
           provider_template_id?: string | null
+          previous_category?: string | null
           provider_template_name?: string
           rejection_reason?: string | null
+          requested_category?: string | null
           review_status?: string
           sample_values?: Json
           submitted_at?: string | null
@@ -1311,6 +1329,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      activate_whatsapp_template_version: {
+        Args: { p_version_id: string }
+        Returns: undefined
+      }
       apply_web_progression: {
         Args: {
           p_advance: boolean

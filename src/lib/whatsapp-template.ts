@@ -1,4 +1,5 @@
-export type ReplyTemplate = { id: string; name: string; language: string; body: string; variables: string[] };
+// category is Meta's current pricing category (UTILITY, MARKETING, …) when the template list includes it.
+export type ReplyTemplate = { id: string; name: string; language: string; body: string; variables: string[]; category?: string | null };
 
 // allowQuickReplies: static quick-reply buttons need no send parameters, so nudge templates may use them.
 export function parseReplyTemplates(payload: unknown, options: { allowQuickReplies?: boolean } = {}): ReplyTemplate[] {
@@ -17,7 +18,7 @@ export function parseReplyTemplates(payload: unknown, options: { allowQuickRepli
     if (components.some((c) => c.type === "BUTTONS" && Array.isArray(c.buttons) && !c.buttons.every(allowedButton))) return [];
     const variables = [...new Set([...body.text.matchAll(/\{\{(\d+)\}\}/g)].map((m) => m[1]))].sort((a, b) => Number(a) - Number(b));
     if (variables.some((v, i) => Number(v) !== i + 1)) return [];
-    return [{ id: t.id, name: t.name, language: t.language, body: body.text, variables }];
+    return [{ id: t.id, name: t.name, language: t.language, body: body.text, variables, category: typeof t.category === "string" ? t.category : null }];
   });
 }
 

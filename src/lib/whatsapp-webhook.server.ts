@@ -4,9 +4,12 @@ import {
   normalizePhone,
   statusesBelow,
 } from "../../supabase/functions/_shared/whatsapp-logic.ts";
+import { parseTemplateWebhook } from "./whatsapp-template-category";
+import { applyTemplateWebhook } from "./whatsapp-templates.server";
 
 // WhatsApp callback persistence: inbox record, inbound messages, delivery statuses.
 // Course progression runs through the optional onInboundText hook, after messages are stored.
+// WABA template changes (template_category_update, message_template_status_update) update template versions.
 
 const MessageSchema = z
   .object({
@@ -244,11 +247,23 @@ export async function persistWhatsAppCallback(
   );
   const messages = changes.flatMap((change) => change.value.messages ?? []);
   const statuses = changes.flatMap((change) => change.value.statuses ?? []);
+  const templateUpdates = (parsed.data.entry ?? []).flatMap((entry) =>
+    (entry.changes ?? []).flatMap((change) => {
+      const update = parseTemplateWebhook(
+        change.field,
+        change.value,
+        entry.time,
+      );
+      return update ? [update] : [];
+    }),
+  );
   const eventType = messages.length
     ? "message"
     : statuses.length
       ? "status"
-      : "ignored";
+      : templateUpdates.length
+        ? "template"
+        : "ignored";
   const phoneNumber = normalizePhone(
     messages[0]?.from || statuses[0]?.recipient_id || "",
   );
@@ -327,6 +342,8 @@ export async function persistWhatsAppCallback(
     }
 
     for (const status of statuses) await applyStatus(client, status);
+    for (const update of templateUpdates)
+      await applyTemplateWebhook(client, update);
 
     const errors = [
       ...statuses
