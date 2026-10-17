@@ -83,7 +83,10 @@ export async function sendPortalWhatsApp(input: SendInput): Promise<SendResult> 
   const messageId = result.payload.messages?.[0]?.id;
   if (!messageId) throw new Error("WhatsApp did not return a message ID. Check Chat History before retrying.");
   const { error: historyError } = await supabaseAdmin.from("whatsapp_messages").upsert({ phone_number: phone, direction: "outgoing", content, template_name: input.templateName ?? null, provider_message_id: messageId, status: "accepted" }, { onConflict: "provider_message_id", ignoreDuplicates: true });
-  const { error: contactError } = await supabaseAdmin.from("whatsapp_contacts").upsert({ phone_number: phone, updated_at: new Date().toISOString() }, { onConflict: "phone_number" });
+  // A staff reply answers whatever flagged the chat for attention, and starts the fallback cooldown so the
+  // learner's answer to staff isn't met with the "couldn't match" menu.
+  const sentAt = new Date().toISOString();
+  const { error: contactError } = await supabaseAdmin.from("whatsapp_contacts").upsert({ phone_number: phone, updated_at: sentAt, needs_attention: false, attention_reason: null, attention_at: null, last_fallback_at: sentAt }, { onConflict: "phone_number" });
   if (historyError || contactError) console.error("WhatsApp accepted message but persistence failed", messageId, historyError?.code, contactError?.code);
   // A persistence failure must not encourage a duplicate send after Meta has already accepted it.
   return { ok: true, messageId, status: "accepted", historySaved: !historyError };

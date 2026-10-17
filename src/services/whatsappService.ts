@@ -175,27 +175,17 @@ export const syncWhatsAppContacts = async (): Promise<any[]> => {
     
     // Store the contacts in Supabase
     if (contacts.length > 0) {
-      // First delete all existing contacts
-      const { error: deleteError } = await supabase
-        .from('whatsapp_contacts')
-        .delete()
-        .not('id', 'is', null);
-      
-      if (deleteError) {
-        throw new Error(`Could not clear existing contacts: ${deleteError.message}`);
-      } else {
-        console.log("Successfully deleted existing contacts");
-      }
-      
-      // Then insert the fresh ones
+      // Upsert instead of replacing the table: contacts also carry server-managed state (the
+      // "Needs attention" flag and fallback cooldown) and chats that never came from WATI.
       const { error: insertError } = await supabase
         .from('whatsapp_contacts')
-        .insert(
+        .upsert(
           contacts.map((contact: any) => ({
             wati_id: contact.id || null, 
             phone_number: contact.phoneNumber || contact.phone_number,
             name: contact.name || null
-          }))
+          })),
+          { onConflict: 'phone_number' }
         );
       
       if (insertError) {
