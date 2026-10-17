@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { fakeSupabase, type Row } from "@/test/fake-supabase";
-import { respondToInbound } from "./whatsapp-fallback.server";
+import {
+  AutoReplyInProgressError,
+  respondToInbound,
+} from "./whatsapp-fallback.server";
 import { persistWhatsAppCallback } from "./whatsapp-webhook.server";
 
 const PHONE = "919766072308";
@@ -48,6 +51,7 @@ function setup() {
           will_reply: willReply,
           response_messages: willReply ? messages : null,
           delivered_count: 0,
+          created_at: clock.toISOString(),
           status: willReply ? "pending" : "completed",
         };
         fake.rows("whatsapp_auto_replies").push(row);
@@ -357,6 +361,12 @@ describe("WhatsApp fallback replies", () => {
     await expect(t.inbound({ text: "Hi" }, "wamid.retry")).rejects.toThrow(
       "gateway timeout",
     );
+    // A retry right away may overlap the first attempt, so it is deferred rather than sent twice.
+    await expect(t.inbound({ text: "Hi" }, "wamid.retry")).rejects.toThrow(
+      AutoReplyInProgressError,
+    );
+    expect(t.take()).toEqual([]);
+    t.advance(3);
     expect(await t.inbound({ text: "Hi" }, "wamid.retry")).toEqual({
       outcome: "resent",
       autoReply: null,
@@ -371,6 +381,7 @@ describe("WhatsApp fallback replies", () => {
       will_reply: true,
       status: "pending",
       delivered_count: 1,
+      created_at: "2026-10-17T09:00:00Z",
       response_messages: [
         { payload: { type: "text" }, content: "first" },
         { payload: { type: "text" }, content: "second" },

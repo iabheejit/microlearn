@@ -47,6 +47,11 @@ const FALLBACK_REASONS: Record<string, string> = {
   no_lessons: "Enrolled course has no lessons",
 };
 const HUMAN_REASON = "Learner asked for a person";
+// Longer than one attempt can spend sending (two messages, 30-second gateway timeout each).
+export const RESUME_AFTER_MS = 2 * 60 * 1000;
+
+/** A retry arrived while the first attempt may still be delivering; the callback should be retried later. */
+export class AutoReplyInProgressError extends Error {}
 
 export async function loadBotSettings(client: Client): Promise<BotSettings> {
   const { data, error } = await client
@@ -197,13 +202,22 @@ export async function respondToInbound(
   // A retried message whose automated reply was already decided is finished, never decided again.
   const { data: existing, error: existingError } = await client
     .from("whatsapp_auto_replies")
-    .select("id,status,response_messages,delivered_count")
+    .select("id,status,response_messages,delivered_count,created_at")
     .eq("provider_message_id", providerMessageId)
     .maybeSingle();
   if (existingError) throw existingError;
   if (existing?.status === "completed")
     return { outcome: "duplicate", autoReply: null };
   if (existing) {
+    // The first attempt may still be sending; resuming now could send the same message twice.
+    // Fail so the provider retries after that attempt has finished or been abandoned.
+    if (
+      now.getTime() - new Date(existing.created_at).getTime() <
+      RESUME_AFTER_MS
+    )
+      throw new AutoReplyInProgressError(
+        `Automated reply for ${providerMessageId} is still being delivered`,
+      );
     await deliverEvent(client, existing, phone, send, "whatsapp_auto_replies");
     return { outcome: "resent", autoReply: null };
   }
