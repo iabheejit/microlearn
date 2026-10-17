@@ -192,7 +192,8 @@ $$;
 
 -- Applies one flow step atomically: version check (or a new session), new state and outbox messages.
 -- p_session_id NULL starts a session from p_new_session {phone_number, flow_id, flow_version, is_test,
--- enrollment_id}; a start supersedes the phone's waiting sessions but never a handed-off one.
+-- enrollment_id}; a start supersedes the phone's waiting sessions and a handoff older than 24 hours,
+-- but never a current handoff.
 CREATE OR REPLACE FUNCTION public.apply_flow_step(
   p_event_id uuid,
   p_session_id uuid,
@@ -213,7 +214,8 @@ BEGIN
   IF v_session IS NULL THEN
     v_phone := p_new_session->>'phone_number';
     UPDATE public.whatsapp_flow_sessions SET status = 'expired', wait_until = NULL, state_version = state_version + 1
-    WHERE phone_number = v_phone AND status IN ('waiting_reply', 'waiting_delay');
+    WHERE phone_number = v_phone
+      AND (status IN ('waiting_reply', 'waiting_delay') OR (status = 'handed_off' AND updated_at < now() - interval '24 hours'));
     INSERT INTO public.whatsapp_flow_sessions (phone_number, flow_id, flow_version, is_test, enrollment_id, status, current_node_id, variables, wait_until, state_version)
     VALUES (
       v_phone,
