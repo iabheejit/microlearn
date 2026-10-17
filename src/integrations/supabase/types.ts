@@ -258,6 +258,11 @@ export type Database = {
           instructor: string | null
           is_published: boolean
           language: string | null
+          pacing_gap_days: number
+          pacing_mode: string
+          pacing_timezone: string
+          pacing_unlock_time: string
+          pause_reminder_hours: number
           price: number
           published_at: string | null
           status: Database["public"]["Enums"]["course_status"]
@@ -267,6 +272,8 @@ export type Database = {
           web_enrollment_mode: string
           whatsapp_completion_message: string | null
           whatsapp_lesson_intro: string | null
+          whatsapp_nudge_template_language: string | null
+          whatsapp_nudge_template_name: string | null
           whatsapp_welcome_template_key: string
         }
         Insert: {
@@ -279,6 +286,11 @@ export type Database = {
           instructor?: string | null
           is_published?: boolean
           language?: string | null
+          pacing_gap_days?: number
+          pacing_mode?: string
+          pacing_timezone?: string
+          pacing_unlock_time?: string
+          pause_reminder_hours?: number
           price?: number
           published_at?: string | null
           status?: Database["public"]["Enums"]["course_status"]
@@ -288,6 +300,8 @@ export type Database = {
           web_enrollment_mode?: string
           whatsapp_completion_message?: string | null
           whatsapp_lesson_intro?: string | null
+          whatsapp_nudge_template_language?: string | null
+          whatsapp_nudge_template_name?: string | null
           whatsapp_welcome_template_key?: string
         }
         Update: {
@@ -300,6 +314,11 @@ export type Database = {
           instructor?: string | null
           is_published?: boolean
           language?: string | null
+          pacing_gap_days?: number
+          pacing_mode?: string
+          pacing_timezone?: string
+          pacing_unlock_time?: string
+          pause_reminder_hours?: number
           price?: number
           published_at?: string | null
           status?: Database["public"]["Enums"]["course_status"]
@@ -309,6 +328,8 @@ export type Database = {
           web_enrollment_mode?: string
           whatsapp_completion_message?: string | null
           whatsapp_lesson_intro?: string | null
+          whatsapp_nudge_template_language?: string | null
+          whatsapp_nudge_template_name?: string | null
           whatsapp_welcome_template_key?: string
         }
         Relationships: []
@@ -572,11 +593,17 @@ export type Database = {
           course_id: string
           created_at: string
           current_resource_id: string | null
+          current_step: string
           enrolled_by: string | null
           enrolled_via: string
           id: string
+          next_unlock_at: string | null
+          nudge_sent_at: string | null
+          pause_reminder_sent_at: string | null
+          paused_at: string | null
           progress_percentage: number
           started_at: string
+          state_version: number
           status: string
           updated_at: string
           user_id: string
@@ -586,11 +613,17 @@ export type Database = {
           course_id: string
           created_at?: string
           current_resource_id?: string | null
+          current_step?: string
           enrolled_by?: string | null
           enrolled_via: string
           id?: string
+          next_unlock_at?: string | null
+          nudge_sent_at?: string | null
+          pause_reminder_sent_at?: string | null
+          paused_at?: string | null
           progress_percentage?: number
           started_at?: string
+          state_version?: number
           status?: string
           updated_at?: string
           user_id: string
@@ -600,11 +633,17 @@ export type Database = {
           course_id?: string
           created_at?: string
           current_resource_id?: string | null
+          current_step?: string
           enrolled_by?: string | null
           enrolled_via?: string
           id?: string
+          next_unlock_at?: string | null
+          nudge_sent_at?: string | null
+          pause_reminder_sent_at?: string | null
+          paused_at?: string | null
           progress_percentage?: number
           started_at?: string
+          state_version?: number
           status?: string
           updated_at?: string
           user_id?: string
@@ -706,11 +745,17 @@ export type Database = {
           created_at: string
           created_by: string | null
           current_resource_id: string | null
+          current_step: string
           id: string
           learner_name: string
+          next_unlock_at: string | null
+          nudge_sent_at: string | null
+          pause_reminder_sent_at: string | null
+          paused_at: string | null
           phone_number: string
           progress_percentage: number
           started_at: string
+          state_version: number
           status: string
           updated_at: string
           welcome_message_id: string | null
@@ -723,11 +768,17 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           current_resource_id?: string | null
+          current_step?: string
           id?: string
           learner_name: string
+          next_unlock_at?: string | null
+          nudge_sent_at?: string | null
+          pause_reminder_sent_at?: string | null
+          paused_at?: string | null
           phone_number: string
           progress_percentage?: number
           started_at?: string
+          state_version?: number
           status?: string
           updated_at?: string
           welcome_message_id?: string | null
@@ -740,11 +791,17 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           current_resource_id?: string | null
+          current_step?: string
           id?: string
           learner_name?: string
+          next_unlock_at?: string | null
+          nudge_sent_at?: string | null
+          pause_reminder_sent_at?: string | null
+          paused_at?: string | null
           phone_number?: string
           progress_percentage?: number
           started_at?: string
+          state_version?: number
           status?: string
           updated_at?: string
           welcome_message_id?: string | null
@@ -819,30 +876,36 @@ export type Database = {
         Row: {
           completed_at: string | null
           created_at: string
+          delivered_count: number
           enrollment_id: string
           id: string
           outcome: string | null
           provider_message_id: string
+          response_messages: Json | null
           response_text: string | null
           status: string
         }
         Insert: {
           completed_at?: string | null
           created_at?: string
+          delivered_count?: number
           enrollment_id: string
           id?: string
           outcome?: string | null
           provider_message_id: string
+          response_messages?: Json | null
           response_text?: string | null
           status?: string
         }
         Update: {
           completed_at?: string | null
           created_at?: string
+          delivered_count?: number
           enrollment_id?: string
           id?: string
           outcome?: string | null
           provider_message_id?: string
+          response_messages?: Json | null
           response_text?: string | null
           status?: string
         }
@@ -1182,6 +1245,16 @@ export type Database = {
         }
         Returns: Json
       }
+      apply_web_step: {
+        Args: {
+          p_attempt: Json
+          p_enrollment_id: string
+          p_expected_version: number
+          p_state: Json
+          p_user_id: string
+        }
+        Returns: Json
+      }
       apply_whatsapp_progression: {
         Args: {
           p_advance: boolean
@@ -1198,6 +1271,22 @@ export type Database = {
           p_submitted_answer: string
         }
         Returns: undefined
+      }
+      apply_whatsapp_step: {
+        Args: {
+          p_attempt: Json
+          p_enrollment_id: string
+          p_event_id: string
+          p_expected_version: number
+          p_messages: Json
+          p_outcome: string
+          p_state: Json
+        }
+        Returns: undefined
+      }
+      course_scheduler_secret_matches: {
+        Args: { p_secret: string }
+        Returns: boolean
       }
       find_auth_user_id_by_email: { Args: { p_email: string }; Returns: string }
       match_course_resources: {
