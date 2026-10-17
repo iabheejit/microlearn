@@ -1,6 +1,6 @@
 
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
-import { z } from 'npm:zod@3.23.8';
+import { z } from 'npm:zod';
 import { createServiceClient, requireStaff } from '../_shared/auth.ts';
 import { orderedLessons } from '../_shared/course-progression.ts';
 import { sendWhatsAppText } from '../_shared/whatsapp.ts';
