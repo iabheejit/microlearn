@@ -64,6 +64,13 @@
       "when": 1792200000001,
       "tag": "0008_whatsapp_fallback",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792213200000,
+      "tag": "0010_whatsapp_flows",
+      "breakpoints": true
     }
   ]
 }
