@@ -1,5 +1,5 @@
 import { verifyWebhookRequest, WebhookError } from 'npm:@lovable.dev/webhooks-js@0.0.2';
-import { z } from 'npm:zod@3.23.8';
+import { z } from 'npm:zod';
 import { createServiceClient } from '../_shared/auth.ts';
 import { jsonResponse } from '../_shared/responses.ts';
 import { progressFromReply, type ProgressionOutcome } from '../_shared/course-progression.ts';

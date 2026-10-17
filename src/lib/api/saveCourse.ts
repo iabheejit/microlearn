@@ -1,6 +1,7 @@
 
 import { Course } from "../types";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import { dbCourseToAppCourse, appCourseToDbFormat, checkAuth } from "./utils";
 
 const embedResource = async (resourceId: string, content: string) => {
@@ -18,7 +19,9 @@ export const saveCourse = async (course: Course): Promise<Course> => {
     const { courseData, days } = appCourseToDbFormat(course);
     
     // Add created_by field to courseData if it's a new course
-    const dataWithCreatedBy = {
+    // Validate required course fields against the deployed schema while retaining
+    // additive pacing fields in the payload until migration types regenerate.
+    const dataWithCreatedBy: TablesInsert<"courses"> = {
       ...courseData,
       created_by: user.id
     };
