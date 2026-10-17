@@ -2,7 +2,13 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { parseReplyTemplates, renderReplyTemplate } from "./whatsapp-template";
 import { isWhatsAppReplyWindowOpen } from "./whatsapp-reply-window";
 
-async function gateway(path: string, body?: unknown) {
+/** Rejected by WhatsApp; providerMessage is Meta's explanation, shown only to staff managing templates. */
+export class WhatsAppRequestError extends Error {
+  constructor(message: string, readonly providerMessage: string | null) { super(message); }
+}
+
+/** The one secured path to the WhatsApp gateway (sends, template lists and template submissions). */
+export async function whatsappGateway(path: string, body?: unknown) {
   const gatewayKey = process.env.LOVABLE_API_KEY;
   const connectionKey = process.env.WHATSAPP_API_KEY;
   if (!gatewayKey || !connectionKey) throw new Error("The WhatsApp connection is not configured.");
@@ -12,20 +18,21 @@ async function gateway(path: string, body?: unknown) {
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     signal: AbortSignal.timeout(30000),
   });
-  const payload = await response.json() as { data?: unknown[]; messages?: { id?: string }[]; error?: { code?: number; message?: string }; paging?: { cursors?: { after?: string }; next?: string } };
+  const payload = await response.json() as { id?: string; status?: string; category?: string; data?: unknown[]; messages?: { id?: string }[]; error?: { code?: number; message?: string; error_user_msg?: string }; paging?: { cursors?: { after?: string }; next?: string } };
   if (!response.ok || payload.error) {
     if (payload.error?.code === 131047) return { windowClosed: true as const, payload };
     console.error("WhatsApp gateway rejected request", response.status, payload.error?.code);
-    throw new Error("WhatsApp rejected the request. Check the approved template and recipient before trying again.");
+    throw new WhatsAppRequestError("WhatsApp rejected the request. Check the approved template and recipient before trying again.", payload.error?.error_user_msg || payload.error?.message || null);
   }
   return { windowClosed: false as const, payload };
 }
+const gateway = whatsappGateway;
 
 export async function approvedReplyTemplates(options: { allowQuickReplies?: boolean } = {}) {
   const templates = [];
   let after: string | undefined;
   for (let page = 0; page < 10; page++) {
-    const result = await gateway(`/message_templates?fields=id,name,status,language,components,parameter_format&limit=100${after ? `&after=${encodeURIComponent(after)}` : ""}`);
+    const result = await gateway(`/message_templates?fields=id,name,status,language,category,components,parameter_format&limit=100${after ? `&after=${encodeURIComponent(after)}` : ""}`);
     templates.push(...parseReplyTemplates(result.payload, options));
     after = result.payload.paging?.next ? result.payload.paging.cursors?.after : undefined;
     if (!after) break;

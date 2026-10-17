@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
       return json({ ok: true, state: 'recently_checked' });
     }
 
-    const templatesResponse = await gateway('/message_templates?fields=id,name,status,language,category,components,rejected_reason&limit=100');
+    const templatesResponse = await gateway('/message_templates?fields=id,name,status,language,category,correct_category,components,rejected_reason&limit=100');
     const templates = Array.isArray(templatesResponse.data) ? templatesResponse.data as Record<string, unknown>[] : [];
     const remote = templates.find((item) => item.name === version.provider_template_name);
     const reviewStatus = String(remote?.status || version.review_status).toUpperCase();
@@ -47,6 +47,8 @@ Deno.serve(async (req) => {
     const { error: updateVersionError } = await client.from('whatsapp_template_versions').update({
       review_status: reviewStatus, rejection_reason: rejectionReason, provider_template_id: remote?.id ? String(remote.id) : version.provider_template_id,
       provider_response: remote || version.provider_response, last_checked_at: checkedAt,
+      // Meta may approve or recategorize a UTILITY request as MARKETING; mirror its category.
+      ...(remote?.category ? { category: String(remote.category).toUpperCase(), correct_category: remote.correct_category ? String(remote.correct_category).toUpperCase() : null } : {}),
     }).eq('id', version.id);
     if (updateVersionError) throw updateVersionError;
     await client.from('whatsapp_template_events').insert({ template_version_id: version.id, event_type: 'approval_checked', status: reviewStatus, details: { checked_at: checkedAt } });
